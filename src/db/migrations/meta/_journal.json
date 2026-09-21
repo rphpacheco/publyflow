@@ -36,6 +36,13 @@
       "when": 1790015912625,
       "tag": "0004_add_conversations_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790016253663,
+      "tag": "0005_add_commercial_flow",
+      "breakpoints": true
     }
   ]
 }
