@@ -1,9 +1,12 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { InboxService } from "./inbox.service";
 import type { AIService } from "@/lib/ai/ai-service";
+import { conversations, messages } from "@/db/schema/conversations-messages";
+import { CommercialInquiriesRepository } from "@/repositories/commercial-inquiries.repository";
 
 function fakeAI(classification: Parameters<AIService["classifyMessage"]>[0] extends never ? never : any): AIService {
   return { classifyMessage: async () => classification };
@@ -95,5 +98,71 @@ describe("InboxService.ingestManualMessage", () => {
     });
 
     expect(result.inquiry).toBeNull();
+  });
+
+  it("rolls back the conversation and message if the inquiry insert fails", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner3@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    const creator = await CreatorService.onboardCreator(db, organization.id, {
+      email: "thais3@publyflow.test",
+      fullName: "Thais",
+      displayName: "Thais",
+    });
+
+    const ai = fakeAI({
+      category: "COMMERCIAL_LEAD",
+      commercialScore: 91,
+      intent: "Pedido de orçamento",
+      extracted: {
+        companyName: "Some Co",
+        brandName: null,
+        contactName: null,
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      },
+    });
+
+    // Simulate a failure partway through the transaction: the conversation
+    // and message inserts succeed, then the inquiry insert throws. This
+    // proves all three writes share one transaction — if they didn't, the
+    // conversation/message rows would remain committed despite the inquiry
+    // insert failing.
+    const insertSpy = vi
+      .spyOn(CommercialInquiriesRepository, "createFromClassificationWithTx")
+      .mockRejectedValue(new Error("simulated inquiry insert failure"));
+
+    try {
+      await expect(
+        InboxService.ingestManualMessage(db, ai, organization.id, {
+          creatorId: creator.id,
+          source: "INSTAGRAM",
+          externalContactLabel: "Someone",
+          body: "Gostaria de um orçamento para divulgação.",
+          receivedAt: new Date(),
+        }),
+      ).rejects.toThrow("simulated inquiry insert failure");
+    } finally {
+      insertSpy.mockRestore();
+    }
+
+    const remainingMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.organizationId, organization.id));
+    expect(remainingMessages).toHaveLength(0);
+
+    const remainingConversations = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.organizationId, organization.id));
+    expect(remainingConversations).toHaveLength(0);
   });
 });

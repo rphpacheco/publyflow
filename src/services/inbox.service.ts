@@ -11,6 +11,7 @@ import {
   CommercialInquiriesRepository,
   type CommercialInquiry,
 } from "@/repositories/commercial-inquiries.repository";
+import { runInTenantContext } from "@/repositories/tenant-context";
 
 const NON_COMMERCIAL_CATEGORIES = new Set(["FAN", "SPAM"]);
 
@@ -35,33 +36,45 @@ export const InboxService = {
     organizationId: string,
     input: IngestManualMessageInput,
   ): Promise<IngestManualMessageResult> {
-    const conversation = await ConversationsRepository.create(db, organizationId, {
-      creatorId: input.creatorId,
-      source: input.source,
-      externalContactLabel: input.externalContactLabel,
-    });
-
-    const message = await MessagesRepository.create(db, organizationId, {
-      conversationId: conversation.id,
-      body: input.body,
-      receivedAt: input.receivedAt,
-    });
-
+    // Classification is a network call, not a DB write — run it before
+    // opening the transaction below so we're never holding a Postgres
+    // transaction open across an external HTTP round trip. It only depends
+    // on `body`/`source` from the input, not on the conversation/message
+    // rows, so reordering it ahead of the inserts is safe.
     const classification = await ai.classifyMessage({
       body: input.body,
       source: input.source,
     });
 
-    if (NON_COMMERCIAL_CATEGORIES.has(classification.category)) {
-      return { message, classification, inquiry: null };
-    }
+    // Conversation + message + (conditionally) commercial inquiry must
+    // commit or roll back together: a message with no inquiry is fine (FAN/
+    // SPAM), but a message that exists only because an inquiry insert
+    // failed partway through would be orphaned state. So all three writes
+    // share this one transaction/tenant-context.
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const conversation = await ConversationsRepository.createWithTx(tx, organizationId, {
+        creatorId: input.creatorId,
+        source: input.source,
+        externalContactLabel: input.externalContactLabel,
+      });
 
-    const inquiry = await CommercialInquiriesRepository.createFromClassification(
-      db,
-      organizationId,
-      { creatorId: input.creatorId, messageId: message.id, classification },
-    );
+      const message = await MessagesRepository.createWithTx(tx, organizationId, {
+        conversationId: conversation.id,
+        body: input.body,
+        receivedAt: input.receivedAt,
+      });
 
-    return { message, classification, inquiry };
+      if (NON_COMMERCIAL_CATEGORIES.has(classification.category)) {
+        return { message, classification, inquiry: null };
+      }
+
+      const inquiry = await CommercialInquiriesRepository.createFromClassificationWithTx(
+        tx,
+        organizationId,
+        { creatorId: input.creatorId, messageId: message.id, classification },
+      );
+
+      return { message, classification, inquiry };
+    });
   },
 };
