@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { commercialInquiries } from "@/db/schema/commercial-flow";
@@ -53,5 +54,36 @@ export const CommercialInquiriesRepository = {
     input: CreateInquiryFromClassificationInput,
   ): Promise<CommercialInquiry> {
     return insertInquiry(tx, organizationId, input);
+  },
+
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+  ): Promise<CommercialInquiry | null> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const [row] = await tx.select().from(commercialInquiries).where(eq(commercialInquiries.id, inquiryId));
+      return row ?? null;
+    });
+  },
+
+  async updateStatus(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+    fields: Partial<{
+      status: CommercialInquiry["status"];
+      convertedLeadId: string | null;
+      linkedOpportunityId: string | null;
+    }>,
+  ): Promise<CommercialInquiry> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const [row] = await tx
+        .update(commercialInquiries)
+        .set(fields)
+        .where(eq(commercialInquiries.id, inquiryId))
+        .returning();
+      return row;
+    });
   },
 };
