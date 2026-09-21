@@ -29,6 +29,13 @@
       "when": 1790015743364,
       "tag": "0003_add_companies_brands_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790015912625,
+      "tag": "0004_add_conversations_messages",
+      "breakpoints": true
     }
   ]
 }

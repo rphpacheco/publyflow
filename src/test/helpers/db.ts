@@ -2,10 +2,12 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 
 const DOMAIN_TABLES = [
+  "messages",
   "contacts",
   "brands",
   "companies",
   "organization_members",
+  "conversations",
   "creators",
   "users",
   "organizations",
