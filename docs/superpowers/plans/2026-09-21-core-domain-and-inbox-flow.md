@@ -21,8 +21,12 @@ out of scope here and get their own plan later.
 - Every domain table carries `organization_id` with RLS enforced — no exceptions (spec §6).
 - Commission percentage is never hardcoded (spec §1) — out of scope for this plan but the
   schema conventions set here must not violate it later.
-- AI provider is OpenAI, called only through the `AIService` abstraction — no direct OpenAI
-  SDK calls outside `src/lib/ai/` (spec §5, Decisão #4).
+- AI classification is a composite of two providers behind the `AIService` abstraction:
+  **Jev** (typesafe.ai) for category + Commercial Score + intent, **OpenAI** for structured
+  field extraction — no direct Jev or OpenAI SDK calls outside `src/lib/ai/` (spec §5,
+  Decisão #4). Jev is a new, publicly unproven vendor used in the product's most critical
+  daily flow — the abstraction exists specifically so it can be swapped without touching
+  `InboxService`/`CommercialInquiryService`/domain code (spec §9, pendência #4).
 - AI classification/extraction never invents data — unknown fields are `null` (spec §5).
 - `Opportunity` requires `company_id` or `brand_id`; if both present, `brand.company_id`
   (when set) must equal `opportunity.company_id` (spec §6, Decisão #11).
@@ -76,8 +80,10 @@ publyflow/
       opportunity.service.ts         # createFromLead, findOpenOpportunityForParty
     lib/
       ai/
-        ai-service.ts                # AIService interface + factory
-        openai-provider.ts           # OpenAI-backed implementation
+        ai-service.ts                # AIService interface
+        jev-provider.ts              # Jev-backed intent classification + score
+        openai-provider.ts           # OpenAI-backed structured field extraction
+        composite-provider.ts        # Merges Jev + OpenAI into one AIService
         schemas.ts                   # Zod schemas for classify/extract output
     app/
       api/
@@ -130,6 +136,7 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENAI_API_KEY=
+JEV_API_KEY=
 EOF
 ```
 
@@ -1556,30 +1563,91 @@ git commit -m "feat: add commercial_inquiries/leads/opportunities schema"
 
 ---
 
-### Task 11: AIService abstraction + OpenAI-backed message classification
+### Task 11: AIService abstraction — Jev classification + OpenAI extraction, composed
 
 **Files:**
 - Create: `src/lib/ai/schemas.ts`
 - Create: `src/lib/ai/ai-service.ts`
+- Create: `src/lib/ai/jev-provider.ts`
 - Create: `src/lib/ai/openai-provider.ts`
+- Create: `src/lib/ai/composite-provider.ts`
+- Test: `src/lib/ai/jev-provider.test.ts`
 - Test: `src/lib/ai/openai-provider.test.ts`
+- Test: `src/lib/ai/composite-provider.test.ts`
 
 **Interfaces:**
 - Produces: `MessageClassification` Zod schema/type from `src/lib/ai/schemas.ts`:
   `{ category: "FAN"|"COMMERCIAL_LEAD"|"EXISTING_CLIENT"|"AGENCY"|"PRESS"|"PARTNERSHIP"|"SPAM"|"OTHER"; commercialScore: number; intent: string | null; extracted: { companyName: string|null; brandName: string|null; contactName: string|null; email: string|null; phone: string|null; budget: string|null; deliverables: string|null } }`.
+  Same shape as before — this is the contract every later task (12, 14, 15) already
+  depends on, unaffected by the two-provider split.
 - Produces: `AIService` interface from `src/lib/ai/ai-service.ts`:
-  `{ classifyMessage(input: { body: string; source: string }): Promise<MessageClassification> }`.
-- Produces: `createOpenAIService(apiKey: string): AIService` from
-  `src/lib/ai/openai-provider.ts` — the **only** file allowed to import the `openai`
-  package (Global Constraints).
+  `{ classifyMessage(input: { body: string; source: string }): Promise<MessageClassification> }`
+  — unchanged from before; only its implementation is now composite.
+- Produces: `IntentClassification` type and `createJevService(apiKey: string): { classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification> }` from
+  `src/lib/ai/jev-provider.ts`, where `IntentClassification = { category: MessageCategory; commercialScore: number; intent: string | null }`. The **only** file allowed to call the Jev API.
+- Produces: `ExtractedFields` type and `createOpenAIService(apiKey: string): { extractLeadData(input: ClassifyMessageInput): Promise<ExtractedFields> }` from
+  `src/lib/ai/openai-provider.ts`, where `ExtractedFields = MessageClassification["extracted"]`.
+  The **only** file allowed to import the `openai` package (Global Constraints).
+- Produces: `createCompositeAIService(deps: { jev: ReturnType<typeof createJevService>; openai: ReturnType<typeof createOpenAIService> }): AIService` from
+  `src/lib/ai/composite-provider.ts` — calls both providers (in parallel) and merges their
+  results into one `MessageClassification`. This is what everything downstream of Task 11
+  actually consumes as `AIService`.
 
-- [ ] **Step 1: Add dependency**
+- [ ] **Step 1: Add dependencies**
 
 ```bash
 pnpm add openai zod
 ```
 
-- [ ] **Step 2: Write the failing test**
+Jev has no official SDK — it is called via plain HTTP (`fetch`) against its REST API, per
+`docs.typesafe.ai`. No extra package needed for `jev-provider.ts`.
+
+- [ ] **Step 2: Write the failing tests**
+
+```typescript
+// src/lib/ai/jev-provider.test.ts
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { createJevService } from "./jev-provider";
+
+const originalFetch = global.fetch;
+afterEach(() => {
+  global.fetch = originalFetch;
+});
+
+describe("createJevService", () => {
+  it("classifies category, commercial score, and intent from a typed decision response", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        decision: "COMMERCIAL_LEAD",
+        confidence: 0.94,
+        metadata: { intent: "Pedido de mídia kit" },
+      }),
+    }) as unknown as typeof fetch;
+
+    const service = createJevService("test-key");
+
+    const result = await service.classifyIntent({
+      body: "Olá, gostaríamos de saber os valores para uma campanha.",
+      source: "INSTAGRAM",
+    });
+
+    expect(result.category).toBe("COMMERCIAL_LEAD");
+    expect(result.commercialScore).toBe(94);
+    expect(result.intent).toBe("Pedido de mídia kit");
+  });
+
+  it("throws when the Jev API responds with a non-ok status", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch;
+
+    const service = createJevService("test-key");
+
+    await expect(
+      service.classifyIntent({ body: "qualquer coisa", source: "INSTAGRAM" }),
+    ).rejects.toThrow("Jev classification failed");
+  });
+});
+```
 
 ```typescript
 // src/lib/ai/openai-provider.test.ts
@@ -1596,18 +1664,13 @@ vi.mock("openai", () => {
               {
                 message: {
                   content: JSON.stringify({
-                    category: "COMMERCIAL_LEAD",
-                    commercialScore: 94,
-                    intent: "Pedido de mídia kit",
-                    extracted: {
-                      companyName: "Bella Cosméticos",
-                      brandName: null,
-                      contactName: "Maria",
-                      email: null,
-                      phone: null,
-                      budget: null,
-                      deliverables: null,
-                    },
+                    companyName: "Bella Cosméticos",
+                    brandName: null,
+                    contactName: "Maria",
+                    email: null,
+                    phone: null,
+                    budget: null,
+                    deliverables: null,
                   }),
                 },
               },
@@ -1620,8 +1683,48 @@ vi.mock("openai", () => {
 });
 
 describe("createOpenAIService", () => {
-  it("classifies a commercial message and never invents unknown fields", async () => {
+  it("extracts structured fields and never invents unknown data", async () => {
     const service = createOpenAIService("test-key");
+
+    const result = await service.extractLeadData({
+      body: "Olá, gostaríamos de saber os valores para uma campanha.",
+      source: "INSTAGRAM",
+    });
+
+    expect(result.companyName).toBe("Bella Cosméticos");
+    expect(result.contactName).toBe("Maria");
+    expect(result.budget).toBeNull();
+  });
+});
+```
+
+```typescript
+// src/lib/ai/composite-provider.test.ts
+import { describe, it, expect } from "vitest";
+import { createCompositeAIService } from "./composite-provider";
+
+describe("createCompositeAIService", () => {
+  it("merges Jev's classification with OpenAI's extraction into one MessageClassification", async () => {
+    const jev = {
+      classifyIntent: async () => ({
+        category: "COMMERCIAL_LEAD" as const,
+        commercialScore: 94,
+        intent: "Pedido de mídia kit",
+      }),
+    };
+    const openai = {
+      extractLeadData: async () => ({
+        companyName: "Bella Cosméticos",
+        brandName: null,
+        contactName: "Maria",
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      }),
+    };
+
+    const service = createCompositeAIService({ jev, openai });
 
     const result = await service.classifyMessage({
       body: "Olá, gostaríamos de saber os valores para uma campanha.",
@@ -1630,16 +1733,16 @@ describe("createOpenAIService", () => {
 
     expect(result.category).toBe("COMMERCIAL_LEAD");
     expect(result.commercialScore).toBe(94);
+    expect(result.intent).toBe("Pedido de mídia kit");
     expect(result.extracted.companyName).toBe("Bella Cosméticos");
-    expect(result.extracted.budget).toBeNull();
   });
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [ ] **Step 3: Run tests to verify they fail**
 
-Run: `pnpm vitest run src/lib/ai/openai-provider.test.ts`
-Expected: FAIL — module doesn't exist.
+Run: `pnpm vitest run src/lib/ai/jev-provider.test.ts src/lib/ai/openai-provider.test.ts src/lib/ai/composite-provider.test.ts`
+Expected: FAIL — none of the three modules exist yet.
 
 - [ ] **Step 4: Implement `src/lib/ai/schemas.ts`**
 
@@ -1658,19 +1761,30 @@ export const messageCategoryEnum = z.enum([
   "OTHER",
 ]);
 
-export const messageClassificationSchema = z.object({
+export type MessageCategory = z.infer<typeof messageCategoryEnum>;
+
+export const extractedFieldsSchema = z.object({
+  companyName: z.string().nullable(),
+  brandName: z.string().nullable(),
+  contactName: z.string().nullable(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  budget: z.string().nullable(),
+  deliverables: z.string().nullable(),
+});
+
+export type ExtractedFields = z.infer<typeof extractedFieldsSchema>;
+
+export const intentClassificationSchema = z.object({
   category: messageCategoryEnum,
   commercialScore: z.number().min(0).max(100),
   intent: z.string().nullable(),
-  extracted: z.object({
-    companyName: z.string().nullable(),
-    brandName: z.string().nullable(),
-    contactName: z.string().nullable(),
-    email: z.string().nullable(),
-    phone: z.string().nullable(),
-    budget: z.string().nullable(),
-    deliverables: z.string().nullable(),
-  }),
+});
+
+export type IntentClassification = z.infer<typeof intentClassificationSchema>;
+
+export const messageClassificationSchema = intentClassificationSchema.extend({
+  extracted: extractedFieldsSchema,
 });
 
 export type MessageClassification = z.infer<typeof messageClassificationSchema>;
@@ -1692,29 +1806,85 @@ export interface AIService {
 }
 ```
 
-- [ ] **Step 6: Implement `src/lib/ai/openai-provider.ts`**
+- [ ] **Step 6: Implement `src/lib/ai/jev-provider.ts`**
+
+```typescript
+// src/lib/ai/jev-provider.ts
+import type { ClassifyMessageInput } from "./ai-service";
+import { intentClassificationSchema, type IntentClassification } from "./schemas";
+
+const JEV_API_URL = "https://api.typesafe.ai/v1/decisions";
+
+export interface JevService {
+  classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification>;
+}
+
+export function createJevService(apiKey: string): JevService {
+  return {
+    async classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification> {
+      const response = await fetch(JEV_API_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          task: "message-intent-classification",
+          categories: [
+            "FAN",
+            "COMMERCIAL_LEAD",
+            "EXISTING_CLIENT",
+            "AGENCY",
+            "PRESS",
+            "PARTNERSHIP",
+            "SPAM",
+            "OTHER",
+          ],
+          input: `Origem: ${input.source}\nMensagem: ${input.body}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Jev classification failed with status ${response.status}`);
+      }
+
+      const payload = await response.json();
+      return intentClassificationSchema.parse({
+        category: payload.decision,
+        commercialScore: Math.round(payload.confidence * 100),
+        intent: payload.metadata?.intent ?? null,
+      });
+    },
+  };
+}
+```
+
+- [ ] **Step 7: Implement `src/lib/ai/openai-provider.ts`**
 
 ```typescript
 // src/lib/ai/openai-provider.ts
 import OpenAI from "openai";
-import type { AIService, ClassifyMessageInput } from "./ai-service";
-import { messageClassificationSchema, type MessageClassification } from "./schemas";
+import type { ClassifyMessageInput } from "./ai-service";
+import { extractedFieldsSchema, type ExtractedFields } from "./schemas";
 
-const CLASSIFICATION_PROMPT = `Você é um classificador de mensagens comerciais para uma
-plataforma de gestão de creators. Analise a mensagem recebida e retorne APENAS um JSON
-válido no formato especificado. Nunca invente informações que não estão no texto — quando
-um dado não estiver disponível, use null.`;
+const EXTRACTION_PROMPT = `Você extrai dados estruturados de mensagens comerciais recebidas
+por uma creator. Retorne APENAS um JSON válido no formato especificado. Nunca invente
+informações que não estão no texto — quando um dado não estiver disponível, use null.`;
 
-export function createOpenAIService(apiKey: string): AIService {
+export interface OpenAIExtractionService {
+  extractLeadData(input: ClassifyMessageInput): Promise<ExtractedFields>;
+}
+
+export function createOpenAIService(apiKey: string): OpenAIExtractionService {
   const client = new OpenAI({ apiKey });
 
   return {
-    async classifyMessage(input: ClassifyMessageInput): Promise<MessageClassification> {
+    async extractLeadData(input: ClassifyMessageInput): Promise<ExtractedFields> {
       const response = await client.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: CLASSIFICATION_PROMPT },
+          { role: "system", content: EXTRACTION_PROMPT },
           {
             role: "user",
             content: `Origem: ${input.source}\nMensagem: ${input.body}`,
@@ -1723,23 +1893,55 @@ export function createOpenAIService(apiKey: string): AIService {
       });
 
       const raw = response.choices[0]?.message?.content ?? "{}";
-      const parsed = JSON.parse(raw);
-      return messageClassificationSchema.parse(parsed);
+      return extractedFieldsSchema.parse(JSON.parse(raw));
     },
   };
 }
 ```
 
-- [ ] **Step 7: Run test to verify it passes**
+- [ ] **Step 8: Implement `src/lib/ai/composite-provider.ts`**
 
-Run: `pnpm vitest run src/lib/ai/openai-provider.test.ts`
-Expected: PASS
+```typescript
+// src/lib/ai/composite-provider.ts
+import type { AIService, ClassifyMessageInput } from "./ai-service";
+import type { JevService } from "./jev-provider";
+import type { OpenAIExtractionService } from "./openai-provider";
+import { messageClassificationSchema, type MessageClassification } from "./schemas";
 
-- [ ] **Step 8: Commit**
+export interface CompositeAIServiceDeps {
+  jev: Pick<JevService, "classifyIntent">;
+  openai: Pick<OpenAIExtractionService, "extractLeadData">;
+}
+
+export function createCompositeAIService(deps: CompositeAIServiceDeps): AIService {
+  return {
+    async classifyMessage(input: ClassifyMessageInput): Promise<MessageClassification> {
+      const [intent, extracted] = await Promise.all([
+        deps.jev.classifyIntent(input),
+        deps.openai.extractLeadData(input),
+      ]);
+
+      return messageClassificationSchema.parse({
+        category: intent.category,
+        commercialScore: intent.commercialScore,
+        intent: intent.intent,
+        extracted,
+      });
+    },
+  };
+}
+```
+
+- [ ] **Step 9: Run tests to verify they pass**
+
+Run: `pnpm vitest run src/lib/ai/jev-provider.test.ts src/lib/ai/openai-provider.test.ts src/lib/ai/composite-provider.test.ts`
+Expected: PASS (all tests across the three files)
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git add src/lib/ai package.json pnpm-lock.yaml
-git commit -m "feat: add AIService abstraction with OpenAI-backed message classification"
+git commit -m "feat: add AIService with Jev-based classification and OpenAI-based extraction"
 ```
 
 ---
@@ -3116,9 +3318,14 @@ export const db = getDb(process.env.DATABASE_URL!);
 
 ```typescript
 // src/lib/ai/index.ts
+import { createJevService } from "./jev-provider";
 import { createOpenAIService } from "./openai-provider";
+import { createCompositeAIService } from "./composite-provider";
 
-export const ai = createOpenAIService(process.env.OPENAI_API_KEY!);
+export const ai = createCompositeAIService({
+  jev: createJevService(process.env.JEV_API_KEY!),
+  openai: createOpenAIService(process.env.OPENAI_API_KEY!),
+});
 ```
 
 - [ ] **Step 4: Implement the route handlers**
@@ -3237,9 +3444,10 @@ git commit -m "feat: expose Inbox and Commercial Inquiry flow as API routes"
 - §4 Riscos externos — informs Task 9's decision to make `messages.enteredManually` default
   `true` and `conversations.source` an enum without a live-API adapter; no further code
   needed at this plan's scope.
-- §5 Arquitetura — AIService/OpenAI in Task 11, tenant context/RLS in Tasks 5–6, event bus
-  explicitly deferred (not needed until a second consumer of `commercial_inquiry.created`
-  exists — noted as a gap below).
+- §5 Arquitetura — AIService as a Jev (classification+score) + OpenAI (extraction)
+  composite in Task 11, tenant context/RLS in Tasks 5–6, event bus explicitly deferred (not
+  needed until a second consumer of `commercial_inquiry.created` exists — noted as a gap
+  below).
 - §6 Modelo de dados — all listed tables for this plan's scope are created (Tasks 3, 4, 8,
   9, 10). `rate_cards`, `proposals`, `campaigns`, `payments`, `commissions`, `media_kits`,
   `analytics_*` are correctly deferred to the next plan.
@@ -3271,6 +3479,12 @@ fixed inline in Step 6's note to pass a `companyId`.
    `InboxService` and `CommercialInquiryService` call each other directly, which is
    simpler and equally correct for a single consumer (YAGNI, per Global Constraints and
    spec §44).
+4. Jev vendor risk (spec §9, pendência #4) is a consciously accepted risk, not a gap — but
+   it should be watched once real traffic starts: Task 11's `jev-provider.ts` throws a
+   clear error on non-ok responses so failures are visible rather than silently swallowed;
+   wiring that into `notifications`/`audit_logs` (so the assessora sees "classificação
+   falhou, tente novamente") is a follow-up for the observability work, not required for
+   this plan's tasks to be correct.
 
 **Type consistency:** verified `Lead`, `Opportunity`, `CommercialInquiry`,
 `MessageClassification` types are inferred once (via `$inferSelect`/`z.infer`) and reused
