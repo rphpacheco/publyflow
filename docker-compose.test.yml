@@ -9,3 +9,5 @@ services:
       - "54329:5432"
     tmpfs:
       - /var/lib/postgresql/data
+    volumes:
+      - ./docker/test-db-init:/docker-entrypoint-initdb.d:ro

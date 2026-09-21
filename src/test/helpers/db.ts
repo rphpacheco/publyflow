@@ -8,6 +8,16 @@ const DOMAIN_TABLES = [
   "organizations",
 ] as const;
 
+// Connects as `app_user`: a non-superuser, non-owner, non-BYPASSRLS role
+// (see docker/test-db-init/01-app-user.sql). Unlike the `postgres`
+// superuser `withTestDb()` uses for general setup/seeding, RLS policies
+// are actually enforced for this role, so it's what tests that need to
+// prove tenant isolation (e.g. src/db/rls-core.test.ts) should query
+// through, once any setup rows they depend on already exist.
+export function getAppUserDb() {
+  return getDb(process.env.TEST_APP_DATABASE_URL!);
+}
+
 export async function withTestDb() {
   const db = getDb(process.env.TEST_DATABASE_URL!);
 
