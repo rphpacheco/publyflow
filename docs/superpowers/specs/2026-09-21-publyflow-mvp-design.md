@@ -1,6 +1,6 @@
 # PublyFlow — MVP Design Spec
 
-Status: Approved for planning (v2 — revisão de domínio incorporada 2026-09-21)
+Status: Aprovada para o `writing-plans` (v3 — regras de domínio fechadas 2026-09-21)
 Owner: Raphael Pacheco
 
 ## 1. Visão do Produto
@@ -34,8 +34,19 @@ oportunidades, não a preenchimento de formulários administrativos.
 | 8 | Preços versionados | `rate_cards`/`rate_card_items` como fonte de preço; `proposal_items` copia o preço no momento da criação (histórico imutável) |
 | 9 | Analytics multi-fonte | `analytics_sources` abstrai origem do dado (MANUAL/INSTAGRAM/TIKTOK/YOUTUBE); domínio agnóstico à origem |
 | 10 | Media Kit | Web-first (página pública dinâmica); PDF é export gerado a partir da mesma página, não um documento paralelo mantido manualmente |
+| 11 | Regra de Opportunity | Exige `company_id` ou `brand_id`; se ambos presentes, `brand.company_id` deve ser compatível com `opportunity.company_id` |
+| 12 | Cliente existente | Não gera Opportunity nova automaticamente — associa à Opportunity aberta existente quando houver; só cria Lead auto-qualificado + nova Opportunity quando não há negociação em curso |
 
 ## 3. Fluxo de Domínio (revisado)
+
+**Definições formais:**
+
+- **Commercial Inquiry** — intenção comercial detectada numa mensagem, ainda sem dados
+  suficientes para qualificação (pode não saber empresa, orçamento, campanha).
+- **Lead** — entrada comercial qualificada: já resolvida a um Contact e, quando aplicável,
+  a uma Company/Brand.
+- **Opportunity** — negociação concreta em andamento, com valor, pipeline e (quando
+  existir) rate card de referência.
 
 Fluxo conceitual completo:
 
@@ -57,12 +68,15 @@ Message
 
 - **Fã**: `Message → AI Classification (FAN) → encerrado`. Não gera Commercial Inquiry.
 - **Falso positivo / descartada**: `Message → AI Classification (COMMERCIAL_LEAD, baixa confiança ou revisão manual) → Commercial Inquiry → status DISCARDED/FALSE_POSITIVE (terminal)`.
-- **Cliente existente**: `Message → AI Classification → Commercial Inquiry → contato resolvido para Company/Contact já existente → Lead auto-qualificado → nova Opportunity`. O Lead ainda é criado (mantém o pipeline consistente para relatórios), mas é auto-qualificado instantaneamente — sem fricção extra para a assessora.
+- **Cliente existente**: `Message → AI Classification → Commercial Inquiry → contato resolvido para Company/Contact já existente`. **Cliente existente não implica automaticamente nova Opportunity.** O sistema deve primeiro verificar se há uma Opportunity aberta/relevante para esse Contact/Company/Brand:
+  - Se houver, a Commercial Inquiry é **associada a essa Opportunity existente** (evita duplicação — ex.: a mesma marca manda uma segunda mensagem durante uma negociação já em curso).
+  - Se não houver, a intenção comercial é resolvida → Lead auto-qualificado (criado e qualificado instantaneamente, sem fricção extra para a assessora, pois Contact/Company já são conhecidos) → nova Opportunity.
 - **Fluxo completo**: `Message → Commercial Inquiry → Lead → Opportunity → Proposal (preços copiados de Rate Card) → Campaign → Payment → Commission`.
 
 Uma `Commercial Inquiry` pode, a qualquer momento: ser descartada, ser marcada falso
 positivo, ser convertida em Lead, ou ser associada a um Lead/Opportunity já existente
-(evita duplicar quando a mesma marca manda mais de uma mensagem).
+(evita duplicar quando a mesma marca manda mais de uma mensagem — regra aplicada tanto a
+clientes novos quanto existentes).
 
 ## 4. Riscos Externos (Instagram / WhatsApp / TikTok)
 
@@ -146,9 +160,13 @@ login próprio).
   `linked_opportunity_id` nullable (associação a registro existente)
 - `leads` — `inquiry_id` nullable (pode nascer de uma inquiry ou ser criado manualmente),
   `contact_id`, `company_id` nullable, `brand_id` nullable
-- `opportunities` — `lead_id`, `company_id` nullable, `brand_id` nullable (regra de
-  domínio: ao menos um dos dois deve estar presente), `rate_card_id` nullable (tabela de
-  referência usada)
+- `opportunities` — `lead_id`, `company_id` nullable, `brand_id` nullable, `rate_card_id`
+  nullable (tabela de referência usada). Regras de domínio (validadas na camada de
+  `services`, não apenas no banco — ver §9):
+  1. Ao menos um entre `company_id`/`brand_id` deve estar presente.
+  2. Se ambos estiverem presentes, `brand.company_id` (quando não-nulo) deve ser igual a
+     `opportunity.company_id` — não é permitido associar uma marca a uma empresa
+     diferente da sua própria holding/dona na mesma oportunidade.
 - `opportunity_stage_history`
 
 ### Tarefas
@@ -245,9 +263,6 @@ existir, então a fricção aqui tem custo direto no dia a dia da assessora.
 2. Política de retenção de dados pessoais (LGPD) — definir na fase de Auth/Organizations.
 3. OCR para import de prints — melhoria futura sobre o fluxo manual (texto colado é
    suficiente no P0).
-4. Regra de negócio "Opportunity precisa de company_id OU brand_id" — validar na camada de
-   domínio (services), não apenas como constraint de banco, para permitir mensagens de
-   erro claras na UI.
 
 ## 10. Próximo Passo
 
