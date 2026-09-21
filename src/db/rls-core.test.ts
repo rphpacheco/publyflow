@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { sql } from "drizzle-orm";
 import { withTestDb, getAppUserDb } from "@/test/helpers/db";
-import { organizations, users, organizationMembers } from "./schema/organizations";
+import { organizations, users } from "./schema/organizations";
 import { creators } from "./schema/creators";
 
 describe("RLS on core tables", () => {
