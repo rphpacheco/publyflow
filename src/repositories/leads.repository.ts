@@ -15,6 +15,32 @@ export interface CreateLeadInput {
   qualified: boolean;
 }
 
+// Shared insert logic — see conversations.repository.ts for the pattern.
+// `create` opens its own transaction; `createWithTx` lets a caller fold
+// this insert into a larger, caller-owned transaction (e.g.
+// CommercialInquiryService.resolve, which needs the Lead insert to commit
+// or roll back together with the Opportunity insert and the inquiry status
+// update).
+async function insertLead(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  input: CreateLeadInput,
+): Promise<Lead> {
+  const [lead] = await tx
+    .insert(leads)
+    .values({
+      organizationId,
+      creatorId: input.creatorId,
+      inquiryId: input.inquiryId,
+      contactId: input.contactId,
+      companyId: input.companyId,
+      brandId: input.brandId,
+      qualified: input.qualified,
+    })
+    .returning();
+  return lead;
+}
+
 export const LeadsRepository = {
   async findById(
     db: NodePgDatabase<typeof schema>,
@@ -32,20 +58,14 @@ export const LeadsRepository = {
     organizationId: string,
     input: CreateLeadInput,
   ): Promise<Lead> {
-    return runInTenantContext(db, organizationId, async (tx) => {
-      const [lead] = await tx
-        .insert(leads)
-        .values({
-          organizationId,
-          creatorId: input.creatorId,
-          inquiryId: input.inquiryId,
-          contactId: input.contactId,
-          companyId: input.companyId,
-          brandId: input.brandId,
-          qualified: input.qualified,
-        })
-        .returning();
-      return lead;
-    });
+    return runInTenantContext(db, organizationId, (tx) => insertLead(tx, organizationId, input));
+  },
+
+  async createWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    input: CreateLeadInput,
+  ): Promise<Lead> {
+    return insertLead(tx, organizationId, input);
   },
 };

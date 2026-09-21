@@ -7,6 +7,7 @@ import {
 import { ContactsRepository, type Contact } from "@/repositories/contacts.repository";
 import { LeadsRepository, type Lead } from "@/repositories/leads.repository";
 import { OpportunityService } from "./opportunity.service";
+import { runInTenantContext } from "@/repositories/tenant-context";
 import type { Opportunity } from "@/repositories/opportunities.repository";
 
 export interface ResolveContactByName {
@@ -27,18 +28,18 @@ export interface ResolveInquiryResult {
   opportunity: Opportunity;
 }
 
-async function resolveContact(
-  db: NodePgDatabase<typeof schema>,
+async function resolveContactWithTx(
+  tx: NodePgDatabase<typeof schema>,
   organizationId: string,
   input: ResolveInquiryInput,
 ): Promise<{ contact: Contact; isNew: boolean }> {
   if ("id" in input.contact) {
-    const contact = await ContactsRepository.findById(db, organizationId, input.contact.id);
+    const contact = await ContactsRepository.findByIdWithTx(tx, organizationId, input.contact.id);
     if (!contact) throw new Error(`Contact ${input.contact.id} not found`);
     return { contact, isNew: false };
   }
 
-  const contact = await ContactsRepository.create(db, organizationId, {
+  const contact = await ContactsRepository.createWithTx(tx, organizationId, {
     fullName: input.contact.fullName,
     email: input.contact.email ?? null,
     phone: input.contact.phone ?? null,
@@ -76,6 +77,14 @@ export const CommercialInquiryService = {
     });
   },
 
+  // Everything below — contact resolution, the Lead insert, the
+  // Opportunity insert (or the "associate to existing Opportunity" branch),
+  // and the final inquiry status update — shares one transaction via
+  // runInTenantContext. A failure partway through (e.g.
+  // OpportunityService.createFromLeadWithTx throwing
+  // InvalidOpportunityPartyError after the Lead insert already ran) rolls
+  // back everything written so far instead of leaving an orphaned Lead with
+  // the inquiry stuck at its pre-resolve status.
   async resolve(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
@@ -85,59 +94,61 @@ export const CommercialInquiryService = {
     const inquiry = await CommercialInquiriesRepository.findById(db, organizationId, inquiryId);
     if (!inquiry) throw new Error(`Commercial inquiry ${inquiryId} not found`);
 
-    const { contact, isNew } = await resolveContact(db, organizationId, input);
-    const companyId = input.companyId ?? null;
-    const brandId = input.brandId ?? null;
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const { contact, isNew } = await resolveContactWithTx(tx, organizationId, input);
+      const companyId = input.companyId ?? null;
+      const brandId = input.brandId ?? null;
 
-    const existingOpportunity = await OpportunityService.findOpenOpportunityForParty(
-      db,
-      organizationId,
-      { contactId: contact.id, companyId: companyId ?? undefined, brandId: brandId ?? undefined },
-    );
+      const existingOpportunity = await OpportunityService.findOpenOpportunityForPartyWithTx(
+        tx,
+        organizationId,
+        { contactId: contact.id, companyId: companyId ?? undefined, brandId: brandId ?? undefined },
+      );
 
-    if (existingOpportunity) {
-      const lead = await LeadsRepository.create(db, organizationId, {
+      if (existingOpportunity) {
+        const lead = await LeadsRepository.createWithTx(tx, organizationId, {
+          creatorId: inquiry.creatorId,
+          inquiryId,
+          contactId: contact.id,
+          companyId,
+          brandId,
+          qualified: true,
+        });
+
+        const updatedInquiry = await CommercialInquiriesRepository.updateStatusWithTx(
+          tx,
+          organizationId,
+          inquiryId,
+          { status: "CONVERTED", linkedOpportunityId: existingOpportunity.id },
+        );
+
+        return { inquiry: updatedInquiry, lead, opportunity: existingOpportunity };
+      }
+
+      const lead = await LeadsRepository.createWithTx(tx, organizationId, {
         creatorId: inquiry.creatorId,
         inquiryId,
         contactId: contact.id,
         companyId,
         brandId,
-        qualified: true,
+        qualified: !isNew || Boolean(companyId || brandId),
       });
 
-      const updatedInquiry = await CommercialInquiriesRepository.updateStatus(
-        db,
+      const opportunity = await OpportunityService.createFromLeadWithTx(tx, organizationId, {
+        leadId: lead.id,
+        creatorId: inquiry.creatorId,
+        companyId,
+        brandId,
+      });
+
+      const updatedInquiry = await CommercialInquiriesRepository.updateStatusWithTx(
+        tx,
         organizationId,
         inquiryId,
-        { status: "CONVERTED", linkedOpportunityId: existingOpportunity.id },
+        { status: "CONVERTED", convertedLeadId: lead.id },
       );
 
-      return { inquiry: updatedInquiry, lead, opportunity: existingOpportunity };
-    }
-
-    const lead = await LeadsRepository.create(db, organizationId, {
-      creatorId: inquiry.creatorId,
-      inquiryId,
-      contactId: contact.id,
-      companyId,
-      brandId,
-      qualified: !isNew || Boolean(companyId || brandId),
+      return { inquiry: updatedInquiry, lead, opportunity };
     });
-
-    const opportunity = await OpportunityService.createFromLead(db, organizationId, {
-      leadId: lead.id,
-      creatorId: inquiry.creatorId,
-      companyId,
-      brandId,
-    });
-
-    const updatedInquiry = await CommercialInquiriesRepository.updateStatus(
-      db,
-      organizationId,
-      inquiryId,
-      { status: "CONVERTED", convertedLeadId: lead.id },
-    );
-
-    return { inquiry: updatedInquiry, lead, opportunity };
   },
 };

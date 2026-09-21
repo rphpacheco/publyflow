@@ -39,6 +39,30 @@ async function insertInquiry(
   return inquiry;
 }
 
+export type UpdateInquiryStatusFields = Partial<{
+  status: CommercialInquiry["status"];
+  convertedLeadId: string | null;
+  linkedOpportunityId: string | null;
+}>;
+
+// Same split-out pattern as insertInquiry above: `updateStatus` opens its
+// own transaction, `updateStatusWithTx` lets a caller (e.g.
+// CommercialInquiryService.resolve) fold this update into a larger,
+// caller-owned transaction so it commits or rolls back with the sibling
+// Lead/Opportunity writes.
+async function applyStatusUpdate(
+  tx: NodePgDatabase<typeof schema>,
+  inquiryId: string,
+  fields: UpdateInquiryStatusFields,
+): Promise<CommercialInquiry> {
+  const [row] = await tx
+    .update(commercialInquiries)
+    .set(fields)
+    .where(eq(commercialInquiries.id, inquiryId))
+    .returning();
+  return row;
+}
+
 export const CommercialInquiriesRepository = {
   async createFromClassification(
     db: NodePgDatabase<typeof schema>,
@@ -67,23 +91,30 @@ export const CommercialInquiriesRepository = {
     });
   },
 
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    _organizationId: string,
+    inquiryId: string,
+  ): Promise<CommercialInquiry | null> {
+    const [row] = await tx.select().from(commercialInquiries).where(eq(commercialInquiries.id, inquiryId));
+    return row ?? null;
+  },
+
   async updateStatus(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     inquiryId: string,
-    fields: Partial<{
-      status: CommercialInquiry["status"];
-      convertedLeadId: string | null;
-      linkedOpportunityId: string | null;
-    }>,
+    fields: UpdateInquiryStatusFields,
   ): Promise<CommercialInquiry> {
-    return runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx
-        .update(commercialInquiries)
-        .set(fields)
-        .where(eq(commercialInquiries.id, inquiryId))
-        .returning();
-      return row;
-    });
+    return runInTenantContext(db, organizationId, (tx) => applyStatusUpdate(tx, inquiryId, fields));
+  },
+
+  async updateStatusWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    _organizationId: string,
+    inquiryId: string,
+    fields: UpdateInquiryStatusFields,
+  ): Promise<CommercialInquiry> {
+    return applyStatusUpdate(tx, inquiryId, fields);
   },
 };

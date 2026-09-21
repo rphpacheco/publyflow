@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
@@ -7,6 +8,7 @@ import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
 import { companies } from "@/db/schema/companies-brands-contacts";
+import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 
 function fakeAI(classification: any): AIService {
@@ -168,5 +170,56 @@ describe("CommercialInquiryService", () => {
       companyId: company.id,
     });
     expect(allOpen?.id).toBe(firstResolution.opportunity.id);
+  });
+
+  it("rolls back the Lead insert if the Opportunity create fails, leaving the inquiry unresolved", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setupOrgAndCreator(db);
+
+    const ai = fakeAI({
+      category: "COMMERCIAL_LEAD",
+      commercialScore: 88,
+      intent: "Pedido de orçamento",
+      extracted: {
+        companyName: null,
+        brandName: null,
+        contactName: "Carlos",
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      },
+    });
+
+    const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "Carlos",
+      body: "Quanto custa uma publi?",
+      receivedAt: new Date(),
+    });
+
+    // No companyId/brandId is passed, so OpportunityService.createFromLeadWithTx's
+    // party validation (Task 13's InvalidOpportunityPartyError) fails — but only
+    // *after* the Lead insert already ran inside resolve()'s shared transaction.
+    // This proves the Lead insert, the (failed) Opportunity insert, and the
+    // inquiry status update all share one transaction: if they didn't, the Lead
+    // row would remain committed despite resolve() rejecting.
+    await expect(
+      CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+        contact: { fullName: "Carlos" },
+      }),
+    ).rejects.toThrow(/company_id or brand_id/);
+
+    const remainingLeads = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.organizationId, organization.id));
+    expect(remainingLeads).toHaveLength(0);
+
+    const untouchedInquiry = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
+    expect(untouchedInquiry?.status).toBe("NEW");
+    expect(untouchedInquiry?.convertedLeadId).toBeNull();
   });
 });

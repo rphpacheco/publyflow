@@ -17,9 +17,13 @@ export interface CreateOpportunityFromLeadInput {
   brandId: string | null;
 }
 
-async function assertValidParty(
-  db: NodePgDatabase<typeof schema>,
-  organizationId: string,
+// Split out so `createFromLead` (opens its own transaction for the brand
+// lookup) and `createFromLeadWithTx` (runs the same check against a
+// caller-supplied transaction, so it can participate in a larger atomic
+// flow like CommercialInquiryService.resolve) share one validation
+// implementation instead of duplicating it.
+async function checkValidParty(
+  tx: NodePgDatabase<typeof schema>,
   input: CreateOpportunityFromLeadInput,
 ): Promise<void> {
   if (!input.companyId && !input.brandId) {
@@ -29,10 +33,7 @@ async function assertValidParty(
   }
 
   if (input.companyId && input.brandId) {
-    const brand = await runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx.select().from(brands).where(eq(brands.id, input.brandId!));
-      return row ?? null;
-    });
+    const [brand] = await tx.select().from(brands).where(eq(brands.id, input.brandId));
 
     if (brand?.companyId && brand.companyId !== input.companyId) {
       throw new InvalidOpportunityPartyError(
@@ -48,9 +49,30 @@ export const OpportunityService = {
     organizationId: string,
     input: CreateOpportunityFromLeadInput,
   ): Promise<Opportunity> {
-    await assertValidParty(db, organizationId, input);
+    await runInTenantContext(db, organizationId, (tx) => checkValidParty(tx, input));
 
     return OpportunitiesRepository.create(db, organizationId, {
+      creatorId: input.creatorId,
+      leadId: input.leadId,
+      companyId: input.companyId,
+      brandId: input.brandId,
+    });
+  },
+
+  // Same as `createFromLead`, but against a transaction the caller already
+  // opened (and already set `app.current_org_id` on). Use this when the
+  // Opportunity insert must be atomic with other writes — e.g.
+  // CommercialInquiryService.resolve, where the Lead insert, the
+  // Opportunity insert, and the inquiry status update all need to commit
+  // or roll back together.
+  async createFromLeadWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    input: CreateOpportunityFromLeadInput,
+  ): Promise<Opportunity> {
+    await checkValidParty(tx, input);
+
+    return OpportunitiesRepository.createWithTx(tx, organizationId, {
       creatorId: input.creatorId,
       leadId: input.leadId,
       companyId: input.companyId,
@@ -64,5 +86,13 @@ export const OpportunityService = {
     party: FindOpenForPartyInput,
   ): Promise<Opportunity | null> {
     return OpportunitiesRepository.findOpenForParty(db, organizationId, party);
+  },
+
+  async findOpenOpportunityForPartyWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    party: FindOpenForPartyInput,
+  ): Promise<Opportunity | null> {
+    return OpportunitiesRepository.findOpenForPartyWithTx(tx, organizationId, party);
   },
 };
