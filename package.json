@@ -17,9 +17,8 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@rolldown/binding-darwin-arm64": "1.2.9",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^22.20.4",
+    "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
