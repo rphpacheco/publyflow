@@ -27,7 +27,7 @@ oportunidades, não a preenchimento de formulários administrativos.
 | 1 | Modelo Creator ↔ User | Creator sempre tem conta de login própria desde o MVP |
 | 2 | Fonte do Inbox no MVP | Manual/Import como fonte real de conversas. Integração ao vivo (Instagram/WhatsApp/TikTok) é pendência principal de arquitetura (§8), adapters já desenhados para plugar sem retrabalho |
 | 3 | Backend | Next.js 16 monólito modular (Route Handlers), camadas `domain/` → `services/` → `repositories/` → `app/api/` |
-| 4 | AI Provider | OpenAI como provider padrão, atrás de interface `AIService` abstrata |
+| 4 | AI Provider | Multi-provider atrás da interface `AIService` abstrata: **Jev** (typesafe.ai — decisões tipadas com probabilidade calibrada) para classificação de categoria e Commercial Score; **OpenAI** para extração de campos estruturados (empresa, contato, orçamento, etc.), que exige geração de texto livre, não decisão tipada. Risco aceito conscientemente: Jev é fornecedor novo/pouco validado publicamente, usado num fluxo crítico de uso diário — mitigar mantendo o `AIService` como fachada única, de forma que trocar/remover o provider de classificação não exija tocar no domínio (ver §5) |
 | 5 | Repositório | `/Users/raphaelpacheco/workspaces/saas/publyflow` |
 | 6 | Commercial Inquiry como etapa própria | Mensagem com indício comercial vira `commercial_inquiry` antes de virar `lead` — nem toda mensagem comercial vira Lead/Opportunity automaticamente |
 | 7 | Company ≠ Brand | Entidades separadas; oportunidade pode referenciar empresa, marca, ou ambas |
@@ -108,8 +108,11 @@ demanda, sync futuro de métricas, notificações.
 
 **AI Layer**: `AIService` abstrata — `classifyMessage()`, `extractLeadData()`,
 `scoreOpportunity()`, `summarizeConversation()`, `generateProposal()`, `suggestFollowUp()`,
-`answerCRMQuestion()`. Provider padrão: OpenAI. Input/output estruturado (JSON schema),
-logging, tratamento de erro, controle de custo.
+`answerCRMQuestion()`. `classifyMessage()` é implementado como um provider composto: chama
+Jev (categoria + Commercial Score + intenção) e OpenAI (extração de campos estruturados) e
+funde o resultado num único `MessageClassification` — o restante do domínio nunca sabe que
+duas chamadas de provider aconteceram. Input/output estruturado (JSON schema), logging,
+tratamento de erro, controle de custo por provider.
 
 **Eventos**: event bus simples in-process para o MVP. Exemplo:
 `message.received → ai.classified → commercial_inquiry.created → lead.created →
@@ -263,6 +266,13 @@ existir, então a fricção aqui tem custo direto no dia a dia da assessora.
 2. Política de retenção de dados pessoais (LGPD) — definir na fase de Auth/Organizations.
 3. OCR para import de prints — melhoria futura sobre o fluxo manual (texto colado é
    suficiente no P0).
+4. **Risco de fornecedor Jev (typesafe.ai)** — modelo proprietário novo, sem histórico
+   público extenso de confiabilidade/uptime, usado na etapa de classificação do fluxo
+   diário mais crítico do produto. Mitigação estrutural: `AIService` isola completamente a
+   chamada ao Jev atrás de uma interface única, permitindo substituir por OpenAI (ou
+   qualquer outro provider) sem alterar `InboxService`/`CommercialInquiryService`/domínio.
+   Monitorar taxa de erro/latência do Jev desde o primeiro dia de uso real e ter um
+   fallback documentado (ex.: reclassificar via OpenAI) caso o Jev fique instável.
 
 ## 10. Próximo Passo
 
