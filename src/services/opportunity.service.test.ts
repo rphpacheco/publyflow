@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { OpportunityService } from "./opportunity.service";
 import { InvalidOpportunityPartyError } from "@/domain/commercial-flow/errors";
 import { companies, brands, contacts } from "@/db/schema/companies-brands-contacts";
-import { leads } from "@/db/schema/commercial-flow";
+import { leads, opportunityStageHistory } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 
 describe("OpportunityService.createFromLead", () => {
@@ -129,5 +130,16 @@ describe("OpportunityService.createFromLead", () => {
 
     expect(opportunity.stage).toBe("NOVO_LEAD");
     expect(opportunity.status).toBe("OPEN");
+
+    const stageHistory = await runInTenantContext(db, organization.id, (tx) =>
+      tx
+        .select()
+        .from(opportunityStageHistory)
+        .where(eq(opportunityStageHistory.opportunityId, opportunity.id)),
+    );
+
+    expect(stageHistory).toHaveLength(1);
+    expect(stageHistory[0].fromStage).toBeNull();
+    expect(stageHistory[0].toStage).toBe("NOVO_LEAD");
   });
 });
