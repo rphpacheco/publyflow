@@ -8,6 +8,7 @@ import type { AIService } from "@/lib/ai/ai-service";
 import type { MessageClassification } from "@/lib/ai/schemas";
 import { conversations, messages } from "@/db/schema/conversations-messages";
 import { CommercialInquiriesRepository } from "@/repositories/commercial-inquiries.repository";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
   return { classifyMessage: async () => classification };
@@ -165,5 +166,51 @@ describe("InboxService.ingestManualMessage", () => {
       .from(conversations)
       .where(eq(conversations.organizationId, organization.id));
     expect(remainingConversations).toHaveLength(0);
+  });
+
+  it("rejects ingestion when creatorId belongs to another organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: `owner-${Date.now()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const { organization: otherOrganization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `owner2-${Date.now()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const foreignCreator = await CreatorService.onboardCreator(db, otherOrganization.id, {
+      email: `foreign-${Date.now()}@publyflow.test`,
+      fullName: "Foreign Creator",
+      displayName: "Foreign Creator",
+    });
+
+    const ai = fakeAI({
+      category: "FAN",
+      commercialScore: 1,
+      intent: null,
+      extracted: {
+        companyName: null,
+        brandName: null,
+        contactName: null,
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      },
+    });
+
+    await expect(
+      InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: foreignCreator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Someone",
+        body: "Oi!",
+        receivedAt: new Date(),
+      }),
+    ).rejects.toThrow(CreatorNotFoundError);
   });
 });

@@ -12,6 +12,8 @@ import {
   type CommercialInquiry,
 } from "@/repositories/commercial-inquiries.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
+import { CreatorsRepository } from "@/repositories/creators.repository";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 const NON_COMMERCIAL_CATEGORIES = new Set(["FAN", "SPAM"]);
 
@@ -52,6 +54,15 @@ export const InboxService = {
     // failed partway through would be orphaned state. So all three writes
     // share this one transaction/tenant-context.
     return runInTenantContext(db, organizationId, async (tx) => {
+      const creatorExists = await CreatorsRepository.existsForOrganizationWithTx(
+        tx,
+        organizationId,
+        input.creatorId,
+      );
+      if (!creatorExists) {
+        throw new CreatorNotFoundError(input.creatorId);
+      }
+
       const conversation = await ConversationsRepository.createWithTx(tx, organizationId, {
         creatorId: input.creatorId,
         source: input.source,
