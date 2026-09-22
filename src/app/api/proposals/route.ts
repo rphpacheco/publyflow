@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ProposalService } from "@/services/proposal.service";
 import { ProposalsRepository } from "@/repositories/proposals.repository";
+import { OpportunityNotFoundError } from "@/domain/proposals/errors";
 
 const templateEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
 
@@ -16,13 +17,21 @@ const createSchema = z.object({
 
 export async function POST(request: Request) {
   const payload = createSchema.parse(await request.json());
-  const proposal = await ProposalService.create(db, payload.organizationId, {
-    opportunityId: payload.opportunityId,
-    title: payload.title,
-    template: payload.template,
-    userId: payload.userId,
-  });
-  return NextResponse.json(proposal, { status: 201 });
+
+  try {
+    const proposal = await ProposalService.create(db, payload.organizationId, {
+      opportunityId: payload.opportunityId,
+      title: payload.title,
+      template: payload.template,
+      userId: payload.userId,
+    });
+    return NextResponse.json(proposal, { status: 201 });
+  } catch (error) {
+    if (error instanceof OpportunityNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    throw error;
+  }
 }
 
 const listQuerySchema = z.object({

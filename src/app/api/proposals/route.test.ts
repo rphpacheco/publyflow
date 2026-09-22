@@ -56,4 +56,34 @@ describe("POST /api/proposals", () => {
     expect(json.title).toBe("Campanha Verão");
     expect(json.status).toBe("DRAFT");
   });
+
+  it("returns 404 (not 500) when opportunityId does not resolve to a row in the organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    vi.doMock("@/db", () => ({ db }));
+
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const { POST } = await import("./route");
+
+    const request = new Request("http://localhost/api/proposals", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: organization.id,
+        opportunityId: "00000000-0000-0000-0000-000000000000",
+        title: "Campanha Verão",
+        template: "PREMIUM",
+        userId: owner.id,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(404);
+  });
 });
