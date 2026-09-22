@@ -105,4 +105,43 @@ describe("RateCardItemsRepository", () => {
     expect(list).toHaveLength(1);
     expect(list[0].price).toBe(200000);
   });
+
+  it("finds a rate card item by id, and returns null for a nonexistent id", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const [user] = await db
+      .insert(users)
+      .values({ email: "thais@publyflow.test", fullName: "Thais" })
+      .returning();
+    const [creator] = await db
+      .insert(creators)
+      .values({ organizationId: org.id, userId: user.id, displayName: "Thais" })
+      .returning();
+    const [service] = await db
+      .insert(services)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "01 Reel" })
+      .returning();
+    const [rateCard] = await db
+      .insert(rateCards)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "Tabela 2026" })
+      .returning();
+
+    const created = await RateCardItemsRepository.create(db, org.id, {
+      rateCardId: rateCard.id,
+      serviceId: service.id,
+      price: 200000,
+    });
+
+    const found = await RateCardItemsRepository.findById(db, org.id, created.id);
+    expect(found?.id).toBe(created.id);
+
+    const notFound = await RateCardItemsRepository.findById(
+      db,
+      org.id,
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(notFound).toBeNull();
+  });
 });

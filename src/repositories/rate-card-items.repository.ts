@@ -91,6 +91,18 @@ async function removeRateCardItem(
   }
 }
 
+async function selectRateCardItemById(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  itemId: string,
+): Promise<RateCardItem | null> {
+  const [item] = await tx
+    .select()
+    .from(rateCardItems)
+    .where(and(eq(rateCardItems.id, itemId), eq(rateCardItems.organizationId, organizationId)));
+  return item ?? null;
+}
+
 async function selectRateCardItemsByRateCard(
   tx: NodePgDatabase<typeof schema>,
   organizationId: string,
@@ -159,6 +171,22 @@ export const RateCardItemsRepository = {
     rateCardId: string,
   ): Promise<void> {
     return removeRateCardItem(tx, organizationId, itemId, rateCardId);
+  },
+
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    itemId: string,
+  ): Promise<RateCardItem | null> {
+    return runInTenantContext(db, organizationId, (tx) => selectRateCardItemById(tx, organizationId, itemId));
+  },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    itemId: string,
+  ): Promise<RateCardItem | null> {
+    return selectRateCardItemById(tx, organizationId, itemId);
   },
 
   async listByRateCard(

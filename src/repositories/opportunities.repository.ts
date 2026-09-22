@@ -52,6 +52,18 @@ async function insertOpportunity(
   return opportunity;
 }
 
+async function selectOpportunityById(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  opportunityId: string,
+): Promise<Opportunity | null> {
+  const [opportunity] = await tx
+    .select()
+    .from(opportunities)
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)));
+  return opportunity ?? null;
+}
+
 async function selectOpenForParty(
   tx: NodePgDatabase<typeof schema>,
   party: FindOpenForPartyInput,
@@ -93,6 +105,24 @@ export const OpportunitiesRepository = {
     input: CreateOpportunityInput,
   ): Promise<Opportunity> {
     return insertOpportunity(tx, organizationId, input);
+  },
+
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+  ): Promise<Opportunity | null> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectOpportunityById(tx, organizationId, opportunityId),
+    );
+  },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+  ): Promise<Opportunity | null> {
+    return selectOpportunityById(tx, organizationId, opportunityId);
   },
 
   async findOpenForParty(
