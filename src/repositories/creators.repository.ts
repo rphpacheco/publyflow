@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
@@ -68,7 +68,11 @@ export const CreatorsRepository = {
     organizationId: string,
   ): Promise<Creator[]> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      return tx.select().from(creators).where(eq(creators.organizationId, organizationId));
+      return tx
+        .select()
+        .from(creators)
+        .where(eq(creators.organizationId, organizationId))
+        .orderBy(asc(creators.displayName));
     });
   },
 

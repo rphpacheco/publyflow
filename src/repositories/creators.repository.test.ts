@@ -62,4 +62,40 @@ describe("CreatorsRepository", () => {
       await CreatorsRepository.existsForOrganization(db, orgA.id, "00000000-0000-0000-0000-000000000000"),
     ).toBe(false);
   });
+
+  it("lists creators ordered deterministically by displayName", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const [userA] = await db
+      .insert(users)
+      .values({ email: "zeca@publyflow.test", fullName: "Zeca" })
+      .returning();
+    const [userB] = await db
+      .insert(users)
+      .values({ email: "ana@publyflow.test", fullName: "Ana" })
+      .returning();
+
+    // Insert "Zeca Silva" first and "Ana Costa" second, so creation order is
+    // the reverse of alphabetical order — proves the ordering is on
+    // displayName, not insertion order.
+    await CreatorsRepository.create(db, org.id, { userId: userA.id, displayName: "Zeca Silva" });
+    await CreatorsRepository.create(db, org.id, { userId: userB.id, displayName: "Ana Costa" });
+
+    const list = await CreatorsRepository.listByOrganization(db, org.id);
+
+    expect(list.map((c) => c.displayName)).toEqual(["Ana Costa", "Zeca Silva"]);
+  });
+
+  it("returns an empty list for an organization with no creators", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Empty Org" }).returning();
+
+    const list = await CreatorsRepository.listByOrganization(db, org.id);
+
+    expect(list).toEqual([]);
+  });
 });
