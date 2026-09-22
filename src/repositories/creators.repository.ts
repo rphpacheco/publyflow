@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
@@ -34,6 +34,18 @@ async function insertCreator(
   return creator;
 }
 
+async function selectCreatorExists(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  creatorId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: creators.id })
+    .from(creators)
+    .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)));
+  return Boolean(row);
+}
+
 export const CreatorsRepository = {
   async create(
     db: NodePgDatabase<typeof schema>,
@@ -58,5 +70,23 @@ export const CreatorsRepository = {
     return runInTenantContext(db, organizationId, async (tx) => {
       return tx.select().from(creators).where(eq(creators.organizationId, organizationId));
     });
+  },
+
+  async existsForOrganization(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<boolean> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectCreatorExists(tx, organizationId, creatorId),
+    );
+  },
+
+  async existsForOrganizationWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<boolean> {
+    return selectCreatorExists(tx, organizationId, creatorId);
   },
 };
