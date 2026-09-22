@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
@@ -11,7 +13,7 @@ describe("RateCardService", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  async function setup(db: any) {
+  async function setup(db: NodePgDatabase<typeof schema>) {
     const { organization } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: `owner-${Date.now()}-${Math.random()}@publyflow.test`,

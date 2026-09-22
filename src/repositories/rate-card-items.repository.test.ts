@@ -1,10 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
 import { services } from "@/db/schema/services";
-import { rateCards, rateCardItems } from "@/db/schema/rate-cards";
+import { rateCards } from "@/db/schema/rate-cards";
 import { RateCardItemsRepository } from "./rate-card-items.repository";
 import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 
