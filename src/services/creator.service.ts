@@ -37,4 +37,11 @@ export const CreatorService = {
       });
     });
   },
+
+  async listByOrganization(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+  ): Promise<Creator[]> {
+    return CreatorsRepository.listByOrganization(db, organizationId);
+  },
 };
