@@ -43,6 +43,13 @@
       "when": 1790016253663,
       "tag": "0005_add_commercial_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790036756321,
+      "tag": "0006_add_org_id_to_stage_history_and_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -95,7 +95,7 @@ describe("commercial flow schema", () => {
 
     const [historyEntry] = await db
       .insert(opportunityStageHistory)
-      .values({ opportunityId: opportunity.id, fromStage: null, toStage: "NOVO_LEAD" })
+      .values({ organizationId: org.id, opportunityId: opportunity.id, fromStage: null, toStage: "NOVO_LEAD" })
       .returning();
 
     expect(historyEntry.opportunityId).toBe(opportunity.id);

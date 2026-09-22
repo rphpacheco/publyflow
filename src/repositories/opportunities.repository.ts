@@ -1,4 +1,4 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { opportunities, opportunityStageHistory, leads } from "@/db/schema/commercial-flow";
@@ -14,6 +14,7 @@ export interface CreateOpportunityInput {
 }
 
 export interface FindOpenForPartyInput {
+  creatorId: string;
   contactId?: string;
   companyId?: string;
   brandId?: string;
@@ -42,6 +43,7 @@ async function insertOpportunity(
     .returning();
 
   await tx.insert(opportunityStageHistory).values({
+    organizationId,
     opportunityId: opportunity.id,
     fromStage: null,
     toStage: "NOVO_LEAD",
@@ -67,7 +69,10 @@ async function selectOpenForParty(
     .select({ opportunity: opportunities })
     .from(opportunities)
     .innerJoin(leads, eq(leads.id, opportunities.leadId))
-    .where(and(eq(opportunities.status, "OPEN"), or(...conditions)))
+    .where(
+      and(eq(opportunities.status, "OPEN"), eq(opportunities.creatorId, party.creatorId), or(...conditions)),
+    )
+    .orderBy(desc(opportunities.createdAt))
     .limit(1);
 
   return opportunity?.opportunity ?? null;

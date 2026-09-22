@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { commercialInquiries } from "@/db/schema/commercial-flow";
@@ -52,15 +52,16 @@ export type UpdateInquiryStatusFields = Partial<{
 // Lead/Opportunity writes.
 async function applyStatusUpdate(
   tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
   inquiryId: string,
   fields: UpdateInquiryStatusFields,
-): Promise<CommercialInquiry> {
+): Promise<CommercialInquiry | null> {
   const [row] = await tx
     .update(commercialInquiries)
     .set(fields)
-    .where(eq(commercialInquiries.id, inquiryId))
+    .where(and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)))
     .returning();
-  return row;
+  return row ?? null;
 }
 
 export const CommercialInquiriesRepository = {
@@ -86,35 +87,50 @@ export const CommercialInquiriesRepository = {
     inquiryId: string,
   ): Promise<CommercialInquiry | null> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx.select().from(commercialInquiries).where(eq(commercialInquiries.id, inquiryId));
+      const [row] = await tx
+        .select()
+        .from(commercialInquiries)
+        .where(
+          and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)),
+        );
       return row ?? null;
     });
   },
 
+  // Explicit organization predicate, belt-and-suspenders alongside the RLS
+  // policy (0006_add_org_id_to_stage_history_and_rls.sql / org_isolation_
+  // commercial_inquiries): `id` alone is not org-scoped, so without this
+  // predicate a caller in org A could look up an inquiry belonging to org B.
   async findByIdWithTx(
     tx: NodePgDatabase<typeof schema>,
-    _organizationId: string,
+    organizationId: string,
     inquiryId: string,
   ): Promise<CommercialInquiry | null> {
-    const [row] = await tx.select().from(commercialInquiries).where(eq(commercialInquiries.id, inquiryId));
+    const [row] = await tx
+      .select()
+      .from(commercialInquiries)
+      .where(and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)));
     return row ?? null;
   },
 
+  // Returns null (rather than throwing/returning undefined) when no row
+  // matched `id` + `organizationId`, so callers (CommercialInquiryService)
+  // can surface a clear not-found error instead of silently no-oping.
   async updateStatus(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     inquiryId: string,
     fields: UpdateInquiryStatusFields,
-  ): Promise<CommercialInquiry> {
-    return runInTenantContext(db, organizationId, (tx) => applyStatusUpdate(tx, inquiryId, fields));
+  ): Promise<CommercialInquiry | null> {
+    return runInTenantContext(db, organizationId, (tx) => applyStatusUpdate(tx, organizationId, inquiryId, fields));
   },
 
   async updateStatusWithTx(
     tx: NodePgDatabase<typeof schema>,
-    _organizationId: string,
+    organizationId: string,
     inquiryId: string,
     fields: UpdateInquiryStatusFields,
-  ): Promise<CommercialInquiry> {
-    return applyStatusUpdate(tx, inquiryId, fields);
+  ): Promise<CommercialInquiry | null> {
+    return applyStatusUpdate(tx, organizationId, inquiryId, fields);
   },
 };

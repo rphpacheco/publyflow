@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { leads } from "@/db/schema/commercial-flow";
@@ -42,15 +42,32 @@ async function insertLead(
 }
 
 export const LeadsRepository = {
+  // Explicit organization predicate, belt-and-suspenders alongside the RLS
+  // policy: `id` alone is not org-scoped.
   async findById(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     leadId: string,
   ): Promise<Lead | null> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const [lead] = await tx.select().from(leads).where(eq(leads.id, leadId));
+      const [lead] = await tx
+        .select()
+        .from(leads)
+        .where(and(eq(leads.id, leadId), eq(leads.organizationId, organizationId)));
       return lead ?? null;
     });
+  },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    leadId: string,
+  ): Promise<Lead | null> {
+    const [lead] = await tx
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, leadId), eq(leads.organizationId, organizationId)));
+    return lead ?? null;
   },
 
   async create(

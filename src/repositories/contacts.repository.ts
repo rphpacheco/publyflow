@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { contacts } from "@/db/schema/companies-brands-contacts";
@@ -53,23 +53,31 @@ export const ContactsRepository = {
     return insertContact(tx, organizationId, input);
   },
 
+  // Explicit organization predicate, belt-and-suspenders alongside the RLS
+  // policy: `id` alone is not org-scoped.
   async findById(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     contactId: string,
   ): Promise<Contact | null> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx.select().from(contacts).where(eq(contacts.id, contactId));
+      const [row] = await tx
+        .select()
+        .from(contacts)
+        .where(and(eq(contacts.id, contactId), eq(contacts.organizationId, organizationId)));
       return row ?? null;
     });
   },
 
   async findByIdWithTx(
     tx: NodePgDatabase<typeof schema>,
-    _organizationId: string,
+    organizationId: string,
     contactId: string,
   ): Promise<Contact | null> {
-    const [row] = await tx.select().from(contacts).where(eq(contacts.id, contactId));
+    const [row] = await tx
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, contactId), eq(contacts.organizationId, organizationId)));
     return row ?? null;
   },
 };

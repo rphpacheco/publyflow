@@ -87,6 +87,9 @@ export const opportunities = pgTable("opportunities", {
 
 export const opportunityStageHistory = pgTable("opportunity_stage_history", {
   id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   opportunityId: uuid("opportunity_id")
     .notNull()
     .references(() => opportunities.id, { onDelete: "cascade" }),
