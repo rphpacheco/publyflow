@@ -3,6 +3,7 @@ import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { ServiceService } from "./service.service";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 describe("ServiceService", () => {
   let cleanup: () => Promise<void>;
@@ -39,5 +40,30 @@ describe("ServiceService", () => {
     const list = await ServiceService.listByCreator(db, organization.id, creator.id);
     expect(list).toHaveLength(1);
     expect(list[0].isActive).toBe(false);
+  });
+
+  it("rejects creating a service when creatorId belongs to another organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: `owner-${Date.now()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const { organization: otherOrganization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `owner2-${Date.now()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const foreignCreator = await CreatorService.onboardCreator(db, otherOrganization.id, {
+      email: `foreign-${Date.now()}@publyflow.test`,
+      fullName: "Foreign Creator",
+      displayName: "Foreign Creator",
+    });
+
+    await expect(
+      ServiceService.create(db, organization.id, { creatorId: foreignCreator.id, name: "01 Reel" }),
+    ).rejects.toThrow(CreatorNotFoundError);
   });
 });

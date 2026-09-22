@@ -33,25 +33,39 @@ async function selectServiceById(
   return service ?? null;
 }
 
+async function insertService(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  input: CreateServiceInput,
+): Promise<Service> {
+  const [service] = await tx
+    .insert(services)
+    .values({
+      organizationId,
+      creatorId: input.creatorId,
+      name: input.name,
+      description: input.description ?? null,
+      unitDescription: input.unitDescription ?? null,
+    })
+    .returning();
+  return service;
+}
+
 export const ServicesRepository = {
   async create(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     input: CreateServiceInput,
   ): Promise<Service> {
-    return runInTenantContext(db, organizationId, async (tx) => {
-      const [service] = await tx
-        .insert(services)
-        .values({
-          organizationId,
-          creatorId: input.creatorId,
-          name: input.name,
-          description: input.description ?? null,
-          unitDescription: input.unitDescription ?? null,
-        })
-        .returning();
-      return service;
-    });
+    return runInTenantContext(db, organizationId, (tx) => insertService(tx, organizationId, input));
+  },
+
+  async createWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    input: CreateServiceInput,
+  ): Promise<Service> {
+    return insertService(tx, organizationId, input);
   },
 
   async update(

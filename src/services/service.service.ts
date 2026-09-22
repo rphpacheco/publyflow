@@ -6,6 +6,9 @@ import {
   type CreateServiceInput,
   type UpdateServiceInput,
 } from "@/repositories/services.repository";
+import { runInTenantContext } from "@/repositories/tenant-context";
+import { CreatorsRepository } from "@/repositories/creators.repository";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 export const ServiceService = {
   async create(
@@ -13,7 +16,17 @@ export const ServiceService = {
     organizationId: string,
     input: CreateServiceInput,
   ): Promise<Service> {
-    return ServicesRepository.create(db, organizationId, input);
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const creatorExists = await CreatorsRepository.existsForOrganizationWithTx(
+        tx,
+        organizationId,
+        input.creatorId,
+      );
+      if (!creatorExists) {
+        throw new CreatorNotFoundError(input.creatorId);
+      }
+      return ServicesRepository.createWithTx(tx, organizationId, input);
+    });
   },
 
   async update(
