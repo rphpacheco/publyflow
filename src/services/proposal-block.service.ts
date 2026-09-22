@@ -8,7 +8,7 @@ import {
   type CreateProposalBlockInput,
   type UpdateProposalBlockInput,
 } from "@/repositories/proposal-blocks.repository";
-import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
+import { ProposalVersionService } from "./proposal-version.service";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { ProposalNotFoundError, UserNotOrganizationMemberError } from "@/domain/proposals/errors";
 
@@ -56,7 +56,7 @@ export const ProposalBlockService = {
         sortOrder: input.sortOrder,
       });
 
-      await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, input.proposalId, input.userId);
+      await ProposalVersionService.createVersionWithTx(tx, organizationId, input.proposalId, input.userId);
 
       return block;
     });
@@ -84,7 +84,7 @@ export const ProposalBlockService = {
         !before || !contentEqual(before.content, after.content) || before.sortOrder !== after.sortOrder;
 
       if (changed) {
-        await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposalId, input.userId);
+        await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, input.userId);
       }
 
       return after;
@@ -101,7 +101,7 @@ export const ProposalBlockService = {
     await runInTenantContext(db, organizationId, async (tx) => {
       await assertMember(tx, organizationId, userId);
       await ProposalBlocksRepository.removeWithTx(tx, organizationId, blockId, proposalId);
-      await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposalId, userId);
+      await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, userId);
     });
   },
 };

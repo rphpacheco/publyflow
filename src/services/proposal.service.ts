@@ -2,7 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { ProposalsRepository, type Proposal, type CreateProposalInput, type UpdateProposalInput } from "@/repositories/proposals.repository";
-import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
+import { ProposalVersionService } from "./proposal-version.service";
 import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
@@ -46,7 +46,7 @@ export const ProposalService = {
         template: input.template,
       });
 
-      await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposal.id, input.userId);
+      await ProposalVersionService.createVersionWithTx(tx, organizationId, proposal.id, input.userId);
 
       return proposal;
     });
@@ -75,7 +75,7 @@ export const ProposalService = {
         before.status !== after.status;
 
       if (changed) {
-        await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposalId, input.userId);
+        await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, input.userId);
       }
 
       return after;

@@ -6,11 +6,12 @@ import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
 import { contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
-import { ProposalsRepository } from "./proposals.repository";
-import { runInTenantContext } from "./tenant-context";
-import { ProposalVersionsRepository } from "./proposal-versions.repository";
+import { ProposalsRepository } from "@/repositories/proposals.repository";
+import { ProposalItemsRepository } from "@/repositories/proposal-items.repository";
+import { runInTenantContext } from "@/repositories/tenant-context";
+import { ProposalVersionService } from "./proposal-version.service";
 
-describe("ProposalVersionsRepository", () => {
+describe("ProposalVersionService", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
@@ -44,27 +45,32 @@ describe("ProposalVersionsRepository", () => {
     return { org, user, proposal };
   }
 
-  it("inserts a version row and counts existing versions for a proposal", async () => {
+  it("builds a snapshot including current items, and creates sequential version numbers", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
     const { org, user, proposal } = await setup(db);
 
-    const countBefore = await runInTenantContext(db, org.id, (tx) =>
-      ProposalVersionsRepository.countByProposalWithTx(tx, org.id, proposal.id),
-    );
-    expect(countBefore).toBe(0);
+    await ProposalItemsRepository.create(db, org.id, {
+      proposalId: proposal.id,
+      rateCardItemId: null,
+      description: "Reel",
+      unitPrice: 200000,
+    });
 
-    const version = await runInTenantContext(db, org.id, (tx) =>
-      ProposalVersionsRepository.insertWithTx(tx, org.id, proposal.id, 1, { proposal: { title: "P" } }, user.id),
+    const v1 = await runInTenantContext(db, org.id, (tx) =>
+      ProposalVersionService.createVersionWithTx(tx, org.id, proposal.id, user.id),
     );
-    expect(version.versionNumber).toBe(1);
+    expect(v1.versionNumber).toBe(1);
+    const snapshot1 = v1.snapshotJson as { items: unknown[]; proposal: { title: string } };
+    expect(snapshot1.items).toHaveLength(1);
+    expect(snapshot1.proposal.title).toBe("P");
 
-    const countAfter = await runInTenantContext(db, org.id, (tx) =>
-      ProposalVersionsRepository.countByProposalWithTx(tx, org.id, proposal.id),
+    const v2 = await runInTenantContext(db, org.id, (tx) =>
+      ProposalVersionService.createVersionWithTx(tx, org.id, proposal.id, user.id),
     );
-    expect(countAfter).toBe(1);
+    expect(v2.versionNumber).toBe(2);
 
-    const list = await ProposalVersionsRepository.listByProposal(db, org.id, proposal.id);
-    expect(list).toHaveLength(1);
+    const list = await ProposalVersionService.listByProposal(db, org.id, proposal.id);
+    expect(list).toHaveLength(2);
   });
 });

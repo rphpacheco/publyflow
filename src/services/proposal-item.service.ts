@@ -7,7 +7,7 @@ import {
   type ProposalItem,
   type UpdateProposalItemInput,
 } from "@/repositories/proposal-items.repository";
-import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
+import { ProposalVersionService } from "./proposal-version.service";
 import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
 import { RateCardItemsRepository } from "@/repositories/rate-card-items.repository";
 import { RateCardsRepository } from "@/repositories/rate-cards.repository";
@@ -107,7 +107,7 @@ export const ProposalItemService = {
         sortOrder: input.sortOrder,
       });
 
-      await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, input.proposalId, input.userId);
+      await ProposalVersionService.createVersionWithTx(tx, organizationId, input.proposalId, input.userId);
 
       return item;
     });
@@ -141,7 +141,7 @@ export const ProposalItemService = {
         before.sortOrder !== after.sortOrder;
 
       if (changed) {
-        await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposalId, input.userId);
+        await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, input.userId);
       }
 
       return after;
@@ -158,7 +158,7 @@ export const ProposalItemService = {
     await runInTenantContext(db, organizationId, async (tx) => {
       await assertMember(tx, organizationId, userId);
       await ProposalItemsRepository.removeWithTx(tx, organizationId, itemId, proposalId);
-      await ProposalVersionsRepository.createVersionWithTx(tx, organizationId, proposalId, userId);
+      await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, userId);
     });
   },
 };
