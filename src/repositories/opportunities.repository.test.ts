@@ -63,4 +63,28 @@ describe("OpportunitiesRepository", () => {
     );
     expect(notFound).toBeNull();
   });
+
+  it("lists opportunities by creator, ordered by createdAt desc, with an optional stage filter", async () => {
+    const { db, cleanup: c, org, creator, company, lead } = await setup();
+    cleanup = c;
+
+    const opportunity = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+
+    const list = await OpportunitiesRepository.listByCreator(db, org.id, creator.id);
+    expect(list.some((row) => row.id === opportunity.id)).toBe(true);
+
+    const filtered = await OpportunitiesRepository.listByCreator(
+      db,
+      org.id,
+      creator.id,
+      "NOVO_LEAD",
+    );
+    expect(filtered.every((row) => row.stage === "NOVO_LEAD")).toBe(true);
+    expect(filtered.some((row) => row.id === opportunity.id)).toBe(true);
+  });
 });

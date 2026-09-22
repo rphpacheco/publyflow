@@ -25,3 +25,13 @@ export class InquiryAlreadyResolvedError extends Error {
     this.name = "InquiryAlreadyResolvedError";
   }
 }
+
+// Thrown when an opportunityId does not resolve to a row visible to the
+// caller's organization — used by the detail route and by
+// OpportunityService.changeStage (Task 7).
+export class OpportunityNotFoundError extends Error {
+  constructor(opportunityId: string) {
+    super(`Opportunity ${opportunityId} not found`);
+    this.name = "OpportunityNotFoundError";
+  }
+}

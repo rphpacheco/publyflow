@@ -100,4 +100,13 @@ export const OpportunityService = {
   ): Promise<Opportunity | null> {
     return OpportunitiesRepository.findOpenForPartyWithTx(tx, organizationId, party);
   },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+    stage?: Opportunity["stage"],
+  ): Promise<Opportunity[]> {
+    return OpportunitiesRepository.listByCreator(db, organizationId, creatorId, stage);
+  },
 };

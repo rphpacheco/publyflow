@@ -140,4 +140,26 @@ export const OpportunitiesRepository = {
   ): Promise<Opportunity | null> {
     return selectOpenForParty(tx, party);
   },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+    stage?: Opportunity["stage"],
+  ): Promise<Opportunity[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const conditions = [
+        eq(opportunities.organizationId, organizationId),
+        eq(opportunities.creatorId, creatorId),
+      ];
+      if (stage) {
+        conditions.push(eq(opportunities.stage, stage));
+      }
+      return tx
+        .select()
+        .from(opportunities)
+        .where(and(...conditions))
+        .orderBy(desc(opportunities.createdAt));
+    });
+  },
 };
