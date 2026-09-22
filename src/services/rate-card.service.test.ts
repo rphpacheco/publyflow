@@ -9,6 +9,7 @@ import { RateCardService } from "./rate-card.service";
 import { RateCardsRepository } from "@/repositories/rate-cards.repository";
 import { RateCardItemsRepository } from "@/repositories/rate-card-items.repository";
 import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
+import { runInTenantContext } from "@/repositories/tenant-context";
 
 describe("RateCardService", () => {
   let cleanup: () => Promise<void>;
@@ -68,6 +69,33 @@ describe("RateCardService", () => {
     await expect(
       RateCardService.lock(db, organization.id, "00000000-0000-0000-0000-000000000000"),
     ).rejects.toThrow(RateCardNotFoundError);
+  });
+
+  // Fix 2: RateCardService.lockWithTx is the call boundary callers with
+  // their own shared transaction (e.g. ProposalItemService.addItem) must
+  // go through instead of reaching into RateCardsRepository.setLockedWithTx
+  // directly, so future locking rules added here are never bypassed.
+  it("locks a rate card via lockWithTx inside a shared transaction", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setup(db);
+
+    const rateCard = await RateCardService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "Tabela 2026",
+    });
+    expect(rateCard.isLocked).toBe(false);
+
+    const locked = await runInTenantContext(db, organization.id, (tx) =>
+      RateCardService.lockWithTx(tx, organization.id, rateCard.id),
+    );
+
+    expect(locked.isLocked).toBe(true);
+    expect(locked.lockedAt).not.toBeNull();
+
+    const reloaded = await RateCardsRepository.findById(db, organization.id, rateCard.id);
+    expect(reloaded?.isLocked).toBe(true);
+    expect(reloaded?.lockedAt).not.toBeNull();
   });
 
   it("duplicates a locked rate card into a new, unlocked one with the same items", async () => {

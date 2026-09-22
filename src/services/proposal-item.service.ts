@@ -13,6 +13,7 @@ import { RateCardItemsRepository } from "@/repositories/rate-card-items.reposito
 import { RateCardsRepository } from "@/repositories/rate-cards.repository";
 import { ServicesRepository } from "@/repositories/services.repository";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
+import { RateCardService } from "@/services/rate-card.service";
 import {
   ProposalNotFoundError,
   OpportunityNotFoundError,
@@ -90,7 +91,7 @@ export const ProposalItemService = {
         rateCardItemId = rateCardItem.id;
 
         if (!rateCard.isLocked) {
-          await RateCardsRepository.setLockedWithTx(tx, organizationId, rateCard.id, true);
+          await RateCardService.lockWithTx(tx, organizationId, rateCard.id);
         }
       } else {
         description = input.description;

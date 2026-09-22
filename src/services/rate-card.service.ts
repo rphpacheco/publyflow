@@ -46,6 +46,20 @@ export const RateCardService = {
     return RateCardsRepository.setLocked(db, organizationId, rateCardId, true);
   },
 
+  // Same rule as lock(), but for callers (e.g. ProposalItemService.addItem)
+  // that already hold a transaction and need locking folded into it rather
+  // than opening a second one. This is the call boundary future locking
+  // rules (audit logging, a re-lock guard, notifications) get added to --
+  // callers outside RateCardService must never reach past it into
+  // RateCardsRepository directly.
+  async lockWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    rateCardId: string,
+  ): Promise<RateCard> {
+    return RateCardsRepository.setLockedWithTx(tx, organizationId, rateCardId, true);
+  },
+
   // Fix 2-4: the read of the original card + its items, the new card
   // insert, and every item insert now share ONE transaction via
   // runInTenantContext, using the *WithTx repository variants throughout.
