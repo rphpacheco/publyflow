@@ -81,4 +81,12 @@ export const ProposalService = {
       return after;
     });
   },
+
+  async listByOpportunity(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+  ): Promise<Proposal[]> {
+    return ProposalsRepository.listByOpportunity(db, organizationId, opportunityId);
+  },
 };

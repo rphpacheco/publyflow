@@ -145,4 +145,20 @@ describe("ProposalService", () => {
     const versions = await ProposalVersionsRepository.listByProposal(db, organization.id, proposal.id);
     expect(versions).toHaveLength(2);
   });
+
+  it("lists proposals by opportunity", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, opportunity } = await setup(db);
+
+    const created = await ProposalService.create(db, organization.id, {
+      opportunityId: opportunity.id,
+      title: "Campanha Verão",
+      template: "PREMIUM",
+      userId: owner.id,
+    });
+
+    const list = await ProposalService.listByOpportunity(db, organization.id, opportunity.id);
+    expect(list.some((row) => row.id === created.id)).toBe(true);
+  });
 });

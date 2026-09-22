@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { ProposalService } from "@/services/proposal.service";
-import { ProposalsRepository } from "@/repositories/proposals.repository";
 import { OpportunityNotFoundError } from "@/domain/proposals/errors";
 
 const templateEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
@@ -45,6 +44,6 @@ export async function GET(request: Request) {
     organizationId: url.searchParams.get("organizationId"),
     opportunityId: url.searchParams.get("opportunityId"),
   });
-  const list = await ProposalsRepository.listByOpportunity(db, payload.organizationId, payload.opportunityId);
+  const list = await ProposalService.listByOpportunity(db, payload.organizationId, payload.opportunityId);
   return NextResponse.json(list, { status: 200 });
 }
