@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { RateCardItemService } from "@/services/rate-card-item.service";
-import { RateCardLockedError, RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
+import {
+  RateCardLockedError,
+  RateCardItemNotFoundError,
+  RateCardNotFoundError,
+} from "@/domain/rate-cards/errors";
 
 const updateSchema = z.object({
   organizationId: z.string().uuid(),
@@ -24,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof RateCardLockedError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    if (error instanceof RateCardItemNotFoundError) {
+    if (error instanceof RateCardItemNotFoundError || error instanceof RateCardNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
     throw error;
@@ -47,7 +51,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (error instanceof RateCardLockedError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    if (error instanceof RateCardItemNotFoundError) {
+    if (error instanceof RateCardItemNotFoundError || error instanceof RateCardNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
     throw error;

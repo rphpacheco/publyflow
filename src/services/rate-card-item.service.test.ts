@@ -7,7 +7,13 @@ import { CreatorService } from "./creator.service";
 import { ServiceService } from "./service.service";
 import { RateCardService } from "./rate-card.service";
 import { RateCardItemService } from "./rate-card-item.service";
-import { RateCardLockedError, RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
+import {
+  RateCardLockedError,
+  RateCardItemNotFoundError,
+  RateCardNotFoundError,
+  ServiceNotFoundError,
+  ServiceMismatchError,
+} from "@/domain/rate-cards/errors";
 
 describe("RateCardItemService", () => {
   let cleanup: () => Promise<void>;
@@ -147,5 +153,93 @@ describe("RateCardItemService", () => {
     await expect(
       RateCardItemService.removeItem(db, organization.id, item.id, unlockedRateCard.id),
     ).rejects.toThrow(RateCardItemNotFoundError);
+  });
+
+  it("rejects adding an item whose rateCardId belongs to a different organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, service } = await setup(db);
+
+    const otherOrg = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `owner-other-${Date.now()}-${Math.random()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const otherCreator = await CreatorService.onboardCreator(db, otherOrg.organization.id, {
+      email: `creator-other-${Date.now()}-${Math.random()}@publyflow.test`,
+      fullName: "Other Creator",
+      displayName: "Other Creator",
+    });
+    const foreignRateCard = await RateCardService.create(db, otherOrg.organization.id, {
+      creatorId: otherCreator.id,
+      name: "Tabela de outra org",
+    });
+
+    // The caller's own org has no rate card with this id -- the FK would
+    // otherwise happily accept it and insert a rate_card_items row whose
+    // organization_id is `organization.id` but whose rate_card_id points
+    // at another organization's rate card.
+    await expect(
+      RateCardItemService.addItem(db, organization.id, {
+        rateCardId: foreignRateCard.id,
+        serviceId: service.id,
+        price: 200000,
+      }),
+    ).rejects.toThrow(RateCardNotFoundError);
+  });
+
+  it("rejects adding an item whose serviceId belongs to a different organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, rateCard } = await setup(db);
+
+    const otherOrg = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `owner-other2-${Date.now()}-${Math.random()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const otherCreator = await CreatorService.onboardCreator(db, otherOrg.organization.id, {
+      email: `creator-other2-${Date.now()}-${Math.random()}@publyflow.test`,
+      fullName: "Other Creator",
+      displayName: "Other Creator",
+    });
+    const foreignService = await ServiceService.create(db, otherOrg.organization.id, {
+      creatorId: otherCreator.id,
+      name: "Serviço de outra org",
+    });
+
+    await expect(
+      RateCardItemService.addItem(db, organization.id, {
+        rateCardId: rateCard.id,
+        serviceId: foreignService.id,
+        price: 200000,
+      }),
+    ).rejects.toThrow(ServiceNotFoundError);
+  });
+
+  it("rejects adding an item whose service belongs to a different creator than the rate card", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, rateCard } = await setup(db);
+
+    const otherCreator = await CreatorService.onboardCreator(db, organization.id, {
+      email: `creator-other3-${Date.now()}-${Math.random()}@publyflow.test`,
+      fullName: "Other Creator",
+      displayName: "Other Creator",
+    });
+    const otherCreatorService = await ServiceService.create(db, organization.id, {
+      creatorId: otherCreator.id,
+      name: "Serviço de outro creator",
+    });
+
+    // Same org, so no FK/RLS issue -- but the rate card's items must all
+    // belong to the same creator as the rate card itself.
+    await expect(
+      RateCardItemService.addItem(db, organization.id, {
+        rateCardId: rateCard.id,
+        serviceId: otherCreatorService.id,
+        price: 200000,
+      }),
+    ).rejects.toThrow(ServiceMismatchError);
   });
 });

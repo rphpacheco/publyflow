@@ -9,6 +9,8 @@ import {
   RateCardItemsRepository,
   type RateCardItem,
 } from "@/repositories/rate-card-items.repository";
+import { runInTenantContext } from "@/repositories/tenant-context";
+import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
 
 export interface DuplicateRateCardInput {
   name: string;
@@ -44,42 +46,50 @@ export const RateCardService = {
     return RateCardsRepository.setLocked(db, organizationId, rateCardId, true);
   },
 
+  // Fix 2-4: the read of the original card + its items, the new card
+  // insert, and every item insert now share ONE transaction via
+  // runInTenantContext, using the *WithTx repository variants throughout.
+  // Previously each step opened its own transaction, so a failure partway
+  // through item copying (e.g. the Nth item insert throwing) left a
+  // half-copied rate card committed with no rollback.
   async duplicate(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     rateCardId: string,
     input: DuplicateRateCardInput,
   ): Promise<DuplicateRateCardResult> {
-    const original = await RateCardsRepository.findById(db, organizationId, rateCardId);
-    if (!original) {
-      throw new Error(`Rate card ${rateCardId} not found`);
-    }
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const original = await RateCardsRepository.findByIdWithTx(tx, organizationId, rateCardId);
+      if (!original) {
+        throw new RateCardNotFoundError(rateCardId);
+      }
 
-    const originalItems = await RateCardItemsRepository.listByRateCard(
-      db,
-      organizationId,
-      rateCardId,
-    );
+      const originalItems = await RateCardItemsRepository.listByRateCardWithTx(
+        tx,
+        organizationId,
+        rateCardId,
+      );
 
-    const rateCard = await RateCardsRepository.create(db, organizationId, {
-      creatorId: original.creatorId,
-      name: input.name,
-      validFrom: original.validFrom,
-      validTo: original.validTo,
-    });
-
-    const items: RateCardItem[] = [];
-    for (const originalItem of originalItems) {
-      const item = await RateCardItemsRepository.create(db, organizationId, {
-        rateCardId: rateCard.id,
-        serviceId: originalItem.serviceId,
-        price: originalItem.price,
-        unitDescription: originalItem.unitDescription,
-        sortOrder: originalItem.sortOrder,
+      const rateCard = await RateCardsRepository.createWithTx(tx, organizationId, {
+        creatorId: original.creatorId,
+        name: input.name,
+        validFrom: original.validFrom,
+        validTo: original.validTo,
       });
-      items.push(item);
-    }
 
-    return { rateCard, items };
+      const items: RateCardItem[] = [];
+      for (const originalItem of originalItems) {
+        const item = await RateCardItemsRepository.createWithTx(tx, organizationId, {
+          rateCardId: rateCard.id,
+          serviceId: originalItem.serviceId,
+          price: originalItem.price,
+          unitDescription: originalItem.unitDescription,
+          sortOrder: originalItem.sortOrder,
+        });
+        items.push(item);
+      }
+
+      return { rateCard, items };
+    });
   },
 };

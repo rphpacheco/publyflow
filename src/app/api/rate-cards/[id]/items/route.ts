@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { RateCardItemService } from "@/services/rate-card-item.service";
-import { RateCardLockedError } from "@/domain/rate-cards/errors";
+import {
+  RateCardLockedError,
+  RateCardNotFoundError,
+  ServiceNotFoundError,
+  ServiceMismatchError,
+} from "@/domain/rate-cards/errors";
 
 const bodySchema = z.object({
   organizationId: z.string().uuid(),
@@ -28,6 +33,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     if (error instanceof RateCardLockedError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof RateCardNotFoundError || error instanceof ServiceNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    // Not a "not found" (the rate card and service both resolve fine in
+    // the caller's org) -- it's a request that violates the per-creator
+    // catalog invariant, so 422 rather than 404.
+    if (error instanceof ServiceMismatchError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
     }
     throw error;
   }

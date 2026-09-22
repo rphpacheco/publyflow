@@ -3,6 +3,7 @@ import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
 import { RateCardsRepository } from "./rate-cards.repository";
+import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
 
 describe("RateCardsRepository", () => {
   let cleanup: () => Promise<void>;
@@ -51,5 +52,20 @@ describe("RateCardsRepository", () => {
       "00000000-0000-0000-0000-000000000000",
     );
     expect(found).toBeNull();
+  });
+
+  // Fix 5: `.returning()` yields no row for an unknown id, which previously
+  // destructured to `undefined` but was mistyped as the non-nullable
+  // RateCard -- setLocked() would resolve successfully without locking
+  // anything.
+  it("throws RateCardNotFoundError from setLocked for a nonexistent id", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+
+    await expect(
+      RateCardsRepository.setLocked(db, org.id, "00000000-0000-0000-0000-000000000000", true),
+    ).rejects.toThrow(RateCardNotFoundError);
   });
 });
