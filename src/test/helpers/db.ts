@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 
 const DOMAIN_TABLES = [
+  "proposals",
   "rate_card_items",
   "rate_cards",
   "services",

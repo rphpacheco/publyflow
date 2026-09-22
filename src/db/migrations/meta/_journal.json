@@ -78,6 +78,13 @@
       "when": 1790093827735,
       "tag": "0010_add_locked_at_to_rate_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790094036900,
+      "tag": "0011_add_proposals",
+      "breakpoints": true
     }
   ]
 }
