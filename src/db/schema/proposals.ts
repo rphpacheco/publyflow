@@ -1,5 +1,5 @@
-import { pgEnum, pgTable, uuid, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
-import { organizations } from "./organizations";
+import { pgEnum, pgTable, uuid, text, timestamp, integer, jsonb, unique } from "drizzle-orm/pg-core";
+import { organizations, users } from "./organizations";
 import { opportunities } from "./commercial-flow";
 import { rateCardItems } from "./rate-cards";
 
@@ -71,3 +71,23 @@ export const proposalBlocks = pgTable("proposal_blocks", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const proposalVersions = pgTable(
+  "proposal_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    proposalId: uuid("proposal_id")
+      .notNull()
+      .references(() => proposals.id, { onDelete: "cascade" }),
+    versionNumber: integer("version_number").notNull(),
+    snapshotJson: jsonb("snapshot_json").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("proposal_versions_proposal_version_unique").on(table.proposalId, table.versionNumber)],
+);
