@@ -50,6 +50,13 @@
       "when": 1790036756321,
       "tag": "0006_add_org_id_to_stage_history_and_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790041038279,
+      "tag": "0007_add_services",
+      "breakpoints": true
     }
   ]
 }
