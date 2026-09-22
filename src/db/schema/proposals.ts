@@ -1,6 +1,7 @@
-import { pgEnum, pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { opportunities } from "./commercial-flow";
+import { rateCardItems } from "./rate-cards";
 
 export const proposalTemplateEnum = pgEnum("proposal_template", [
   "PREMIUM",
@@ -24,5 +25,21 @@ export const proposals = pgTable("proposals", {
   title: text("title").notNull(),
   template: proposalTemplateEnum("template").notNull(),
   status: proposalStatusEnum("status").notNull().default("DRAFT"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const proposalItems = pgTable("proposal_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  proposalId: uuid("proposal_id")
+    .notNull()
+    .references(() => proposals.id, { onDelete: "cascade" }),
+  rateCardItemId: uuid("rate_card_item_id").references(() => rateCardItems.id, { onDelete: "restrict" }),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: integer("unit_price").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

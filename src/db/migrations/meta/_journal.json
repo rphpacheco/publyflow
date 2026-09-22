@@ -85,6 +85,13 @@
       "when": 1790094036900,
       "tag": "0011_add_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790094381293,
+      "tag": "0012_add_proposal_items",
+      "breakpoints": true
     }
   ]
 }
