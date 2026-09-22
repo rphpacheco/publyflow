@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
 import { OpportunityService } from "@/services/opportunity.service";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 
@@ -12,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url);
   const payload = querySchema.parse({ organizationId: url.searchParams.get("organizationId") });
 
-  const opportunity = await OpportunitiesRepository.findById(db, payload.organizationId, id);
+  const opportunity = await OpportunityService.findById(db, payload.organizationId, id);
   if (!opportunity) {
     return NextResponse.json(
       { error: new OpportunityNotFoundError(id).message },

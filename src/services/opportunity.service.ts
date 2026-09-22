@@ -110,6 +110,14 @@ export const OpportunityService = {
     return OpportunitiesRepository.listByCreator(db, organizationId, creatorId, stage);
   },
 
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+  ): Promise<Opportunity | null> {
+    return OpportunitiesRepository.findById(db, organizationId, opportunityId);
+  },
+
   async changeStage(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,

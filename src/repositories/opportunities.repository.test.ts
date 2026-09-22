@@ -132,4 +132,83 @@ describe("OpportunitiesRepository", () => {
       ),
     ).rejects.toThrow(OpportunityNotFoundError);
   });
+
+  it("syncs status to WON when stage reaches FECHADO, to LOST when stage reaches PERDIDO, and leaves status unchanged for a non-terminal stage", async () => {
+    const { db, cleanup: c, org, creator, company, lead } = await setup();
+    cleanup = c;
+
+    const opportunityA = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+    const wonUpdate = await OpportunitiesRepository.updateStage(
+      db,
+      org.id,
+      opportunityA.id,
+      "FECHADO",
+    );
+    expect(wonUpdate.status).toBe("WON");
+
+    const opportunityB = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+    const lostUpdate = await OpportunitiesRepository.updateStage(
+      db,
+      org.id,
+      opportunityB.id,
+      "PERDIDO",
+    );
+    expect(lostUpdate.status).toBe("LOST");
+
+    const opportunityC = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+    const nonTerminalUpdate = await OpportunitiesRepository.updateStage(
+      db,
+      org.id,
+      opportunityC.id,
+      "PRIMEIRO_CONTATO",
+    );
+    expect(nonTerminalUpdate.status).toBe("OPEN");
+  });
+
+  it("is a no-op that does not write a new stage_history row when the new stage equals the current stage", async () => {
+    const { db, cleanup: c, org, creator, company, lead } = await setup();
+    cleanup = c;
+
+    const opportunity = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+
+    const beforeHistory = await db
+      .select()
+      .from(opportunityStageHistory)
+      .where(eq(opportunityStageHistory.opportunityId, opportunity.id));
+
+    const result = await OpportunitiesRepository.updateStage(
+      db,
+      org.id,
+      opportunity.id,
+      opportunity.stage,
+    );
+    expect(result.stage).toBe(opportunity.stage);
+
+    const afterHistory = await db
+      .select()
+      .from(opportunityStageHistory)
+      .where(eq(opportunityStageHistory.opportunityId, opportunity.id));
+
+    expect(afterHistory).toHaveLength(beforeHistory.length);
+  });
 });

@@ -78,9 +78,20 @@ async function updateOpportunityStage(
     throw new OpportunityNotFoundError(opportunityId);
   }
 
+  if (newStage === current.stage) {
+    return current;
+  }
+
+  const statusUpdate: Partial<typeof opportunities.$inferInsert> = {};
+  if (newStage === "FECHADO") {
+    statusUpdate.status = "WON";
+  } else if (newStage === "PERDIDO") {
+    statusUpdate.status = "LOST";
+  }
+
   const [updated] = await tx
     .update(opportunities)
-    .set({ stage: newStage })
+    .set({ stage: newStage, ...statusUpdate })
     .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)))
     .returning();
 
