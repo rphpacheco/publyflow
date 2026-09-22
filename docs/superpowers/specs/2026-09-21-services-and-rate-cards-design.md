@@ -29,6 +29,9 @@ testável isoladamente, e Proposals se apoia diretamente nele.
 | 3 | Escopo de Services | **Por creator**, não compartilhado pela organização — desvio deliberado da spec de produto original (que sugeria um catálogo por organização com Rate Cards podendo ser "gerais da org"). Motivo: simplicidade de modelo — um catálogo por creator evita ambiguidade sobre "esse serviço serve pra qual creator" quando a organização administra múltiplos creators com formatos/preços muito diferentes. |
 | 4 | Escopo de Rate Cards | Consequência da decisão #3: `rate_cards.creator_id` é **not null** (sempre amarrada a um creator), não nullable como a spec de produto original sugeria para "tabela geral da org". |
 | 5 | `service_packages` (combos) | Fora de escopo — adicionado depois, se necessário. |
+| 6 | Vigência de Rate Card | `rate_cards` ganha `valid_from`/`valid_to` nullable — permite marcar tabelas sazonais (ex: "Tabela Black Friday") com janela de validade, sem exigir lógica adicional de seleção automática (decisão #2 continua valendo: seleção é sempre explícita, `valid_from`/`valid_to` são apenas metadados informativos nesta fase, não usados para filtrar/ativar automaticamente). |
+| 7 | Ordenação de itens | `rate_card_items` ganha `sort_order` integer not null default 0 — ordem de exibição dos itens dentro de uma Rate Card, controlada pelo usuário (não alfabética/por data). |
+| 8 | Opções avaliadas e conscientemente adiadas | `rate_cards.is_default` (marcar uma tabela como padrão por creator) e um state machine `DRAFT → PUBLISHED → LOCKED` (em vez de apenas `is_locked`) foram avaliados e explicitamente adiados — não têm valor claro de uso real ainda e adicionariam regras de negócio (ex: garantir só uma default por creator; transições de estado válidas) sem um caso de uso concreto no momento. Revisitar quando o uso real do produto pedir. |
 
 ## 3. Modelo de Dados
 
@@ -51,6 +54,9 @@ testável isoladamente, e Proposals se apoia diretamente nele.
 - `is_active` boolean not null default true (visibilidade em seletores; não confundir com
   `is_locked`)
 - `is_locked` boolean not null default false (trava de edição — ver §5)
+- `valid_from` timestamp nullable (metadado informativo — não usado para seleção automática,
+  ver Decisão #6)
+- `valid_to` timestamp nullable (idem)
 - `created_at` timestamp
 
 ### `rate_card_items`
@@ -61,6 +67,7 @@ testável isoladamente, e Proposals se apoia diretamente nele.
   por um item de rate card)
 - `price` integer not null (centavos)
 - `unit_description` text nullable (sobrescreve o do Service quando preenchido)
+- `sort_order` integer not null default 0 (ordem de exibição dentro da Rate Card)
 - `created_at` timestamp
 
 **Regra não-negociável** (herdada de Milestone 1/2): toda tabela carrega `organization_id`
