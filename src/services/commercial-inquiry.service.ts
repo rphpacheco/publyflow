@@ -188,15 +188,25 @@ export const CommercialInquiryService = {
         // Per design spec Decisão #12: reusing an existing open
         // Opportunity for the same party must NOT create a second Lead or
         // Opportunity -- only associate this inquiry to the existing one.
-        // Also skip creating a brand-new Contact here: it isn't needed to
-        // link the inquiry, and creating one only because a second message
-        // arrived mid-negotiation would be its own duplicate-record bug.
+        // The original Lead's contactId is left untouched -- it still
+        // represents the original point of contact for this negotiation.
+        //
+        // The caller-supplied contact still needs to be persisted, though:
+        // a second inquiry that matched on company/brand may be from a
+        // different person at that company, and their name/email/phone
+        // must not be silently discarded just because no new Lead was
+        // created. resolveContactWithTx finds-or-creates it as a
+        // standalone `contacts` row (find-or-create semantics live in
+        // ContactsRepository for the `{id}` case; a `{fullName,...}` input
+        // always creates a fresh row, same as the new-opportunity branch).
         const lead = await LeadsRepository.findByIdWithTx(tx, organizationId, existingOpportunity.leadId);
         if (!lead) {
           throw new Error(
             `Opportunity ${existingOpportunity.id} references missing lead ${existingOpportunity.leadId}`,
           );
         }
+
+        await resolveContactWithTx(tx, organizationId, input, companyId);
 
         const updatedInquiry = await CommercialInquiriesRepository.updateStatusWithTx(
           tx,

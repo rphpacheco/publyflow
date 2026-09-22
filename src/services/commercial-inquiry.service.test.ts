@@ -10,7 +10,7 @@ import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
 import type { MessageClassification } from "@/lib/ai/schemas";
-import { companies } from "@/db/schema/companies-brands-contacts";
+import { companies, contacts } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { InquiryAlreadyResolvedError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
@@ -182,6 +182,86 @@ describe("CommercialInquiryService", () => {
 
     const allLeads = await db.select().from(leads).where(eq(leads.organizationId, organization.id));
     expect(allLeads).toHaveLength(1);
+  });
+
+  it("persists the caller-supplied contact even when resolving onto an existing open Opportunity for a different person", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setupOrgAndCreator(db);
+
+    const [company] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning(),
+    );
+
+    const ai = fakeAI({
+      category: "COMMERCIAL_LEAD",
+      commercialScore: 90,
+      intent: "Pedido de mídia kit",
+      extracted: {
+        companyName: "Bella Cosméticos",
+        brandName: null,
+        contactName: "Maria",
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      },
+    });
+
+    const first = await InboxService.ingestManualMessage(db, ai, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "Maria — Bella Cosméticos",
+      body: "Primeira mensagem",
+      receivedAt: new Date(),
+    });
+    const firstResolution = await CommercialInquiryService.resolve(
+      db,
+      organization.id,
+      first.inquiry!.id,
+      { contact: { fullName: "Maria" }, companyId: company.id },
+    );
+
+    const second = await InboxService.ingestManualMessage(db, ai, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "João — Bella Cosméticos",
+      body: "Outra pessoa da mesma empresa entrando em contato",
+      receivedAt: new Date(),
+    });
+    // Different person ("João") than the original Lead's contact ("Maria"),
+    // but the AI's company guess matches the same company, so this resolves
+    // onto Maria's existing open Opportunity instead of creating a new
+    // Lead/Opportunity. João's contact info must still be persisted, not
+    // silently discarded.
+    const secondResolution = await CommercialInquiryService.resolve(
+      db,
+      organization.id,
+      second.inquiry!.id,
+      { contact: { fullName: "João", email: "joao@bellacosmeticos.test" }, companyId: company.id },
+    );
+
+    // No new Lead/Opportunity -- still Maria's original records.
+    expect(secondResolution.lead.id).toBe(firstResolution.lead.id);
+    expect(secondResolution.opportunity.id).toBe(firstResolution.opportunity.id);
+
+    const joaoContacts = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.organizationId, organization.id));
+    expect(joaoContacts.some((contact) => contact.fullName === "João")).toBe(true);
+    expect(
+      joaoContacts.some((contact) => contact.email === "joao@bellacosmeticos.test"),
+    ).toBe(true);
+
+    // The original Lead's contactId must remain pointed at Maria -- the new
+    // contact does not reassign it.
+    const [originalLead] = await db.select().from(leads).where(eq(leads.id, firstResolution.lead.id));
+    const [mariaContact] = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, originalLead.contactId));
+    expect(mariaContact.fullName).toBe("Maria");
   });
 
   it("rolls back the Lead insert if the Opportunity create fails, leaving the inquiry unresolved", async () => {
