@@ -57,6 +57,13 @@
       "when": 1790041038279,
       "tag": "0007_add_services",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790041277145,
+      "tag": "0008_add_rate_cards",
+      "breakpoints": true
     }
   ]
 }
