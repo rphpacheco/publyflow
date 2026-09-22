@@ -32,7 +32,8 @@ incremental dos planos anteriores.
 | 5 | Rate Card por Proposal | **Não existe** `rate_card_id` fixo em `proposals`. Cada `proposal_item` referencia seu próprio `rate_card_item_id` (potencialmente de tabelas diferentes) ou é avulso — uma mesma Proposal pode combinar itens de Rate Cards diferentes e itens avulsos. |
 | 6 | Gatilho de versionamento | **Automático**, a cada mutação estrutural (add/edit/remove de item, bloco, ou metadados da proposta — título/template/status), dentro da mesma transação da mudança. Sem versionamento manual nesta fase. Snapshots são **completos**, não diffs. Uma mutação que não altera efetivamente o conteúdo (ex: update com os mesmos valores) **não** gera versão nova — comparação explícita antes de decidir se grava snapshot. |
 | 7 | Status de Proposal | Apenas `DRAFT` e `ARCHIVED` nesta fase (ver §1 — `SENT`/`APPROVED`/`REJECTED` ficam para a spec de compartilhamento). |
-| 8 | Autoria de versão | `proposal_versions.created_by` é `uuid` **not null**. Como autenticação/sessão continua fora de escopo, os endpoints de mutação de Proposal exigem `userId` explícito no corpo da requisição, mesmo padrão já usado para `organizationId`. Quando auth for implementada, `userId` passa a vir da sessão, sem mudança de semântica do campo. |
+| 8 | Autoria de versão | `proposal_versions.created_by` é `uuid` **not null**. Como autenticação/sessão continua fora de escopo, os endpoints de mutação de Proposal exigem `userId` explícito no corpo da requisição, mesmo padrão já usado para `organizationId`. Quando auth for implementada, `userId` passa a vir da sessão, sem mudança de semântica do campo. **Validação explícita**: o `userId` informado deve corresponder a um `organization_members` existente para o `organizationId` da requisição — se não houver membership, a operação falha (não confiar apenas no FK `users.id`, que aceita qualquer usuário de qualquer organização). |
+| 9 | Validação de `creator_id` do `rate_card_item` | Quando um `proposal_item` referencia `rate_card_item_id`, o serviço deve validar não só que o `rate_card_item`/`rate_card` pertence à mesma `organization_id` (já coberto pela regra geral de ownership do §4), mas também que o `creator_id` da Rate Card de origem é **o mesmo `creator_id` da Opportunity** à qual a Proposal pertence (`proposals.opportunity_id → opportunities.creator_id`). Isso impede anexar a uma proposta de um creator um item de tabela de preço de outro creator da mesma organização — a mesma invariante de catálogo por creator já aplicada em `RateCardItemService.addItem`, agora estendida à cadeia Proposal→Opportunity→Creator. |
 
 ## 3. Modelo de Dados
 
@@ -77,6 +78,9 @@ incremental dos planos anteriores.
   template, status}, items: [...], blocks: [...] }`
 - `created_by` uuid not null, FK → users, restrict
 - `created_at` timestamp
+- `UNIQUE (proposal_id, version_number)` — impede colisão/duplicação de número de versão
+  para a mesma proposta (defesa a nível de banco contra uma race condition na leitura do
+  próximo `version_number`, mesmo com a escrita protegida por transação).
 
 ### `rate_cards` (alteração a uma tabela existente)
 - `+ locked_at` timestamp nullable — preenchido no momento em que `RateCardService.lock()`
@@ -99,12 +103,15 @@ posterior:**
   (`createWithTx`/`findByIdWithTx`/etc., seguindo exatamente a forma já estabelecida em
   `creators.repository.ts`/`contacts.repository.ts`) dentro de uma única transação — não
   escrevemos a versão sem transação para depois corrigir.
-- Toda referência a uma entidade de outra tabela que o caller pode informar livremente
-  (`rate_card_item_id` num `proposal_item`) é validada explicitamente por
-  `organization_id` (e, quando aplicável, `creator_id`) na camada de serviço — nunca
-  confiando em RLS sozinha, já que checks de FK no Postgres ignoram RLS. Isso é exatamente
-  o bug de bypass cross-tenant corrigido na revisão final do plano de Rate Cards; aqui ele
-  é evitado por desenho.
+- Toda referência a uma entidade de outra tabela que o caller pode informar livremente é
+  validada explicitamente na camada de serviço — nunca confiando em RLS sozinha, já que
+  checks de FK no Postgres ignoram RLS. Isso é exatamente o bug de bypass cross-tenant
+  corrigido na revisão final do plano de Rate Cards; aqui ele é evitado por desenho, em
+  dois pontos concretos (ver Decisões #8 e #9):
+  - `rate_card_item_id` num `proposal_item`: valida `organization_id` E `creator_id`
+    (via `opportunity.creator_id`), não apenas `organization_id`.
+  - `userId` em qualquer endpoint de mutação: valida que existe `organization_members`
+    para esse par `(userId, organizationId)`, não apenas que o `userId` existe em `users`.
 
 **Serviços:**
 - `ProposalService.create(db, organizationId, input: { opportunityId, title, template, userId })` — cria a proposta (status `DRAFT`) e a versão 1 (snapshot do estado inicial: items/blocks vazios), atômico.
