@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
@@ -8,6 +8,7 @@ import { ServiceService } from "./service.service";
 import { RateCardService } from "./rate-card.service";
 import { RateCardsRepository } from "@/repositories/rate-cards.repository";
 import { RateCardItemsRepository } from "@/repositories/rate-card-items.repository";
+import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
 
 describe("RateCardService", () => {
   let cleanup: () => Promise<void>;
@@ -56,6 +57,19 @@ describe("RateCardService", () => {
     expect(locked.isLocked).toBe(true);
   });
 
+  // Fix 5: lock() must not resolve successfully without actually locking
+  // anything -- a future caller (the Proposals subsystem) could otherwise
+  // misread a silent no-op as "locked".
+  it("throws RateCardNotFoundError when locking an unknown rate card id", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await setup(db);
+
+    await expect(
+      RateCardService.lock(db, organization.id, "00000000-0000-0000-0000-000000000000"),
+    ).rejects.toThrow(RateCardNotFoundError);
+  });
+
   it("duplicates a locked rate card into a new, unlocked one with the same items", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
@@ -100,5 +114,73 @@ describe("RateCardService", () => {
       original.id,
     );
     expect(originalItems).toHaveLength(1);
+  });
+
+  it("rolls back the whole duplicate() if an item copy fails partway through", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setup(db);
+
+    const serviceA = await ServiceService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "01 Reel",
+    });
+    const serviceB = await ServiceService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "02 Story",
+    });
+
+    const original = await RateCardService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "Tabela 2026",
+    });
+    await RateCardItemsRepository.create(db, organization.id, {
+      rateCardId: original.id,
+      serviceId: serviceA.id,
+      price: 200000,
+      sortOrder: 1,
+    });
+    await RateCardItemsRepository.create(db, organization.id, {
+      rateCardId: original.id,
+      serviceId: serviceB.id,
+      price: 300000,
+      sortOrder: 2,
+    });
+
+    // Simulate a failure partway through item copying: the new rate card
+    // and the first item insert succeed, then the second item's insert
+    // throws. This proves the whole operation shares one transaction --
+    // if it didn't, the new rate card and the first copied item would
+    // remain committed despite the second item's insert failing.
+    const originalCreateWithTx = RateCardItemsRepository.createWithTx;
+    let callCount = 0;
+    const createSpy = vi
+      .spyOn(RateCardItemsRepository, "createWithTx")
+      .mockImplementation(async (...args) => {
+        callCount += 1;
+        if (callCount === 2) {
+          throw new Error("simulated item copy failure");
+        }
+        return originalCreateWithTx(...args);
+      });
+
+    try {
+      await expect(
+        RateCardService.duplicate(db, organization.id, original.id, { name: "Tabela 2027" }),
+      ).rejects.toThrow("simulated item copy failure");
+    } finally {
+      createSpy.mockRestore();
+    }
+
+    const remainingRateCards = await RateCardsRepository.listByCreator(db, organization.id, creator.id);
+    expect(remainingRateCards).toHaveLength(1);
+    expect(remainingRateCards[0].id).toBe(original.id);
+
+    const remainingOriginalItems = await RateCardItemsRepository.listByRateCard(
+      db,
+      organization.id,
+      original.id,
+    );
+    expect(remainingOriginalItems).toHaveLength(2);
   });
 });

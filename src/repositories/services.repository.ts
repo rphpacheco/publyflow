@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { services } from "@/db/schema/services";
 import { runInTenantContext } from "./tenant-context";
+import { ServiceNotFoundError } from "@/domain/rate-cards/errors";
 
 export type Service = typeof services.$inferSelect;
 
@@ -18,6 +19,18 @@ export interface UpdateServiceInput {
   description?: string | null;
   unitDescription?: string | null;
   isActive?: boolean;
+}
+
+async function selectServiceById(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  serviceId: string,
+): Promise<Service | null> {
+  const [service] = await tx
+    .select()
+    .from(services)
+    .where(and(eq(services.id, serviceId), eq(services.organizationId, organizationId)));
+  return service ?? null;
 }
 
 export const ServicesRepository = {
@@ -53,8 +66,34 @@ export const ServicesRepository = {
         .set(input)
         .where(and(eq(services.id, serviceId), eq(services.organizationId, organizationId)))
         .returning();
+      // Fix 5: without this check, an unknown/foreign serviceId silently
+      // no-ops -- `.returning()` yields no row, which destructures to
+      // `undefined` but was mistyped as the non-nullable Service, so
+      // PATCH /api/services/:id would return 200 with an empty body
+      // instead of a 404.
+      if (!service) {
+        throw new ServiceNotFoundError(serviceId);
+      }
       return service;
     });
+  },
+
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    serviceId: string,
+  ): Promise<Service | null> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectServiceById(tx, organizationId, serviceId),
+    );
+  },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    serviceId: string,
+  ): Promise<Service | null> {
+    return selectServiceById(tx, organizationId, serviceId);
   },
 
   async listByCreator(

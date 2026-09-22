@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { ServiceService } from "@/services/service.service";
+import { ServiceNotFoundError } from "@/domain/rate-cards/errors";
 
 const updateSchema = z.object({
   organizationId: z.string().uuid(),
@@ -15,6 +16,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const payload = updateSchema.parse(await request.json());
   const { organizationId, ...input } = payload;
-  const service = await ServiceService.update(db, organizationId, id, input);
-  return NextResponse.json(service, { status: 200 });
+  try {
+    const service = await ServiceService.update(db, organizationId, id, input);
+    return NextResponse.json(service, { status: 200 });
+  } catch (error) {
+    if (error instanceof ServiceNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    throw error;
+  }
 }
