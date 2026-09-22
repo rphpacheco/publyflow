@@ -1,11 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { ProposalService } from "./proposal.service";
 import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
 import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
-import { organizations, users } from "@/db/schema/organizations";
+import { users } from "@/db/schema/organizations";
 import { contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
 
@@ -13,7 +15,7 @@ describe("ProposalService", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  async function setup(db: any) {
+  async function setup(db: NodePgDatabase<typeof schema>) {
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: `owner-${Date.now()}-${Math.random()}@publyflow.test`,
@@ -62,7 +64,8 @@ describe("ProposalService", () => {
     const versions = await ProposalVersionsRepository.listByProposal(db, organization.id, proposal.id);
     expect(versions).toHaveLength(1);
     expect(versions[0].versionNumber).toBe(1);
-    expect((versions[0].snapshotJson as any).proposal.title).toBe("Campanha Verão");
+    const snapshot = versions[0].snapshotJson as { proposal: { title: string } };
+    expect(snapshot.proposal.title).toBe("Campanha Verão");
   });
 
   it("rejects create when userId is not a member of the organization", async () => {

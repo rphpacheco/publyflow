@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "./organizations";
 import { creators } from "./creators";
@@ -10,7 +12,7 @@ describe("proposal_items schema", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  async function setup(db: any) {
+  async function setup(db: NodePgDatabase<typeof schema>) {
     const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
     const [user] = await db
       .insert(users)

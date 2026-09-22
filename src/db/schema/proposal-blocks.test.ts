@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "./organizations";
 import { creators } from "./creators";
@@ -10,7 +12,7 @@ describe("proposal_blocks schema", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  async function setup(db: any) {
+  async function setup(db: NodePgDatabase<typeof schema>) {
     const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
     const [user] = await db
       .insert(users)
@@ -68,7 +70,7 @@ describe("proposal_blocks schema", () => {
       db.insert(proposalBlocks).values({
         organizationId: org.id,
         proposalId: proposal.id,
-        blockType: "NOT_A_REAL_TYPE" as any,
+        blockType: "NOT_A_REAL_TYPE" as unknown as (typeof proposalBlocks.$inferInsert)["blockType"],
         content: {},
       }),
     ).rejects.toThrow();

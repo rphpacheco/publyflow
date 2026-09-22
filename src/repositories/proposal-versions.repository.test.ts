@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
@@ -13,7 +15,7 @@ describe("ProposalVersionsRepository", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  async function setup(db: any) {
+  async function setup(db: NodePgDatabase<typeof schema>) {
     const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
     const [user] = await db
       .insert(users)
@@ -59,8 +61,9 @@ describe("ProposalVersionsRepository", () => {
       ProposalVersionsRepository.createVersionWithTx(tx, org.id, proposal.id, user.id),
     );
     expect(v1.versionNumber).toBe(1);
-    expect((v1.snapshotJson as any).items).toHaveLength(1);
-    expect((v1.snapshotJson as any).proposal.title).toBe("P");
+    const snapshot1 = v1.snapshotJson as { items: unknown[]; proposal: { title: string } };
+    expect(snapshot1.items).toHaveLength(1);
+    expect(snapshot1.proposal.title).toBe("P");
 
     const v2 = await runInTenantContext(db, org.id, (tx) =>
       ProposalVersionsRepository.createVersionWithTx(tx, org.id, proposal.id, user.id),
