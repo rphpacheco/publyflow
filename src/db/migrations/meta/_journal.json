@@ -64,6 +64,13 @@
       "when": 1790041277145,
       "tag": "0008_add_rate_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790041500000,
+      "tag": "0009_add_rate_card_items_rls",
+      "breakpoints": true
     }
   ]
 }
