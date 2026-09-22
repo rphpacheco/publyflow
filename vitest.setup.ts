@@ -6,7 +6,19 @@ import { config } from "dotenv";
 config({ path: ".env.test" });
 config({ path: ".env" });
 
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+
+// @testing-library/react only auto-registers its afterEach(cleanup) when it
+// detects a global `afterEach` (e.g. vitest's `globals: true`), which this
+// project doesn't enable. Without it, a component tree rendered in one test
+// stays mounted into the next test in the same file, and queries like
+// getByText can start matching leftover elements from a prior render. This
+// call is what @testing-library/react's own auto-cleanup would otherwise do.
+afterEach(() => {
+  cleanup();
+});
 
 // Radix primitives (Dialog, DropdownMenu, Popover, Command in later tasks)
 // call pointer-capture and scroll APIs that jsdom doesn't implement. This is
@@ -21,5 +33,14 @@ if (typeof window !== "undefined") {
   }
   if (!window.HTMLElement.prototype.scrollIntoView) {
     window.HTMLElement.prototype.scrollIntoView = () => {};
+  }
+  // cmdk (Command Palette, Task 11) observes element size via ResizeObserver,
+  // which jsdom doesn't implement either.
+  if (!window.ResizeObserver) {
+    window.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
   }
 }
