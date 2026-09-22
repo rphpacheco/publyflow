@@ -9,6 +9,7 @@ import { RateCardService } from "./rate-card.service";
 import { RateCardsRepository } from "@/repositories/rate-cards.repository";
 import { RateCardItemsRepository } from "@/repositories/rate-card-items.repository";
 import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 import { runInTenantContext } from "@/repositories/tenant-context";
 
 describe("RateCardService", () => {
@@ -210,5 +211,30 @@ describe("RateCardService", () => {
       original.id,
     );
     expect(remainingOriginalItems).toHaveLength(2);
+  });
+
+  it("rejects creating a rate card when creatorId belongs to another organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: `owner-${Date.now()}-${Math.random()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const { organization: otherOrganization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `owner2-${Date.now()}-${Math.random()}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+    const foreignCreator = await CreatorService.onboardCreator(db, otherOrganization.id, {
+      email: `foreign-${Date.now()}-${Math.random()}@publyflow.test`,
+      fullName: "Foreign Creator",
+      displayName: "Foreign Creator",
+    });
+
+    await expect(
+      RateCardService.create(db, organization.id, { creatorId: foreignCreator.id, name: "Tabela" }),
+    ).rejects.toThrow(CreatorNotFoundError);
   });
 });

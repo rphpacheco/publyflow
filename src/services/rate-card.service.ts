@@ -9,8 +9,10 @@ import {
   RateCardItemsRepository,
   type RateCardItem,
 } from "@/repositories/rate-card-items.repository";
+import { CreatorsRepository } from "@/repositories/creators.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 export interface DuplicateRateCardInput {
   name: string;
@@ -27,7 +29,17 @@ export const RateCardService = {
     organizationId: string,
     input: CreateRateCardInput,
   ): Promise<RateCard> {
-    return RateCardsRepository.create(db, organizationId, input);
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const creatorExists = await CreatorsRepository.existsForOrganizationWithTx(
+        tx,
+        organizationId,
+        input.creatorId,
+      );
+      if (!creatorExists) {
+        throw new CreatorNotFoundError(input.creatorId);
+      }
+      return RateCardsRepository.createWithTx(tx, organizationId, input);
+    });
   },
 
   async listByCreator(
