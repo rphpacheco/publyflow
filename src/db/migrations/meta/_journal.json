@@ -71,6 +71,13 @@
       "when": 1790041500000,
       "tag": "0009_add_rate_card_items_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790093827735,
+      "tag": "0010_add_locked_at_to_rate_cards",
+      "breakpoints": true
     }
   ]
 }

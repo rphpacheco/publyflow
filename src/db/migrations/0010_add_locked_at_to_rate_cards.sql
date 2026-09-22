@@ -1,0 +1,1 @@
+ALTER TABLE "rate_cards" ADD COLUMN "locked_at" timestamp with time zone;

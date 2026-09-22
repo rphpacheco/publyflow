@@ -37,6 +37,23 @@ async function insertRateCard(
   return rateCard;
 }
 
+async function updateLocked(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  rateCardId: string,
+  locked: boolean,
+): Promise<RateCard> {
+  const [rateCard] = await tx
+    .update(rateCards)
+    .set({ isLocked: locked, ...(locked ? { lockedAt: new Date() } : {}) })
+    .where(and(eq(rateCards.id, rateCardId), eq(rateCards.organizationId, organizationId)))
+    .returning();
+  if (!rateCard) {
+    throw new RateCardNotFoundError(rateCardId);
+  }
+  return rateCard;
+}
+
 async function selectRateCardById(
   tx: NodePgDatabase<typeof schema>,
   organizationId: string,
@@ -109,16 +126,15 @@ export const RateCardsRepository = {
     rateCardId: string,
     locked: boolean,
   ): Promise<RateCard> {
-    return runInTenantContext(db, organizationId, async (tx) => {
-      const [rateCard] = await tx
-        .update(rateCards)
-        .set({ isLocked: locked })
-        .where(and(eq(rateCards.id, rateCardId), eq(rateCards.organizationId, organizationId)))
-        .returning();
-      if (!rateCard) {
-        throw new RateCardNotFoundError(rateCardId);
-      }
-      return rateCard;
-    });
+    return runInTenantContext(db, organizationId, (tx) => updateLocked(tx, organizationId, rateCardId, locked));
+  },
+
+  async setLockedWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    rateCardId: string,
+    locked: boolean,
+  ): Promise<RateCard> {
+    return updateLocked(tx, organizationId, rateCardId, locked);
   },
 };

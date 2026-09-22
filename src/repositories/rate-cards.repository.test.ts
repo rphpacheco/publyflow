@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
@@ -67,5 +68,31 @@ describe("RateCardsRepository", () => {
     await expect(
       RateCardsRepository.setLocked(db, org.id, "00000000-0000-0000-0000-000000000000", true),
     ).rejects.toThrow(RateCardNotFoundError);
+  });
+
+  it("sets lockedAt when locking, both via setLocked and setLockedWithTx", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const [user] = await db
+      .insert(users)
+      .values({ email: "thais@publyflow.test", fullName: "Thais" })
+      .returning();
+    const [creator] = await db
+      .insert(creators)
+      .values({ organizationId: org.id, userId: user.id, displayName: "Thais" })
+      .returning();
+
+    const cardA = await RateCardsRepository.create(db, org.id, { creatorId: creator.id, name: "A" });
+    const lockedA = await RateCardsRepository.setLocked(db, org.id, cardA.id, true);
+    expect(lockedA.lockedAt).not.toBeNull();
+
+    const cardB = await RateCardsRepository.create(db, org.id, { creatorId: creator.id, name: "B" });
+    const lockedB = await db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.current_org_id', ${org.id}, true)`);
+      return RateCardsRepository.setLockedWithTx(tx, org.id, cardB.id, true);
+    });
+    expect(lockedB.lockedAt).not.toBeNull();
   });
 });

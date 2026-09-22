@@ -14,6 +14,7 @@ export const rateCards = pgTable("rate_cards", {
   name: text("name").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   isLocked: boolean("is_locked").notNull().default(false),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
   validFrom: timestamp("valid_from", { withTimezone: true }),
   validTo: timestamp("valid_to", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
