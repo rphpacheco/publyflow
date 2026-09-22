@@ -81,7 +81,7 @@ AA e uma relação violeta+magenta+neutros mais nítida que as alternativas.
 | Token | Valor | Papel |
 |---|---|---|
 | `--background` | `#F4F4F6` | Fundo da aplicação |
-| `--card` / `--surface` | `#FFFFFF` | Superfície de cards, painéis, tabelas |
+| `--card` | `#FFFFFF` | Superfície de cards, painéis, tabelas |
 | `--foreground` | `#08090A` | Texto principal |
 | `--muted-foreground` | `#71717A` | Texto secundário/legenda |
 | `--border` | `#E4E4E7` | Bordas, divisores |
@@ -142,16 +142,21 @@ nenhum caso):**
 
 Inter, pesos 400 (regular), 500 (medium), 600 (semibold), 700 (bold).
 
-Escala compacta — o corpo padrão do produto é 13px, não 16px, seguindo a densidade que Linear
-e Attio usam:
+Escala compacta, mas **13px é o default para UI operacional/densa, não uma regra
+universal** — texto de leitura usa tamanhos maiores para priorizar legibilidade:
 
 | Uso | Tamanho |
 |---|---|
-| Labels, badges, metadados | 12px |
-| Corpo padrão (tabelas, listas, UI densa) | 13px |
-| Corpo de leitura (descrições, textos longos) | 14px |
+| Labels, badges, metadados (quando apropriado) | 12px |
+| UI operacional/densa (tabelas, listas, corpo padrão do produto) | 13px |
+| Texto de leitura e conteúdos que exigem maior legibilidade (descrições, textos longos) | 14–16px |
 | Títulos de seção | 16–18px |
 | Títulos de página | 20–24px |
+
+Regras adicionais:
+- Evitar texto funcional abaixo de 12px.
+- Inputs e controles devem priorizar legibilidade, especialmente em mobile — não aplicar o
+  13px denso indiscriminadamente a campos de formulário.
 
 ## 6. Escopo de Implementação (Design System v1)
 
@@ -168,10 +173,20 @@ e Attio usam:
 
 **Não entra nesta implementação** (decisões prematuras seriam antecipação de UX ainda não
 especificada):
-- Kanban Board completo, DataTable avançado, Rich Block Editor completo — só os primitives
-  que eles vão consumir (Table, drag-and-drop base) entram; comportamento e UX completos
-  esperam a spec da tela que os usa.
+- Kanban Board completo, DataTable avançado, Rich Block Editor completo — nem seus
+  primitives de base (ex: `dnd-kit`) entram agora. `dnd-kit` fica definido como a base
+  futura do Kanban (§2, decisão 15), mas sua infraestrutura só é implementada quando a UX
+  do Pipeline for especificada — instalar drag-and-drop antes disso seria antecipação sem
+  uso real ainda.
 - UX específica de Inbox, Pipeline, Opportunity Detail, Proposal Builder, Dashboard.
+
+**Regra global de acessibilidade (aplica-se a todo componente interativo desta
+implementação):** todo componente interativo deve ter um estado `:focus-visible` claramente
+perceptível, com contraste adequado, e preservar navegação por teclado quando aplicável. Isso
+não introduz escopo de teste E2E abrangente nesta spec — os primitives e componentes do shell
+devem apenas ser implementados respeitando os comportamentos de acessibilidade já oferecidos
+por suas tecnologias base (Radix cuida de foco/teclado nos seus primitives; o trabalho aqui é
+não sobrescrever isso com estilos que escondam o indicador de foco).
 
 ## 7. Próximo Passo
 
