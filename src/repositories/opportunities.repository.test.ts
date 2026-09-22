@@ -1,9 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
 import { companies, contacts } from "@/db/schema/companies-brands-contacts";
-import { leads } from "@/db/schema/commercial-flow";
+import { leads, opportunityStageHistory } from "@/db/schema/commercial-flow";
+import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 import { OpportunitiesRepository } from "./opportunities.repository";
 
 describe("OpportunitiesRepository", () => {
@@ -86,5 +88,48 @@ describe("OpportunitiesRepository", () => {
     );
     expect(filtered.every((row) => row.stage === "NOVO_LEAD")).toBe(true);
     expect(filtered.some((row) => row.id === opportunity.id)).toBe(true);
+  });
+
+  it("updateStage changes the opportunity's stage and records a stage_history row in one transaction", async () => {
+    const { db, cleanup: c, org, creator, company, lead } = await setup();
+    cleanup = c;
+
+    const opportunity = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+
+    const updated = await OpportunitiesRepository.updateStage(
+      db,
+      org.id,
+      opportunity.id,
+      "PRIMEIRO_CONTATO",
+    );
+    expect(updated.stage).toBe("PRIMEIRO_CONTATO");
+
+    const history = await db
+      .select()
+      .from(opportunityStageHistory)
+      .where(eq(opportunityStageHistory.opportunityId, opportunity.id));
+
+    expect(history).toHaveLength(2); // initial NOVO_LEAD entry (from create) + this transition
+    const transition = history.find((row) => row.toStage === "PRIMEIRO_CONTATO");
+    expect(transition?.fromStage).toBe("NOVO_LEAD");
+  });
+
+  it("throws OpportunityNotFoundError when updating the stage of a nonexistent opportunity", async () => {
+    const { db, cleanup: c, org } = await setup();
+    cleanup = c;
+
+    await expect(
+      OpportunitiesRepository.updateStage(
+        db,
+        org.id,
+        "00000000-0000-0000-0000-000000000000",
+        "PRIMEIRO_CONTATO",
+      ),
+    ).rejects.toThrow(OpportunityNotFoundError);
   });
 });

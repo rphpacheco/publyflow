@@ -2,6 +2,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { opportunities, opportunityStageHistory, leads } from "@/db/schema/commercial-flow";
+import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 import { runInTenantContext } from "./tenant-context";
 
 export type Opportunity = typeof opportunities.$inferSelect;
@@ -62,6 +63,35 @@ async function selectOpportunityById(
     .from(opportunities)
     .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)));
   return opportunity ?? null;
+}
+
+// Mirrors insertOpportunity's two-write shape: updates opportunities.stage
+// and inserts the corresponding opportunity_stage_history row atomically.
+async function updateOpportunityStage(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  opportunityId: string,
+  newStage: Opportunity["stage"],
+): Promise<Opportunity> {
+  const current = await selectOpportunityById(tx, organizationId, opportunityId);
+  if (!current) {
+    throw new OpportunityNotFoundError(opportunityId);
+  }
+
+  const [updated] = await tx
+    .update(opportunities)
+    .set({ stage: newStage })
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)))
+    .returning();
+
+  await tx.insert(opportunityStageHistory).values({
+    organizationId,
+    opportunityId,
+    fromStage: current.stage,
+    toStage: newStage,
+  });
+
+  return updated;
 }
 
 async function selectOpenForParty(
@@ -139,6 +169,26 @@ export const OpportunitiesRepository = {
     party: FindOpenForPartyInput,
   ): Promise<Opportunity | null> {
     return selectOpenForParty(tx, party);
+  },
+
+  async updateStage(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+    newStage: Opportunity["stage"],
+  ): Promise<Opportunity> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      updateOpportunityStage(tx, organizationId, opportunityId, newStage),
+    );
+  },
+
+  async updateStageWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+    newStage: Opportunity["stage"],
+  ): Promise<Opportunity> {
+    return updateOpportunityStage(tx, organizationId, opportunityId, newStage);
   },
 
   async listByCreator(
