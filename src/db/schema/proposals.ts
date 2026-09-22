@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, uuid, text, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { opportunities } from "./commercial-flow";
 import { rateCardItems } from "./rate-cards";
@@ -40,6 +40,34 @@ export const proposalItems = pgTable("proposal_items", {
   description: text("description").notNull(),
   quantity: integer("quantity").notNull().default(1),
   unitPrice: integer("unit_price").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const proposalBlockTypeEnum = pgEnum("proposal_block_type", [
+  "COVER",
+  "TEXT",
+  "IMAGE",
+  "METRICS",
+  "SERVICES",
+  "PRICING",
+  "TIMELINE",
+  "GALLERY",
+  "TESTIMONIALS",
+  "SOCIAL_LINKS",
+  "FOOTER",
+]);
+
+export const proposalBlocks = pgTable("proposal_blocks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  proposalId: uuid("proposal_id")
+    .notNull()
+    .references(() => proposals.id, { onDelete: "cascade" }),
+  blockType: proposalBlockTypeEnum("block_type").notNull(),
+  content: jsonb("content").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
