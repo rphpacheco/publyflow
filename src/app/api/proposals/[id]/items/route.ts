@@ -1,0 +1,59 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/db";
+import { ProposalItemService } from "@/services/proposal-item.service";
+import {
+  ProposalNotFoundError,
+  OpportunityNotFoundError,
+  RateCardItemCreatorMismatchError,
+} from "@/domain/proposals/errors";
+import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
+
+const catalogSchema = z.object({
+  organizationId: z.string().uuid(),
+  userId: z.string().uuid(),
+  rateCardItemId: z.string().uuid(),
+  quantity: z.number().int().positive().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const adHocSchema = z.object({
+  organizationId: z.string().uuid(),
+  userId: z.string().uuid(),
+  description: z.string().min(1),
+  unitPrice: z.number().int(),
+  quantity: z.number().int().positive().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const bodySchema = z.union([catalogSchema, adHocSchema]);
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const payload = bodySchema.parse(await request.json());
+
+  try {
+    const item = await ProposalItemService.addItem(db, payload.organizationId, {
+      proposalId: id,
+      quantity: payload.quantity,
+      sortOrder: payload.sortOrder,
+      userId: payload.userId,
+      ...("rateCardItemId" in payload
+        ? { rateCardItemId: payload.rateCardItemId }
+        : { description: payload.description, unitPrice: payload.unitPrice }),
+    } as Parameters<typeof ProposalItemService.addItem>[2]);
+    return NextResponse.json(item, { status: 201 });
+  } catch (error) {
+    if (
+      error instanceof ProposalNotFoundError ||
+      error instanceof OpportunityNotFoundError ||
+      error instanceof RateCardItemNotFoundError
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof RateCardItemCreatorMismatchError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    throw error;
+  }
+}
