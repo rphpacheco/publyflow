@@ -20,10 +20,14 @@ const bodySchema = z.object({
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const payload = bodySchema.parse(await request.json());
+  // companyId/brandId are left as-is (undefined when omitted from the
+  // request body, distinct from an explicit `null`) so
+  // CommercialInquiryService.resolve can tell "not provided -- resolve
+  // from the AI's guess" apart from "explicitly no company/brand".
   const result = await CommercialInquiryService.resolve(db, payload.organizationId, id, {
     contact: payload.contact,
-    companyId: payload.companyId ?? null,
-    brandId: payload.brandId ?? null,
+    companyId: payload.companyId,
+    brandId: payload.brandId,
   });
   return NextResponse.json(result, { status: 200 });
 }

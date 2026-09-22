@@ -5,10 +5,11 @@ import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { InboxService } from "./inbox.service";
 import type { AIService } from "@/lib/ai/ai-service";
+import type { MessageClassification } from "@/lib/ai/schemas";
 import { conversations, messages } from "@/db/schema/conversations-messages";
 import { CommercialInquiriesRepository } from "@/repositories/commercial-inquiries.repository";
 
-function fakeAI(classification: Parameters<AIService["classifyMessage"]>[0] extends never ? never : any): AIService {
+function fakeAI(classification: MessageClassification): AIService {
   return { classifyMessage: async () => classification };
 }
 

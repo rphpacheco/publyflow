@@ -88,6 +88,11 @@ export const OpportunityService = {
     return OpportunitiesRepository.findOpenForParty(db, organizationId, party);
   },
 
+  // `party.creatorId` is required so an open Opportunity is only reused
+  // when it belongs to the same creator the new inquiry is for — in an
+  // organization with multiple creators, matching purely on
+  // contact/company/brand could otherwise link creator A's inquiry to
+  // creator B's open Opportunity.
   async findOpenOpportunityForPartyWithTx(
     tx: NodePgDatabase<typeof schema>,
     organizationId: string,

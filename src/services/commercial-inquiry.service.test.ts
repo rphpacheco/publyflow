@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
@@ -7,15 +9,17 @@ import { InboxService } from "./inbox.service";
 import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
+import type { MessageClassification } from "@/lib/ai/schemas";
 import { companies } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
+import { InquiryAlreadyResolvedError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
 
-function fakeAI(classification: any): AIService {
+function fakeAI(classification: MessageClassification): AIService {
   return { classifyMessage: async () => classification };
 }
 
-async function setupOrgAndCreator(db: any) {
+async function setupOrgAndCreator(db: NodePgDatabase<typeof schema>) {
   const { organization } = await OrganizationService.createWithOwner(db, {
     organizationName: "Org",
     ownerEmail: `owner-${Date.now()}-${Math.random()}@publyflow.test`,
@@ -165,11 +169,19 @@ describe("CommercialInquiryService", () => {
     );
 
     expect(secondResolution.opportunity.id).toBe(firstResolution.opportunity.id);
+    // Fix 2: the second resolve() must not create a second Lead -- it
+    // should only associate the inquiry to the existing open Opportunity
+    // and return the ORIGINAL lead that was already linked to it.
+    expect(secondResolution.lead.id).toBe(firstResolution.lead.id);
 
     const allOpen = await OpportunityService.findOpenOpportunityForParty(db, organization.id, {
+      creatorId: creator.id,
       companyId: company.id,
     });
     expect(allOpen?.id).toBe(firstResolution.opportunity.id);
+
+    const allLeads = await db.select().from(leads).where(eq(leads.organizationId, organization.id));
+    expect(allLeads).toHaveLength(1);
   });
 
   it("rolls back the Lead insert if the Opportunity create fails, leaving the inquiry unresolved", async () => {
@@ -221,5 +233,215 @@ describe("CommercialInquiryService", () => {
     const untouchedInquiry = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
     expect(untouchedInquiry?.status).toBe("NEW");
     expect(untouchedInquiry?.convertedLeadId).toBeNull();
+  });
+
+  async function ingestFanAmbiguousInquiry(
+    db: NodePgDatabase<typeof schema>,
+    organization: { id: string },
+    creator: { id: string },
+  ) {
+    const ai = fakeAI({
+      category: "COMMERCIAL_LEAD",
+      commercialScore: 40,
+      intent: null,
+      extracted: {
+        companyName: null,
+        brandName: null,
+        contactName: null,
+        email: null,
+        phone: null,
+        budget: null,
+        deliverables: null,
+      },
+    });
+    const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "Desconhecido",
+      body: "Mensagem ambígua",
+      receivedAt: new Date(),
+    });
+    return inquiry!;
+  }
+
+  describe("terminal-status guard (Fix 4)", () => {
+    it("throws when discard is called twice on the same inquiry", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+      const inquiry = await ingestFanAmbiguousInquiry(db, organization, creator);
+
+      await CommercialInquiryService.discard(db, organization.id, inquiry.id);
+
+      await expect(
+        CommercialInquiryService.discard(db, organization.id, inquiry.id),
+      ).rejects.toThrow(InquiryAlreadyResolvedError);
+    });
+
+    it("throws when resolve is called on an already-discarded inquiry", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+      const inquiry = await ingestFanAmbiguousInquiry(db, organization, creator);
+
+      await CommercialInquiryService.discard(db, organization.id, inquiry.id);
+
+      await expect(
+        CommercialInquiryService.resolve(db, organization.id, inquiry.id, {
+          contact: { fullName: "Alguém" },
+        }),
+      ).rejects.toThrow(InquiryAlreadyResolvedError);
+    });
+
+    it("throws a not-found error when discard targets a nonexistent inquiry", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization } = await setupOrgAndCreator(db);
+
+      await expect(
+        CommercialInquiryService.discard(db, organization.id, "00000000-0000-0000-0000-000000000000"),
+      ).rejects.toThrow(InquiryNotFoundError);
+    });
+
+    it("throws a not-found error when markFalsePositive targets a nonexistent inquiry", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization } = await setupOrgAndCreator(db);
+
+      await expect(
+        CommercialInquiryService.markFalsePositive(
+          db,
+          organization.id,
+          "00000000-0000-0000-0000-000000000000",
+        ),
+      ).rejects.toThrow(InquiryNotFoundError);
+    });
+  });
+
+  describe("findOpenOpportunityForParty is scoped per creator (Fix 6)", () => {
+    it("only reuses an open Opportunity belonging to the same creator", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator: creatorA } = await setupOrgAndCreator(db);
+      const creatorB = await CreatorService.onboardCreator(db, organization.id, {
+        email: `creator-b-${Date.now()}-${Math.random()}@publyflow.test`,
+        fullName: "Bruno",
+        displayName: "Bruno",
+      });
+
+      const [company] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning(),
+      );
+
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 90,
+        intent: "Pedido de mídia kit",
+        extracted: {
+          companyName: "Bella Cosméticos",
+          brandName: null,
+          contactName: "Maria",
+          email: null,
+          phone: null,
+          budget: null,
+          deliverables: null,
+        },
+      });
+
+      const forA = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creatorA.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Mensagem para a criadora A",
+        receivedAt: new Date(),
+      });
+      const resolutionA = await CommercialInquiryService.resolve(db, organization.id, forA.inquiry!.id, {
+        contact: { fullName: "Maria" },
+        companyId: company.id,
+      });
+
+      const forB = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creatorB.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Mensagem para a criadora B",
+        receivedAt: new Date(),
+      });
+      const resolutionB = await CommercialInquiryService.resolve(db, organization.id, forB.inquiry!.id, {
+        contact: { fullName: "Maria" },
+        companyId: company.id,
+      });
+
+      // Same company, two different creators -- each must get their own
+      // Opportunity, not share creator A's.
+      expect(resolutionB.opportunity.id).not.toBe(resolutionA.opportunity.id);
+      expect(resolutionA.opportunity.creatorId).toBe(creatorA.id);
+      expect(resolutionB.opportunity.creatorId).toBe(creatorB.id);
+    });
+  });
+
+  describe("guess-to-real-record resolution (Fix 8)", () => {
+    it("creates a new company from companyGuess when companyId is not passed, and reuses it on a second inquiry", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 90,
+        intent: "Pedido de mídia kit",
+        extracted: {
+          companyName: "Bella Cosméticos",
+          brandName: null,
+          contactName: "Maria",
+          email: null,
+          phone: null,
+          budget: null,
+          deliverables: null,
+        },
+      });
+
+      const first = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Primeira mensagem",
+        receivedAt: new Date(),
+      });
+
+      const firstResolution = await CommercialInquiryService.resolve(db, organization.id, first.inquiry!.id, {
+        contact: { fullName: "Maria" },
+        // companyId intentionally omitted -- must resolve from companyGuess.
+      });
+
+      expect(firstResolution.opportunity.companyId).not.toBeNull();
+
+      const allCompanies = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.organizationId, organization.id));
+      expect(allCompanies).toHaveLength(1);
+      expect(allCompanies[0].name).toBe("Bella Cosméticos");
+
+      // A second inquiry with the same companyGuess, resolved with a brand
+      // new contact so it doesn't itself match the first Opportunity, must
+      // reuse the existing company row rather than creating a duplicate.
+      const second = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Segunda mensagem, cliente diferente",
+        receivedAt: new Date(),
+      });
+      await CommercialInquiryService.resolve(db, organization.id, second.inquiry!.id, {
+        contact: { fullName: "Outra pessoa" },
+      });
+
+      const allCompaniesAfter = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.organizationId, organization.id));
+      expect(allCompaniesAfter).toHaveLength(1);
+    });
   });
 });
