@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { leads } from "@/db/schema/commercial-flow";
@@ -84,5 +84,19 @@ export const LeadsRepository = {
     input: CreateLeadInput,
   ): Promise<Lead> {
     return insertLead(tx, organizationId, input);
+  },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<Lead[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      return tx
+        .select()
+        .from(leads)
+        .where(and(eq(leads.organizationId, organizationId), eq(leads.creatorId, creatorId)))
+        .orderBy(desc(leads.createdAt));
+    });
   },
 };
