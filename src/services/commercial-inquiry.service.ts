@@ -105,6 +105,15 @@ export const CommercialInquiryService = {
     return CommercialInquiriesRepository.findById(db, organizationId, inquiryId);
   },
 
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+    status?: CommercialInquiry["status"],
+  ): Promise<CommercialInquiry[]> {
+    return CommercialInquiriesRepository.listByCreator(db, organizationId, creatorId, status);
+  },
+
   async discard(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { commercialInquiries } from "@/db/schema/commercial-flow";
@@ -132,5 +132,27 @@ export const CommercialInquiriesRepository = {
     fields: UpdateInquiryStatusFields,
   ): Promise<CommercialInquiry | null> {
     return applyStatusUpdate(tx, organizationId, inquiryId, fields);
+  },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+    status?: CommercialInquiry["status"],
+  ): Promise<CommercialInquiry[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const conditions = [
+        eq(commercialInquiries.organizationId, organizationId),
+        eq(commercialInquiries.creatorId, creatorId),
+      ];
+      if (status) {
+        conditions.push(eq(commercialInquiries.status, status));
+      }
+      return tx
+        .select()
+        .from(commercialInquiries)
+        .where(and(...conditions))
+        .orderBy(desc(commercialInquiries.createdAt));
+    });
   },
 };
