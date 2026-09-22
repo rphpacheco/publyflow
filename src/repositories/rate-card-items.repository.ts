@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { rateCardItems } from "@/db/schema/rate-cards";
 import { runInTenantContext } from "./tenant-context";
+import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 
 export type RateCardItem = typeof rateCardItems.$inferSelect;
 
@@ -46,14 +47,24 @@ export const RateCardItemsRepository = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     itemId: string,
+    rateCardId: string,
     input: UpdateRateCardItemInput,
   ): Promise<RateCardItem> {
     return runInTenantContext(db, organizationId, async (tx) => {
       const [item] = await tx
         .update(rateCardItems)
         .set(input)
-        .where(and(eq(rateCardItems.id, itemId), eq(rateCardItems.organizationId, organizationId)))
+        .where(
+          and(
+            eq(rateCardItems.id, itemId),
+            eq(rateCardItems.organizationId, organizationId),
+            eq(rateCardItems.rateCardId, rateCardId),
+          ),
+        )
         .returning();
+      if (!item) {
+        throw new RateCardItemNotFoundError(itemId, rateCardId);
+      }
       return item;
     });
   },
@@ -62,11 +73,22 @@ export const RateCardItemsRepository = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     itemId: string,
+    rateCardId: string,
   ): Promise<void> {
     await runInTenantContext(db, organizationId, async (tx) => {
-      await tx
+      const [item] = await tx
         .delete(rateCardItems)
-        .where(and(eq(rateCardItems.id, itemId), eq(rateCardItems.organizationId, organizationId)));
+        .where(
+          and(
+            eq(rateCardItems.id, itemId),
+            eq(rateCardItems.organizationId, organizationId),
+            eq(rateCardItems.rateCardId, rateCardId),
+          ),
+        )
+        .returning();
+      if (!item) {
+        throw new RateCardItemNotFoundError(itemId, rateCardId);
+      }
     });
   },
 

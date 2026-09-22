@@ -38,7 +38,7 @@ export const RateCardItemService = {
     input: UpdateRateCardItemInput,
   ): Promise<RateCardItem> {
     await assertNotLocked(db, organizationId, rateCardId);
-    return RateCardItemsRepository.update(db, organizationId, itemId, input);
+    return RateCardItemsRepository.update(db, organizationId, itemId, rateCardId, input);
   },
 
   async removeItem(
@@ -48,6 +48,6 @@ export const RateCardItemService = {
     rateCardId: string,
   ): Promise<void> {
     await assertNotLocked(db, organizationId, rateCardId);
-    return RateCardItemsRepository.remove(db, organizationId, itemId);
+    return RateCardItemsRepository.remove(db, organizationId, itemId, rateCardId);
   },
 };

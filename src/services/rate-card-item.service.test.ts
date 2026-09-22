@@ -5,7 +5,7 @@ import { CreatorService } from "./creator.service";
 import { ServiceService } from "./service.service";
 import { RateCardService } from "./rate-card.service";
 import { RateCardItemService } from "./rate-card-item.service";
-import { RateCardLockedError } from "@/domain/rate-cards/errors";
+import { RateCardLockedError, RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 
 describe("RateCardItemService", () => {
   let cleanup: () => Promise<void>;
@@ -108,5 +108,42 @@ describe("RateCardItemService", () => {
     await expect(
       RateCardItemService.removeItem(db, organization.id, item.id, rateCard.id),
     ).rejects.toThrow(RateCardLockedError);
+  });
+
+  it("rejects updating/removing a locked rate card's item when the caller claims a different, unlocked rateCardId", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator, service } = await setup(db);
+
+    const unlockedRateCard = await RateCardService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "Tabela Destravada",
+    });
+    const lockedRateCard = await RateCardService.create(db, organization.id, {
+      creatorId: creator.id,
+      name: "Tabela Travada",
+    });
+
+    const item = await RateCardItemService.addItem(db, organization.id, {
+      rateCardId: lockedRateCard.id,
+      serviceId: service.id,
+      price: 200000,
+    });
+
+    await RateCardService.lock(db, organization.id, lockedRateCard.id);
+
+    // Attacker passes the real (locked) item's id but claims the unlocked
+    // rate card's id in the request body. assertNotLocked checks the wrong
+    // (unlocked) card and passes — the repository's rateCardId filter must
+    // be what actually blocks the write.
+    await expect(
+      RateCardItemService.updateItem(db, organization.id, item.id, unlockedRateCard.id, {
+        price: 999999,
+      }),
+    ).rejects.toThrow(RateCardItemNotFoundError);
+
+    await expect(
+      RateCardItemService.removeItem(db, organization.id, item.id, unlockedRateCard.id),
+    ).rejects.toThrow(RateCardItemNotFoundError);
   });
 });
