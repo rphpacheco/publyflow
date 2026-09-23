@@ -43,4 +43,28 @@ if (typeof window !== "undefined") {
       disconnect() {}
     };
   }
+  // jsdom doesn't implement matchMedia at all. Components that pick between
+  // breakpoint-gated presentations (e.g. CommandPalette's Dialog-vs-Sheet)
+  // read `window.innerWidth` against the query's max-width each time
+  // `.matches` is read, so tests can simulate a viewport by setting
+  // `window.innerWidth` before rendering.
+  if (!window.matchMedia) {
+    window.matchMedia = (query: string) => {
+      const match = /\(max-width:\s*(\d+)px\)/.exec(query);
+      const maxWidth = match ? Number(match[1]) : Infinity;
+      const mql: MediaQueryList = {
+        get matches() {
+          return window.innerWidth <= maxWidth;
+        },
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      };
+      return mql;
+    };
+  }
 }
