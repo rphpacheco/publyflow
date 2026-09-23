@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,26 +20,42 @@ export interface OpportunityCardProps {
   opportunity: OpportunityListItem;
   onSelect: (opportunity: OpportunityListItem) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
+  draggable?: boolean;
 }
 
-export function OpportunityCard({ opportunity, onSelect, onMoveToStage }: OpportunityCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+export function OpportunityCard({
+  opportunity,
+  onSelect,
+  onMoveToStage,
+  draggable = false,
+}: OpportunityCardProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: opportunity.id,
   });
 
   const label = opportunity.brandName ?? opportunity.companyName ?? opportunity.contactName;
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      if (event.key === " ") event.preventDefault();
+      onSelect(opportunity);
+    }
+  }
 
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+    <div
+      ref={setNodeRef}
+      tabIndex={0}
+      onClick={() => onSelect(opportunity)}
+      onKeyDown={handleKeyDown}
+      {...(draggable ? listeners : undefined)}
+      {...(draggable ? attributes : undefined)}
+    >
       <Card
         className={cn(
           "flex cursor-pointer flex-col gap-1 p-3 text-sm",
           isDragging && "opacity-50",
         )}
-        onClick={() => onSelect(opportunity)}
       >
         <div className="flex items-start justify-between gap-2">
           <span className="font-medium">{label}</span>

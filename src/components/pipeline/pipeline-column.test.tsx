@@ -44,4 +44,34 @@ describe("PipelineColumn", () => {
     expect(screen.getByText("Fechado")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
   });
+
+  it("threads draggable=true through to its cards (dnd-kit ARIA present)", () => {
+    render(
+      <PipelineColumn
+        stage="NOVO_LEAD"
+        opportunities={[opportunity]}
+        onSelect={() => {}}
+        onMoveToStage={() => {}}
+        draggable
+      />,
+    );
+
+    expect(screen.getByText("Maria").closest("[aria-roledescription]")).toHaveAttribute(
+      "aria-roledescription",
+      "draggable",
+    );
+  });
+
+  it("does not thread draggable ARIA through when draggable is omitted", () => {
+    render(
+      <PipelineColumn
+        stage="NOVO_LEAD"
+        opportunities={[opportunity]}
+        onSelect={() => {}}
+        onMoveToStage={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Maria").closest("[aria-roledescription]")).toBeNull();
+  });
 });

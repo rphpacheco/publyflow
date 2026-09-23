@@ -35,6 +35,17 @@ describe("PipelineBoardDesktop", () => {
     // The one opportunity (stage QUALIFICACAO) appears once, inside that column.
     expect(screen.getAllByText("Maria")).toHaveLength(1);
   });
+
+  it("renders cards with dnd-kit's draggable ARIA (desktop enables dragging)", () => {
+    render(
+      <PipelineBoardDesktop opportunities={[opportunity]} onSelect={() => {}} onMoveToStage={() => {}} />,
+    );
+
+    expect(screen.getByText("Maria").closest("[aria-roledescription]")).toHaveAttribute(
+      "aria-roledescription",
+      "draggable",
+    );
+  });
 });
 
 describe("resolveDragEndStageChange", () => {

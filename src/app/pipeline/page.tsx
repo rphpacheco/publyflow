@@ -7,6 +7,7 @@ import { useCreatorContext } from "@/components/shell/creator-context";
 import { useOpportunities } from "@/hooks/use-opportunities";
 import { useUpdateOpportunityStage } from "@/hooks/use-update-opportunity-stage";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import { PipelineBoardDesktop } from "@/components/pipeline/pipeline-board-desktop";
 import { PipelineBoardMobile } from "@/components/pipeline/pipeline-board-mobile";
 import { OpportunitySidePanel } from "@/components/pipeline/opportunity-side-panel";
@@ -18,11 +19,14 @@ export default function PipelinePage() {
   const { selectedCreatorId } = useCreatorContext();
   const [selectedOpportunityId, setSelectedOpportunityId] = React.useState<string | null>(null);
 
-  const { data: opportunities, isLoading } = useOpportunities(
-    organizationId,
-    selectedCreatorId ?? "",
-    { enabled: selectedCreatorId !== null },
-  );
+  const {
+    data: opportunities,
+    isLoading,
+    isError,
+    refetch,
+  } = useOpportunities(organizationId, selectedCreatorId ?? "", {
+    enabled: selectedCreatorId !== null,
+  });
   const updateStage = useUpdateOpportunityStage(organizationId, selectedCreatorId ?? "");
 
   function handleSelect(opportunity: OpportunityListItem) {
@@ -52,6 +56,15 @@ export default function PipelinePage() {
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando...</p>
+      ) : isError ? (
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar as oportunidades.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Tentar novamente
+          </Button>
+        </div>
       ) : (
         <>
           <div className="hidden md:block">

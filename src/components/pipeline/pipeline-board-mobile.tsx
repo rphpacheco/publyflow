@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineColumn } from "./pipeline-column";
-import { STAGES, STAGE_LABELS, type OpportunityStage } from "@/lib/opportunity-stages";
+import { STAGES, type OpportunityStage } from "@/lib/opportunity-stages";
 import type { OpportunityListItem } from "@/hooks/use-opportunities";
 
 export interface PipelineBoardMobileProps {

@@ -1,13 +1,17 @@
 "use client";
 
+import * as React from "react";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { PipelineColumn } from "./pipeline-column";
+import { OpportunityCard } from "./opportunity-card";
 import { STAGES, type OpportunityStage } from "@/lib/opportunity-stages";
 import type { OpportunityListItem } from "@/hooks/use-opportunities";
 
@@ -45,14 +49,32 @@ export function PipelineBoardDesktop({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
+  const [activeId, setActiveId] = React.useState<string | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
     const change = resolveDragEndStageChange(opportunities, event);
     if (!change) return;
     onMoveToStage(change.opportunityId, change.stage);
   }
 
+  function handleDragCancel() {
+    setActiveId(null);
+  }
+
+  const activeOpportunity = opportunities.find((item) => item.id === activeId) ?? null;
+
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <div className="flex gap-3 overflow-x-auto pb-4">
         {STAGES.map((stage) => (
           <PipelineColumn
@@ -61,9 +83,19 @@ export function PipelineBoardDesktop({
             opportunities={opportunities.filter((item) => item.stage === stage)}
             onSelect={onSelect}
             onMoveToStage={onMoveToStage}
+            draggable
           />
         ))}
       </div>
+      <DragOverlay>
+        {activeOpportunity ? (
+          <OpportunityCard
+            opportunity={activeOpportunity}
+            onSelect={onSelect}
+            onMoveToStage={onMoveToStage}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

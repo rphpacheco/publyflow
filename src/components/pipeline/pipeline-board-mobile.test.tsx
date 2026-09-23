@@ -56,4 +56,12 @@ describe("PipelineBoardMobile", () => {
     expect(screen.getByText("João")).toBeInTheDocument();
     expect(screen.queryByText("Maria")).not.toBeInTheDocument();
   });
+
+  it("renders cards without dnd-kit's draggable ARIA (mobile never enables dragging)", () => {
+    render(
+      <PipelineBoardMobile opportunities={opportunities} onSelect={() => {}} onMoveToStage={() => {}} />,
+    );
+
+    expect(screen.getByText("Maria").closest("[aria-roledescription]")).toBeNull();
+  });
 });
