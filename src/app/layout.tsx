@@ -7,6 +7,7 @@ import { getDevOrganizationId } from "@/lib/organization";
 import { CreatorProvider } from "@/components/shell/creator-context";
 import { SidebarDesktop } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
 
 // Every route under this layout reads the current organization's creators
@@ -34,16 +35,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <CreatorProvider organizationId={organizationId} creators={creators}>
-          <div className="flex h-screen overflow-hidden">
-            <SidebarDesktop />
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <Header />
-              <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <QueryProvider>
+          <CreatorProvider organizationId={organizationId} creators={creators}>
+            <div className="flex h-screen overflow-hidden">
+              <SidebarDesktop />
+              <div className="flex flex-1 flex-col overflow-hidden">
+                <Header />
+                <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+              </div>
             </div>
-          </div>
-        </CreatorProvider>
-        <Toaster />
+          </CreatorProvider>
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   );
