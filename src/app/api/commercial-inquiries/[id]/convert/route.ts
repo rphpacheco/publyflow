@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
+import {
+  InquiryNotFoundError,
+  InquiryAlreadyResolvedError,
+  AmbiguousPartyGuessError,
+} from "@/domain/commercial-flow/errors";
 
 const bodySchema = z.object({
   organizationId: z.string().uuid(),
@@ -24,10 +29,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // request body, distinct from an explicit `null`) so
   // CommercialInquiryService.resolve can tell "not provided -- resolve
   // from the AI's guess" apart from "explicitly no company/brand".
-  const result = await CommercialInquiryService.resolve(db, payload.organizationId, id, {
-    contact: payload.contact,
-    companyId: payload.companyId,
-    brandId: payload.brandId,
-  });
-  return NextResponse.json(result, { status: 200 });
+  try {
+    const result = await CommercialInquiryService.resolve(db, payload.organizationId, id, {
+      contact: payload.contact,
+      companyId: payload.companyId,
+      brandId: payload.brandId,
+    });
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    if (error instanceof InquiryNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof InquiryAlreadyResolvedError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof AmbiguousPartyGuessError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    throw error;
+  }
 }
