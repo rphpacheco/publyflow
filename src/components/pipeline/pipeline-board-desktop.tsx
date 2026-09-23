@@ -17,6 +17,25 @@ export interface PipelineBoardDesktopProps {
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
 }
 
+/**
+ * Pure resolution of a dnd-kit drag-end event into a stage change, or null when the drop
+ * should be a no-op: dropped outside any droppable (`event.over` is null/undefined), the
+ * dragged opportunity can't be found, or it was dropped back on its current stage.
+ */
+export function resolveDragEndStageChange(
+  opportunities: OpportunityListItem[],
+  event: DragEndEvent,
+): { opportunityId: string; stage: OpportunityStage } | null {
+  const opportunityId = event.active.id as string;
+  const newStage = event.over?.id as OpportunityStage | undefined;
+  if (!newStage) return null;
+
+  const opportunity = opportunities.find((item) => item.id === opportunityId);
+  if (!opportunity || opportunity.stage === newStage) return null;
+
+  return { opportunityId, stage: newStage };
+}
+
 export function PipelineBoardDesktop({
   opportunities,
   onSelect,
@@ -27,14 +46,9 @@ export function PipelineBoardDesktop({
   );
 
   function handleDragEnd(event: DragEndEvent) {
-    const opportunityId = event.active.id as string;
-    const newStage = event.over?.id as OpportunityStage | undefined;
-    if (!newStage) return;
-
-    const opportunity = opportunities.find((item) => item.id === opportunityId);
-    if (!opportunity || opportunity.stage === newStage) return;
-
-    onMoveToStage(opportunityId, newStage);
+    const change = resolveDragEndStageChange(opportunities, event);
+    if (!change) return;
+    onMoveToStage(change.opportunityId, change.stage);
   }
 
   return (
