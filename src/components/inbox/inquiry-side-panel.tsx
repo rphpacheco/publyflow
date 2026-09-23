@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -11,6 +12,7 @@ import {
   useMarkFalsePositiveInquiry,
 } from "@/hooks/use-inquiry-mutations";
 import { ApiError } from "@/lib/api-client";
+import { InquiryEditForm } from "./inquiry-edit-form";
 
 export interface InquirySidePanelProps {
   inquiry: CommercialInquiryListItem | null;
@@ -33,6 +35,12 @@ export function InquirySidePanel({
   const discard = useDiscardInquiry(organizationId, creatorId, status);
   const markFalsePositive = useMarkFalsePositiveInquiry(organizationId, creatorId, status);
 
+  const [editMode, setEditMode] = React.useState(false);
+
+  React.useEffect(() => {
+    setEditMode(false);
+  }, [inquiry?.id]);
+
   if (!inquiry) return null;
 
   function handleConvert() {
@@ -46,10 +54,25 @@ export function InquirySidePanel({
         onError: (error) => {
           if (error instanceof ApiError && error.status === 422) {
             toast.error("Mais de uma empresa encontrada com esse nome — selecione a correta.");
+            setEditMode(true);
             return;
           }
           toast.error(error.message);
         },
+      },
+    );
+  }
+
+  function handleEditConfirm(input: { contact: { id: string } | { fullName: string }; companyId?: string | null }) {
+    convert.mutate(
+      { inquiryId: inquiry!.id, contact: input.contact, companyId: input.companyId },
+      {
+        onSuccess: () => {
+          toast.success("Convertida em Opportunity");
+          setEditMode(false);
+          onOpenChange(false);
+        },
+        onError: (error) => toast.error(error.message),
       },
     );
   }
@@ -109,21 +132,30 @@ export function InquirySidePanel({
           ) : null}
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
-          <Button onClick={handleConvert} disabled={convert.isPending}>
-            Converter em Opportunity
-          </Button>
-          <Button variant="outline" onClick={handleDiscard} disabled={discard.isPending}>
-            Descartar
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleMarkFalsePositive}
-            disabled={markFalsePositive.isPending}
-          >
-            Falso Positivo
-          </Button>
-        </div>
+        {editMode ? (
+          <InquiryEditForm
+            organizationId={organizationId}
+            initialCompanyName={inquiry.companyGuess}
+            initialContactName={inquiry.contactNameGuess}
+            onConfirm={handleEditConfirm}
+          />
+        ) : (
+          <div className="mt-4 flex items-center gap-2">
+            <Button onClick={handleConvert} disabled={convert.isPending}>
+              Converter em Opportunity
+            </Button>
+            <Button variant="outline" onClick={handleDiscard} disabled={discard.isPending}>
+              Descartar
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleMarkFalsePositive}
+              disabled={markFalsePositive.isPending}
+            >
+              Falso Positivo
+            </Button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
