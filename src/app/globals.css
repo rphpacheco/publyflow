@@ -20,11 +20,14 @@
   --success: #30A46C;
   --warning: #F5A623;
   --error: #E5484D;
+  --error-foreground: #FFFFFF;
   --info: #0091FF;
 
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --overlay: rgba(8, 9, 10, 0.4);
+
+  --radius-sm-value: 6px;
+  --radius-md-value: 8px;
+  --radius-lg-value: 12px;
 }
 
 @theme inline {
@@ -47,11 +50,14 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
   --color-info: var(--info);
 
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  --color-overlay: var(--overlay);
+
+  --radius-sm: var(--radius-sm-value);
+  --radius-md: var(--radius-md-value);
+  --radius-lg: var(--radius-lg-value);
 
   --font-sans: var(--font-inter);
 }

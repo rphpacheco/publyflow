@@ -20,12 +20,28 @@ describe("design tokens", () => {
     expect(css).toContain("--success: #30A46C");
     expect(css).toContain("--warning: #F5A623");
     expect(css).toContain("--error: #E5484D");
+    expect(css).toContain("--error-foreground: #FFFFFF");
     expect(css).toContain("--info: #0091FF");
-    expect(css).toContain("--radius-sm: 6px");
-    expect(css).toContain("--radius-md: 8px");
-    expect(css).toContain("--radius-lg: 12px");
+    expect(css).toContain("--radius-sm-value: 6px");
+    expect(css).toContain("--radius-md-value: 8px");
+    expect(css).toContain("--radius-lg-value: 12px");
     expect(css).toContain("--font-inter");
     expect(css).not.toContain("--surface");
+  });
+
+  it("maps radius theme keys to their distinctly-named source variables (not self-referential)", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf-8");
+
+    expect(css).toContain("--radius-sm: var(--radius-sm-value)");
+    expect(css).toContain("--radius-md: var(--radius-md-value)");
+    expect(css).toContain("--radius-lg: var(--radius-lg-value)");
+  });
+
+  it("defines an overlay token instead of hardcoded black/opacity", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf-8");
+
+    expect(css).toContain("--overlay:");
+    expect(css).toContain("--color-overlay: var(--overlay)");
   });
 
   it("defines a visible focus-visible outline using the ring token", () => {
