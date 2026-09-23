@@ -3,14 +3,25 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { useCompanyOptions, useContactOptions, type PartyOption } from "@/hooks/use-party-options";
+import {
+  useBrandOptions,
+  useCompanyOptions,
+  useContactOptions,
+  type PartyOption,
+} from "@/hooks/use-party-options";
 
 export interface InquiryEditFormProps {
   organizationId: string;
   initialCompanyName: string | null;
   initialContactName: string | null;
-  onConfirm: (input: { contact: { id: string } | { fullName: string }; companyId?: string | null }) => void;
+  onConfirm: (input: {
+    contact: { id: string } | { fullName: string };
+    companyId: string | null;
+    brandId: string | null;
+  }) => void;
 }
+
+type PartyResolution = { type: "selected"; id: string } | { type: "none" };
 
 export function InquiryEditForm({
   organizationId,
@@ -19,21 +30,36 @@ export function InquiryEditForm({
   onConfirm,
 }: InquiryEditFormProps) {
   const { data: companyOptions = [] } = useCompanyOptions(organizationId);
+  const { data: brandOptions = [] } = useBrandOptions(organizationId);
   const { data: contactOptions = [] } = useContactOptions(organizationId);
 
-  const [selectedCompany, setSelectedCompany] = React.useState<PartyOption | null>(null);
-  const [newCompanyName, setNewCompanyName] = React.useState<string | null>(null);
+  const [companyResolution, setCompanyResolution] = React.useState<PartyResolution | null>(null);
+  const [brandResolution, setBrandResolution] = React.useState<PartyResolution | null>(null);
   const [selectedContact, setSelectedContact] = React.useState<PartyOption | null>(null);
   const [newContactName, setNewContactName] = React.useState<string | null>(initialContactName);
 
+  const selectedCompany =
+    companyResolution?.type === "selected"
+      ? (companyOptions.find((item) => item.id === companyResolution.id) ?? null)
+      : null;
+  const selectedBrand =
+    brandResolution?.type === "selected"
+      ? (brandOptions.find((item) => item.id === brandResolution.id) ?? null)
+      : null;
+
+  const canConfirm = companyResolution !== null && brandResolution !== null;
+
   function handleConfirm() {
+    if (!canConfirm) return;
+
     const contact = selectedContact
       ? { id: selectedContact.id }
       : { fullName: newContactName ?? initialContactName ?? "Desconhecido" };
 
     onConfirm({
       contact,
-      companyId: selectedCompany ? selectedCompany.id : newCompanyName ? undefined : null,
+      companyId: companyResolution!.type === "selected" ? companyResolution!.id : null,
+      brandId: brandResolution!.type === "selected" ? brandResolution!.id : null,
     });
   }
 
@@ -43,22 +69,53 @@ export function InquiryEditForm({
         <label className="text-xs font-medium text-muted-foreground" htmlFor="edit-company">
           Empresa
         </label>
-        <Combobox<PartyOption>
-          items={companyOptions}
-          getLabel={(item) => item.label}
-          getValue={(item) => item.id}
-          value={selectedCompany?.id ?? null}
-          onSelect={(item) => {
-            setSelectedCompany(item);
-            setNewCompanyName(null);
-          }}
-          onCreateNew={(name) => {
-            setSelectedCompany(null);
-            setNewCompanyName(name);
-          }}
-          placeholder={initialCompanyName ?? "Selecionar empresa..."}
-          aria-label="Empresa"
-        />
+        {initialCompanyName ? (
+          <p className="text-xs text-muted-foreground">A IA sugeriu: {initialCompanyName}</p>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <Combobox<PartyOption>
+            items={companyOptions}
+            getLabel={(item) => item.label}
+            getValue={(item) => item.id}
+            value={selectedCompany?.id ?? null}
+            onSelect={(item) => setCompanyResolution({ type: "selected", id: item.id })}
+            placeholder="Buscar empresa..."
+            aria-label="Empresa"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCompanyResolution({ type: "none" })}
+          >
+            Sem empresa
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-muted-foreground" htmlFor="edit-brand">
+          Marca
+        </label>
+        <div className="flex items-center gap-2">
+          <Combobox<PartyOption>
+            items={brandOptions}
+            getLabel={(item) => item.label}
+            getValue={(item) => item.id}
+            value={selectedBrand?.id ?? null}
+            onSelect={(item) => setBrandResolution({ type: "selected", id: item.id })}
+            placeholder="Buscar marca..."
+            aria-label="Marca"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setBrandResolution({ type: "none" })}
+          >
+            Sem marca
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -83,7 +140,9 @@ export function InquiryEditForm({
         />
       </div>
 
-      <Button onClick={handleConfirm}>Confirmar</Button>
+      <Button onClick={handleConfirm} disabled={!canConfirm}>
+        Confirmar
+      </Button>
     </div>
   );
 }

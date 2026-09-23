@@ -78,16 +78,22 @@ export function InquirySidePanel({
     );
   }
 
-  function handleEditConfirm(input: { contact: { id: string } | { fullName: string }; companyId?: string | null }) {
+  function handleEditConfirm(input: {
+    contact: { id: string } | { fullName: string };
+    companyId: string | null;
+    brandId: string | null;
+  }) {
     convert.mutate(
-      { inquiryId: inquiry!.id, contact: input.contact, companyId: input.companyId },
+      { inquiryId: inquiry!.id, contact: input.contact, companyId: input.companyId, brandId: input.brandId },
       {
         onSuccess: () => {
           toast.success("Convertida em Opportunity");
           setEditMode(false);
           onOpenChange(false);
         },
-        onError: (error) => toast.error(error.message),
+        onError: () => {
+          toast.error("Ainda não foi possível resolver — revise a seleção de empresa e marca abaixo.");
+        },
       },
     );
   }

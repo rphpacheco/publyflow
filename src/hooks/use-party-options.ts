@@ -18,6 +18,18 @@ export function useCompanyOptions(organizationId: string): UseQueryResult<PartyO
   });
 }
 
+export function useBrandOptions(organizationId: string): UseQueryResult<PartyOption[]> {
+  return useQuery({
+    queryKey: ["brand-options", organizationId],
+    queryFn: async () => {
+      const brands = await apiFetch<{ id: string; name: string }[]>(
+        `/api/brands?organizationId=${organizationId}`,
+      );
+      return brands.map((brand) => ({ id: brand.id, label: brand.name }));
+    },
+  });
+}
+
 export function useContactOptions(organizationId: string): UseQueryResult<PartyOption[]> {
   return useQuery({
     queryKey: ["contact-options", organizationId],
