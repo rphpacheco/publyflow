@@ -76,3 +76,13 @@ body {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+/* sonner reads these CSS custom properties for its default ("normal")
+   toast variant -- pointing them at our tokens keeps toasts visually
+   consistent with the rest of the Design System instead of sonner's
+   built-in default colors. */
+[data-sonner-toaster] {
+  --normal-bg: var(--card);
+  --normal-text: var(--foreground);
+  --normal-border: var(--border);
+}

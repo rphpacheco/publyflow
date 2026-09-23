@@ -7,6 +7,7 @@ import { getDevOrganizationId } from "@/lib/organization";
 import { CreatorProvider } from "@/components/shell/creator-context";
 import { SidebarDesktop } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
+import { Toaster } from "sonner";
 
 // Every route under this layout reads the current organization's creators
 // via a live DB call (through CreatorService). Next must not attempt to
@@ -42,6 +43,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </CreatorProvider>
+        <Toaster />
       </body>
     </html>
   );
