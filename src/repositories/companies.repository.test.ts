@@ -7,15 +7,26 @@ describe("CompaniesRepository", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
 
-  it("finds a company by name within the organization", async () => {
+  it("lists every company matching an exact name within the organization", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
     const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
     const created = await CompaniesRepository.create(db, org.id, { name: "Bella Cosméticos" });
 
-    const found = await CompaniesRepository.findByName(db, org.id, "Bella Cosméticos");
-    expect(found?.id).toBe(created.id);
+    const matches = await CompaniesRepository.listByName(db, org.id, "Bella Cosméticos");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.id).toBe(created.id);
+
+    const noMatches = await CompaniesRepository.listByName(db, org.id, "Nome Inexistente");
+    expect(noMatches).toEqual([]);
+
+    // Two companies can legitimately share the exact same name (no uniqueness
+    // constraint on `name`) -- listByName must surface both, not silently
+    // pick one, since that's the whole point of this method existing.
+    await CompaniesRepository.create(db, org.id, { name: "Bella Cosméticos" });
+    const duplicateMatches = await CompaniesRepository.listByName(db, org.id, "Bella Cosméticos");
+    expect(duplicateMatches).toHaveLength(2);
   });
 
   it("lists companies by organization, and finds one by id", async () => {

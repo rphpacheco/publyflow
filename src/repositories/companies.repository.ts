@@ -7,20 +7,16 @@ import { runInTenantContext } from "./tenant-context";
 export type Company = typeof companies.$inferSelect;
 
 export const CompaniesRepository = {
-  // Explicit organization predicate, belt-and-suspenders alongside the RLS
-  // policy: `name` alone is not org-scoped, so without this a lookup could
-  // otherwise match another org's company of the same name.
-  async findByName(
+  async listByName(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     name: string,
-  ): Promise<Company | null> {
+  ): Promise<Company[]> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx
+      return tx
         .select()
         .from(companies)
         .where(and(eq(companies.name, name), eq(companies.organizationId, organizationId)));
-      return row ?? null;
     });
   },
 
