@@ -12,7 +12,11 @@ import { BrandsRepository } from "@/repositories/brands.repository";
 import { OpportunityService } from "./opportunity.service";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import type { Opportunity } from "@/repositories/opportunities.repository";
-import { InquiryAlreadyResolvedError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
+import {
+  InquiryAlreadyResolvedError,
+  InquiryNotFoundError,
+  AmbiguousPartyGuessError,
+} from "@/domain/commercial-flow/errors";
 
 const TERMINAL_STATUSES = new Set<CommercialInquiry["status"]>(["DISCARDED", "FALSE_POSITIVE", "CONVERTED"]);
 
@@ -75,11 +79,11 @@ async function resolvePartyIdFromGuess(
   explicitId: string | null | undefined,
   guess: string | null,
   repo: {
-    findByName: (
+    listByName: (
       db: NodePgDatabase<typeof schema>,
       organizationId: string,
       name: string,
-    ) => Promise<{ id: string } | null>;
+    ) => Promise<{ id: string }[]>;
     create: (
       db: NodePgDatabase<typeof schema>,
       organizationId: string,
@@ -90,8 +94,13 @@ async function resolvePartyIdFromGuess(
   if (explicitId !== undefined) return explicitId;
   if (!guess) return null;
 
-  const existing = await repo.findByName(tx, organizationId, guess);
-  if (existing) return existing.id;
+  const matches = await repo.listByName(tx, organizationId, guess);
+  if (matches.length > 1) {
+    throw new AmbiguousPartyGuessError(guess);
+  }
+  if (matches.length === 1) {
+    return matches[0]!.id;
+  }
 
   const created = await repo.create(tx, organizationId, { name: guess });
   return created.id;

@@ -13,7 +13,11 @@ import type { MessageClassification } from "@/lib/ai/schemas";
 import { companies, contacts } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
-import { InquiryAlreadyResolvedError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
+import {
+  InquiryAlreadyResolvedError,
+  InquiryNotFoundError,
+  AmbiguousPartyGuessError,
+} from "@/domain/commercial-flow/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
   return { classifyMessage: async () => classification };
@@ -522,6 +526,59 @@ describe("CommercialInquiryService", () => {
         .from(companies)
         .where(eq(companies.organizationId, organization.id));
       expect(allCompaniesAfter).toHaveLength(1);
+    });
+
+    it("throws AmbiguousPartyGuessError when the company guess matches more than one existing company", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+
+      // Two companies sharing the exact same name -- no uniqueness constraint
+      // stops this, and it's exactly the scenario resolve() must now refuse
+      // to guess through.
+      await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }),
+      );
+      await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }),
+      );
+
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 94,
+        intent: "Pedido de mídia kit",
+        extracted: {
+          companyName: "Bella Cosméticos",
+          brandName: null,
+          contactName: "Maria",
+          email: null,
+          phone: null,
+          budget: null,
+          deliverables: null,
+        },
+      });
+
+      const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Olá, gostaríamos de saber os valores.",
+        receivedAt: new Date(),
+      });
+
+      // companyId omitted -- resolve() must try to resolve from the guess
+      // ("Bella Cosméticos"), find it ambiguous, and refuse.
+      await expect(
+        CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+          contact: { fullName: "Maria" },
+        }),
+      ).rejects.toThrow(AmbiguousPartyGuessError);
+
+      // The inquiry must remain unresolved -- resolve()'s transaction rolls
+      // back entirely, same guarantee as the existing
+      // "rolls back the Lead insert if the Opportunity create fails" test.
+      const stillNew = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
+      expect(stillNew?.status).toBe("NEW");
     });
   });
 });

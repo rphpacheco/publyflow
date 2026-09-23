@@ -35,3 +35,17 @@ export class OpportunityNotFoundError extends Error {
     this.name = "OpportunityNotFoundError";
   }
 }
+
+// Thrown by CommercialInquiryService.resolve (via resolvePartyIdFromGuess)
+// when a company/brand guess matches more than one existing row by exact
+// name -- companies.name/brands.name have no uniqueness constraint, so this
+// can genuinely happen. Rather than arbitrarily picking one (which could
+// silently link the inquiry to the wrong company), resolve() refuses and
+// the caller must resolve the ambiguity explicitly (e.g. by passing an
+// explicit companyId/brandId instead of relying on the guess).
+export class AmbiguousPartyGuessError extends Error {
+  constructor(guess: string) {
+    super(`Multiple companies/brands match the name "${guess}" — cannot resolve automatically`);
+    this.name = "AmbiguousPartyGuessError";
+  }
+}
