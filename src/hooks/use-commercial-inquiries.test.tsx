@@ -37,4 +37,27 @@ describe("useCommercialInquiries", () => {
     expect(requestedUrl).toContain("creatorId=creator1");
     expect(requestedUrl).toContain("status=NEW");
   });
+
+  it("does not fetch when enabled is false", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const queryClient = new QueryClient();
+    function DisabledProbe() {
+      const { isLoading } = useCommercialInquiries("org1", "", "NEW", { enabled: false });
+      return <span>{isLoading ? "loading" : "idle"}</span>;
+    }
+    render(
+      <QueryClientProvider client={queryClient}>
+        <DisabledProbe />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("idle")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

@@ -24,6 +24,7 @@ export default function InboxPage() {
     organizationId,
     selectedCreatorId ?? "",
     activeTab,
+    { enabled: selectedCreatorId !== null },
   );
 
   if (!selectedCreatorId) {

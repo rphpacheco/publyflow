@@ -36,6 +36,7 @@ export function useCommercialInquiries(
   organizationId: string,
   creatorId: string,
   status: InquiryStatus,
+  options?: { enabled?: boolean },
 ): UseQueryResult<CommercialInquiryListItem[]> {
   return useQuery({
     queryKey: commercialInquiriesQueryKey(organizationId, creatorId, status),
@@ -43,5 +44,6 @@ export function useCommercialInquiries(
       apiFetch<CommercialInquiryListItem[]>(
         `/api/commercial-inquiries?organizationId=${organizationId}&creatorId=${creatorId}&status=${status}`,
       ),
+    enabled: options?.enabled ?? true,
   });
 }
