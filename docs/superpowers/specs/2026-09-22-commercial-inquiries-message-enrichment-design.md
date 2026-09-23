@@ -29,8 +29,11 @@ the Inbox UX Spec.
   everything the Inbox needs per row; no screen has been specified yet that needs a
   standalone detail fetch.
 - Full conversation history (multiple messages per conversation). `CommercialInquiry` links to
-  exactly one triggering `message`; that's the only message this enrichment surfaces. If a
-  future screen needs a full thread, that's a separate, deliberate addition.
+  exactly one triggering `message`; that's the only message this enrichment surfaces. **This
+  is a scope decision for Inbox v1, not an architectural claim that the domain will never need
+  full conversation history** — nothing here should be read later as a reason multi-message
+  threads can't be added. `conversationId` is included in the enriched payload (Decisão #2)
+  specifically so that door stays open without a contract change.
 - Any change to `InboxService.ingestManualMessage`'s write path — this spec only touches read
   APIs.
 
@@ -39,7 +42,7 @@ the Inbox UX Spec.
 | # | Decisão | Resolução |
 |---|---|---|
 | 1 | Onde enriquecer | `CommercialInquiriesRepository.listByCreator` joins `messages` (on `commercialInquiries.messageId`) and `conversations` (on `messages.conversationId`), returning a new `CommercialInquiryWithMessage` type instead of the bare `CommercialInquiry` row. |
-| 2 | Campos adicionados | `messageBody: string` (message content), `messageReceivedAt: Date` (when the message arrived — distinct from `commercialInquiries.createdAt`, which is when the AI classified it), `externalContactLabel: string` (who sent it, e.g. "Maria — Bella Cosméticos"), `source: "INSTAGRAM" \| "WHATSAPP" \| "TIKTOK"` (channel). |
+| 2 | Campos adicionados | `messageBody: string` (message content), `messageReceivedAt: Date` (when the message arrived — distinct from `commercialInquiries.createdAt`, which is when the AI classified it), `externalContactLabel: string` (who sent it, e.g. "Maria — Bella Cosméticos"), `source: "INSTAGRAM" \| "WHATSAPP" \| "TIKTOK"` (channel), `conversationId: string` (the owning conversation's id — not consumed by any UI yet, but cheap to expose now and avoids a contract change when a detail view, full conversation history, or deeper channel integration is built later). |
 | 3 | Camada de serviço | `CommercialInquiryService.listByCreator`'s return type updates to match (`CommercialInquiryWithMessage[]`) — it's already a thin wrapper, no logic change needed beyond the type. |
 | 4 | API HTTP | `GET /api/commercial-inquiries` response shape gains the four new fields per row. No new route, no new query parameter — this is a response-shape enrichment of an existing endpoint. |
 | 5 | Join safety | The join is `INNER JOIN` on both `messages` and `conversations` (not `LEFT JOIN`) — `commercialInquiries.messageId` is `NOT NULL` and references `messages.id` with `onDelete: "cascade"`, and every `message` belongs to exactly one `conversation` (also `NOT NULL`/cascade). A `CommercialInquiry` can never exist without its message and that message's conversation, so an inner join cannot silently drop rows. |
@@ -52,8 +55,9 @@ the Inbox UX Spec.
   (`createdAt desc`), same optional status filter.
 - `CommercialInquiryService.listByCreator`'s return type updated to match.
 - No route file changes needed — `GET /api/commercial-inquiries` already returns whatever the
-  service returns unmodified (`NextResponse.json(list)`); the response body gains the new
-  fields automatically once the layers below return them.
+  service returns unmodified (`NextResponse.json(list)`); the response body gains all five new
+  fields (`messageBody`, `messageReceivedAt`, `externalContactLabel`, `source`,
+  `conversationId`) automatically once the layers below return them.
 - Tests: extend the existing repository test (`lists inquiries by creator...`) to assert the
   new fields are present and correct; extend the existing route test to assert the response
   JSON includes them.
