@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InquiryList } from "@/components/inbox/inquiry-list";
 import { InquirySidePanel } from "@/components/inbox/inquiry-side-panel";
 import { NewMessageSheet } from "@/components/inbox/new-message-sheet";
+import { useInboxShortcuts } from "@/components/inbox/use-inbox-shortcuts";
 
 const TABS: { value: InquiryStatus; label: string }[] = [
   { value: "NEW", label: "Novas" },
@@ -40,6 +41,22 @@ export default function InboxPage() {
     activeTab,
     { enabled: selectedCreatorId !== null },
   );
+
+  const sidePanelActionsRef = React.useRef<{
+    convert: () => void;
+    discard: () => void;
+    markFalsePositive: () => void;
+  } | null>(null);
+
+  useInboxShortcuts({
+    inquiries: inquiries ?? [],
+    selectedId: selectedInquiry?.id ?? null,
+    onSelect: setSelectedInquiry,
+    onConvert: () => sidePanelActionsRef.current?.convert(),
+    onDiscard: () => sidePanelActionsRef.current?.discard(),
+    onMarkFalsePositive: () => sidePanelActionsRef.current?.markFalsePositive(),
+    onClose: () => setSelectedInquiry(null),
+  });
 
   if (!selectedCreatorId) {
     return (
@@ -106,6 +123,9 @@ export default function InboxPage() {
         organizationId={organizationId}
         creatorId={selectedCreatorId}
         status={activeTab}
+        registerActions={(actions) => {
+          sidePanelActionsRef.current = actions;
+        }}
       />
 
       <NewMessageSheet

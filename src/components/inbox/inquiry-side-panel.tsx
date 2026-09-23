@@ -21,6 +21,11 @@ export interface InquirySidePanelProps {
   organizationId: string;
   creatorId: string;
   status: InquiryStatus;
+  registerActions?: (actions: {
+    convert: () => void;
+    discard: () => void;
+    markFalsePositive: () => void;
+  }) => void;
 }
 
 export function InquirySidePanel({
@@ -30,6 +35,7 @@ export function InquirySidePanel({
   organizationId,
   creatorId,
   status,
+  registerActions,
 }: InquirySidePanelProps) {
   const convert = useConvertInquiry(organizationId, creatorId, status);
   const discard = useDiscardInquiry(organizationId, creatorId, status);
@@ -39,6 +45,15 @@ export function InquirySidePanel({
 
   React.useEffect(() => {
     setEditMode(false);
+  }, [inquiry?.id]);
+
+  React.useEffect(() => {
+    registerActions?.({
+      convert: handleConvert,
+      discard: handleDiscard,
+      markFalsePositive: handleMarkFalsePositive,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inquiry?.id]);
 
   if (!inquiry) return null;
