@@ -41,7 +41,7 @@ describe("OpportunitiesRepository", () => {
         qualified: true,
       })
       .returning();
-    return { db, cleanup: c, org, creator, company, lead };
+    return { db, cleanup: c, org, creator, company, contact, lead };
   }
 
   it("finds an opportunity by id, and returns null for a nonexistent id", async () => {
@@ -80,6 +80,13 @@ describe("OpportunitiesRepository", () => {
     const list = await OpportunitiesRepository.listByCreator(db, org.id, creator.id);
     expect(list.some((row) => row.id === opportunity.id)).toBe(true);
 
+    // Party enrichment: the row must carry the company/contact names resolved
+    // via the lead, not raw UUIDs.
+    const enrichedRow = list.find((row) => row.id === opportunity.id)!;
+    expect(enrichedRow.companyName).toBe("Bella Cosméticos");
+    expect(enrichedRow.contactName).toBe("Maria");
+    expect(enrichedRow.brandName).toBeNull();
+
     const filtered = await OpportunitiesRepository.listByCreator(
       db,
       org.id,
@@ -88,6 +95,40 @@ describe("OpportunitiesRepository", () => {
     );
     expect(filtered.every((row) => row.stage === "NOVO_LEAD")).toBe(true);
     expect(filtered.some((row) => row.id === opportunity.id)).toBe(true);
+  });
+
+  it("still returns an opportunity with no company/brand (LEFT JOIN safety)", async () => {
+    const { db, cleanup: c, org, creator } = await setup();
+    cleanup = c;
+
+    // A second lead/opportunity with companyId/brandId both null.
+    const [contactOnly] = await db
+      .insert(contacts)
+      .values({ organizationId: org.id, fullName: "João" })
+      .returning();
+    const [leadNoCompany] = await db
+      .insert(leads)
+      .values({
+        organizationId: org.id,
+        creatorId: creator.id,
+        contactId: contactOnly.id,
+        companyId: null,
+        qualified: false,
+      })
+      .returning();
+    const opportunity = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: leadNoCompany.id,
+      companyId: null,
+      brandId: null,
+    });
+
+    const list = await OpportunitiesRepository.listByCreator(db, org.id, creator.id);
+    const row = list.find((r) => r.id === opportunity.id);
+    expect(row).toBeDefined();
+    expect(row!.companyName).toBeNull();
+    expect(row!.brandName).toBeNull();
+    expect(row!.contactName).toBe("João");
   });
 
   it("updateStage changes the opportunity's stage and records a stage_history row in one transaction", async () => {

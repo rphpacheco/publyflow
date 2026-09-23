@@ -61,5 +61,10 @@ describe("GET /api/opportunities", () => {
 
     const json = await response.json();
     expect(json.some((row: { id: string }) => row.id === opportunity.id)).toBe(true);
+
+    const enrichedRow = json.find((row: { id: string }) => row.id === opportunity.id);
+    expect(enrichedRow.companyName).toBe("Bella Cosméticos");
+    expect(enrichedRow.contactName).toBe("Maria");
+    expect(enrichedRow.brandName).toBeNull();
   });
 });

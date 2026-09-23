@@ -2,10 +2,17 @@ import { and, desc, eq, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { opportunities, opportunityStageHistory, leads } from "@/db/schema/commercial-flow";
+import { companies, brands, contacts } from "@/db/schema/companies-brands-contacts";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 import { runInTenantContext } from "./tenant-context";
 
 export type Opportunity = typeof opportunities.$inferSelect;
+
+export type OpportunityWithParties = Opportunity & {
+  companyName: string | null;
+  brandName: string | null;
+  contactName: string;
+};
 
 export interface CreateOpportunityInput {
   creatorId: string;
@@ -207,7 +214,7 @@ export const OpportunitiesRepository = {
     organizationId: string,
     creatorId: string,
     stage?: Opportunity["stage"],
-  ): Promise<Opportunity[]> {
+  ): Promise<OpportunityWithParties[]> {
     return runInTenantContext(db, organizationId, async (tx) => {
       const conditions = [
         eq(opportunities.organizationId, organizationId),
@@ -216,11 +223,28 @@ export const OpportunitiesRepository = {
       if (stage) {
         conditions.push(eq(opportunities.stage, stage));
       }
-      return tx
-        .select()
+
+      const rows = await tx
+        .select({
+          opportunity: opportunities,
+          companyName: companies.name,
+          brandName: brands.name,
+          contactName: contacts.fullName,
+        })
         .from(opportunities)
+        .innerJoin(leads, eq(leads.id, opportunities.leadId))
+        .innerJoin(contacts, eq(contacts.id, leads.contactId))
+        .leftJoin(companies, eq(companies.id, opportunities.companyId))
+        .leftJoin(brands, eq(brands.id, opportunities.brandId))
         .where(and(...conditions))
         .orderBy(desc(opportunities.createdAt));
+
+      return rows.map((row) => ({
+        ...row.opportunity,
+        companyName: row.companyName ?? null,
+        brandName: row.brandName ?? null,
+        contactName: row.contactName,
+      }));
     });
   },
 };

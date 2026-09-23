@@ -6,6 +6,7 @@ import { runInTenantContext } from "@/repositories/tenant-context";
 import {
   OpportunitiesRepository,
   type Opportunity,
+  type OpportunityWithParties,
   type FindOpenForPartyInput,
 } from "@/repositories/opportunities.repository";
 import { InvalidOpportunityPartyError } from "@/domain/commercial-flow/errors";
@@ -106,7 +107,7 @@ export const OpportunityService = {
     organizationId: string,
     creatorId: string,
     stage?: Opportunity["stage"],
-  ): Promise<Opportunity[]> {
+  ): Promise<OpportunityWithParties[]> {
     return OpportunitiesRepository.listByCreator(db, organizationId, creatorId, stage);
   },
 
