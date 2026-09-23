@@ -2,6 +2,7 @@
 
 import { Camera, MessageCircle, Music2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { relativeTime } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CommercialInquiryListItem } from "@/hooks/use-commercial-inquiries";
 
@@ -13,17 +14,6 @@ const SOURCE_ICON = {
   WHATSAPP: MessageCircle,
   TIKTOK: Music2,
 } as const;
-
-function relativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `há ${minutes}min`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `há ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `há ${days}d`;
-}
 
 export interface InquiryListProps {
   inquiries: CommercialInquiryListItem[];
