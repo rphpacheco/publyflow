@@ -2,16 +2,20 @@
 
 import * as React from "react";
 import { Inbox as InboxIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getDevOrganizationId } from "@/lib/organization";
 import { useCreatorContext } from "@/components/shell/creator-context";
 import {
   useCommercialInquiries,
+  commercialInquiriesQueryKey,
   type CommercialInquiryListItem,
   type InquiryStatus,
 } from "@/hooks/use-commercial-inquiries";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InquiryList } from "@/components/inbox/inquiry-list";
 import { InquirySidePanel } from "@/components/inbox/inquiry-side-panel";
+import { NewMessageSheet } from "@/components/inbox/new-message-sheet";
 
 const TABS: { value: InquiryStatus; label: string }[] = [
   { value: "NEW", label: "Novas" },
@@ -27,6 +31,8 @@ export default function InboxPage() {
   const [selectedInquiry, setSelectedInquiry] = React.useState<CommercialInquiryListItem | null>(
     null,
   );
+  const [newMessageOpen, setNewMessageOpen] = React.useState(false);
+  const queryClient = useQueryClient();
 
   const { data: inquiries, isLoading } = useCommercialInquiries(
     organizationId,
@@ -49,6 +55,7 @@ export default function InboxPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Inbox</h1>
+        <Button onClick={() => setNewMessageOpen(true)}>Nova Mensagem</Button>
       </div>
 
       <div className="flex gap-1 border-b border-border">
@@ -76,6 +83,11 @@ export default function InboxPage() {
           description={
             activeTab === "NEW" ? "Novas mensagens comerciais aparecem aqui." : undefined
           }
+          action={
+            activeTab === "NEW" ? (
+              <Button onClick={() => setNewMessageOpen(true)}>Nova Mensagem</Button>
+            ) : undefined
+          }
         />
       ) : (
         <InquiryList
@@ -94,6 +106,19 @@ export default function InboxPage() {
         organizationId={organizationId}
         creatorId={selectedCreatorId}
         status={activeTab}
+      />
+
+      <NewMessageSheet
+        open={newMessageOpen}
+        onOpenChange={setNewMessageOpen}
+        organizationId={organizationId}
+        creatorId={selectedCreatorId}
+        onSent={() => {
+          setNewMessageOpen(false);
+          queryClient.invalidateQueries({
+            queryKey: commercialInquiriesQueryKey(organizationId, selectedCreatorId, "NEW"),
+          });
+        }}
       />
     </div>
   );
