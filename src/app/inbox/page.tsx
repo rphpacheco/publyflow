@@ -4,9 +4,14 @@ import * as React from "react";
 import { Inbox as InboxIcon } from "lucide-react";
 import { getDevOrganizationId } from "@/lib/organization";
 import { useCreatorContext } from "@/components/shell/creator-context";
-import { useCommercialInquiries, type InquiryStatus } from "@/hooks/use-commercial-inquiries";
+import {
+  useCommercialInquiries,
+  type CommercialInquiryListItem,
+  type InquiryStatus,
+} from "@/hooks/use-commercial-inquiries";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InquiryList } from "@/components/inbox/inquiry-list";
+import { InquirySidePanel } from "@/components/inbox/inquiry-side-panel";
 
 const TABS: { value: InquiryStatus; label: string }[] = [
   { value: "NEW", label: "Novas" },
@@ -19,6 +24,9 @@ export default function InboxPage() {
   const organizationId = getDevOrganizationId();
   const { selectedCreatorId } = useCreatorContext();
   const [activeTab, setActiveTab] = React.useState<InquiryStatus>("NEW");
+  const [selectedInquiry, setSelectedInquiry] = React.useState<CommercialInquiryListItem | null>(
+    null,
+  );
 
   const { data: inquiries, isLoading } = useCommercialInquiries(
     organizationId,
@@ -70,8 +78,23 @@ export default function InboxPage() {
           }
         />
       ) : (
-        <InquiryList inquiries={inquiries} selectedId={null} onSelect={() => {}} />
+        <InquiryList
+          inquiries={inquiries}
+          selectedId={selectedInquiry?.id ?? null}
+          onSelect={setSelectedInquiry}
+        />
       )}
+
+      <InquirySidePanel
+        inquiry={selectedInquiry}
+        open={selectedInquiry !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedInquiry(null);
+        }}
+        organizationId={organizationId}
+        creatorId={selectedCreatorId}
+        status={activeTab}
+      />
     </div>
   );
 }
