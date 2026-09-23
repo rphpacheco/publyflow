@@ -2,10 +2,19 @@ import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { commercialInquiries } from "@/db/schema/commercial-flow";
+import { messages, conversations } from "@/db/schema/conversations-messages";
 import { runInTenantContext } from "./tenant-context";
 import type { MessageClassification } from "@/lib/ai/schemas";
 
 export type CommercialInquiry = typeof commercialInquiries.$inferSelect;
+
+export type CommercialInquiryWithMessage = CommercialInquiry & {
+  messageBody: string;
+  messageReceivedAt: Date;
+  externalContactLabel: string;
+  source: "INSTAGRAM" | "WHATSAPP" | "TIKTOK";
+  conversationId: string;
+};
 
 export interface CreateInquiryFromClassificationInput {
   creatorId: string;
@@ -139,7 +148,7 @@ export const CommercialInquiriesRepository = {
     organizationId: string,
     creatorId: string,
     status?: CommercialInquiry["status"],
-  ): Promise<CommercialInquiry[]> {
+  ): Promise<CommercialInquiryWithMessage[]> {
     return runInTenantContext(db, organizationId, async (tx) => {
       const conditions = [
         eq(commercialInquiries.organizationId, organizationId),
@@ -148,11 +157,30 @@ export const CommercialInquiriesRepository = {
       if (status) {
         conditions.push(eq(commercialInquiries.status, status));
       }
-      return tx
-        .select()
+
+      const rows = await tx
+        .select({
+          inquiry: commercialInquiries,
+          messageBody: messages.body,
+          messageReceivedAt: messages.receivedAt,
+          externalContactLabel: conversations.externalContactLabel,
+          source: conversations.source,
+          conversationId: conversations.id,
+        })
         .from(commercialInquiries)
+        .innerJoin(messages, eq(messages.id, commercialInquiries.messageId))
+        .innerJoin(conversations, eq(conversations.id, messages.conversationId))
         .where(and(...conditions))
         .orderBy(desc(commercialInquiries.createdAt));
+
+      return rows.map((row) => ({
+        ...row.inquiry,
+        messageBody: row.messageBody,
+        messageReceivedAt: row.messageReceivedAt,
+        externalContactLabel: row.externalContactLabel,
+        source: row.source,
+        conversationId: row.conversationId,
+      }));
     });
   },
 };

@@ -3,6 +3,7 @@ import type * as schema from "@/db/schema";
 import {
   CommercialInquiriesRepository,
   type CommercialInquiry,
+  type CommercialInquiryWithMessage,
 } from "@/repositories/commercial-inquiries.repository";
 import { ContactsRepository, type Contact } from "@/repositories/contacts.repository";
 import { LeadsRepository, type Lead } from "@/repositories/leads.repository";
@@ -110,7 +111,7 @@ export const CommercialInquiryService = {
     organizationId: string,
     creatorId: string,
     status?: CommercialInquiry["status"],
-  ): Promise<CommercialInquiry[]> {
+  ): Promise<CommercialInquiryWithMessage[]> {
     return CommercialInquiriesRepository.listByCreator(db, organizationId, creatorId, status);
   },
 

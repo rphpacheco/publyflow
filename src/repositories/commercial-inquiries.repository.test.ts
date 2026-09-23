@@ -90,6 +90,22 @@ describe("CommercialInquiriesRepository", () => {
     expect(list.length).toBe(2);
     expect(list.map((row) => row.id)).toEqual([inquiry2!.id, inquiry1!.id]);
 
+    // Message enrichment: the row for inquiry1 must carry inquiry1's own
+    // message content (body + who sent it + channel + timestamps), not
+    // inquiry2's or some merged/wrong value.
+    const inquiry1Row = list.find((row) => row.id === inquiry1!.id)!;
+    expect(inquiry1Row.messageBody).toBe("Olá, gostaríamos de saber os valores.");
+    expect(inquiry1Row.externalContactLabel).toBe("Maria — Bella Cosméticos");
+    expect(inquiry1Row.source).toBe("INSTAGRAM");
+    expect(inquiry1Row.messageReceivedAt).toBeInstanceOf(Date);
+    expect(typeof inquiry1Row.conversationId).toBe("string");
+
+    const inquiry2Row = list.find((row) => row.id === inquiry2!.id)!;
+    expect(inquiry2Row.messageBody).toBe("Oi, gostaríamos de fechar uma parceria.");
+    expect(inquiry2Row.externalContactLabel).toBe("João — Outra Marca");
+    expect(inquiry2Row.source).toBe("WHATSAPP");
+    expect(inquiry2Row.conversationId).not.toBe(inquiry1Row.conversationId);
+
     const newOnly = await CommercialInquiriesRepository.listByCreator(
       db,
       organization.id,

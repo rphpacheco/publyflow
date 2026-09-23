@@ -63,5 +63,9 @@ describe("GET /api/commercial-inquiries", () => {
     const json = await response.json();
     expect(json.length).toBe(1);
     expect(json[0].companyGuess).toBe("Bella Cosméticos");
+    expect(json[0].messageBody).toBe("Olá, gostaríamos de saber os valores.");
+    expect(json[0].externalContactLabel).toBe("Maria — Bella Cosméticos");
+    expect(json[0].source).toBe("INSTAGRAM");
+    expect(typeof json[0].conversationId).toBe("string");
   });
 });
