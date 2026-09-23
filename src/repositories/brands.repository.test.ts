@@ -25,4 +25,19 @@ describe("BrandsRepository", () => {
     const duplicateMatches = await BrandsRepository.listByName(db, org.id, "Linha Solar");
     expect(duplicateMatches).toHaveLength(2);
   });
+
+  it("lists every brand for an organization, ordered by createdAt desc", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const created = await BrandsRepository.create(db, org.id, { name: "Linha Solar" });
+
+    const list = await BrandsRepository.listByOrganization(db, org.id);
+    expect(list.some((row) => row.id === created.id)).toBe(true);
+
+    const [emptyOrg] = await db.insert(organizations).values({ name: "Empty Org" }).returning();
+    const emptyList = await BrandsRepository.listByOrganization(db, emptyOrg.id);
+    expect(emptyList).toEqual([]);
+  });
 });
