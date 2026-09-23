@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <CreatorProvider creators={creators}>
+        <CreatorProvider organizationId={organizationId} creators={creators}>
           <div className="flex h-screen overflow-hidden">
             <SidebarDesktop />
             <div className="flex flex-1 flex-col overflow-hidden">

@@ -30,10 +30,10 @@ describe("CreatorSwitcher", () => {
     window.localStorage.clear();
   });
 
-  it("defaults to the first creator and switches selection on click, persisting it", async () => {
+  it("defaults to the first creator and switches selection on click, persisting it under an organization-namespaced key", async () => {
     const user = userEvent.setup();
     render(
-      <CreatorProvider creators={creators}>
+      <CreatorProvider organizationId="org1" creators={creators}>
         <CreatorSwitcher />
       </CreatorProvider>,
     );
@@ -44,12 +44,26 @@ describe("CreatorSwitcher", () => {
     await user.click(await screen.findByRole("menuitem", { name: /Bruno Alves/ }));
 
     expect(screen.getByRole("button", { name: /Bruno Alves/ })).toBeInTheDocument();
-    expect(window.localStorage.getItem("publyflow:selected-creator-id")).toBe("c2");
+    expect(window.localStorage.getItem("publyflow:org1:selected-creator-id")).toBe("c2");
+  });
+
+  it("does not leak a selection stored for one organization into another", async () => {
+    window.localStorage.setItem("publyflow:org1:selected-creator-id", "c2");
+
+    render(
+      <CreatorProvider organizationId="org2" creators={creators}>
+        <CreatorSwitcher />
+      </CreatorProvider>,
+    );
+
+    // org2 has no stored selection under its own key, so it must fall back
+    // to the first creator rather than reusing org1's "Bruno Alves".
+    expect(await screen.findByText("Thais Miranda")).toBeInTheDocument();
   });
 
   it("shows a fallback message when the organization has no creators", () => {
     render(
-      <CreatorProvider creators={[]}>
+      <CreatorProvider organizationId="org1" creators={[]}>
         <CreatorSwitcher />
       </CreatorProvider>,
     );

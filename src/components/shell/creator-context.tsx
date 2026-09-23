@@ -3,7 +3,14 @@
 import * as React from "react";
 import type { Creator } from "@/repositories/creators.repository";
 
-const STORAGE_KEY = "publyflow:selected-creator-id";
+// Namespaced by organizationId so each organization remembers its own
+// selection independently once multi-org accounts exist (auth isn't
+// implemented yet -- today this only ever sees the single dev
+// organization from getDevOrganizationId(), but a flat key would collide
+// across organizations the moment a user can belong to more than one).
+function storageKey(organizationId: string): string {
+  return `publyflow:${organizationId}:selected-creator-id`;
+}
 
 interface CreatorContextValue {
   creators: Creator[];
@@ -14,24 +21,29 @@ interface CreatorContextValue {
 const CreatorContext = React.createContext<CreatorContextValue | null>(null);
 
 export function CreatorProvider({
+  organizationId,
   creators,
   children,
 }: {
+  organizationId: string;
   creators: Creator[];
   children: React.ReactNode;
 }) {
   const [selectedCreatorId, setSelectedCreatorId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey(organizationId));
     const isStoredValid = creators.some((creator) => creator.id === stored);
     setSelectedCreatorId(isStoredValid ? stored : (creators[0]?.id ?? null));
-  }, [creators]);
+  }, [organizationId, creators]);
 
-  const selectCreator = React.useCallback((creatorId: string) => {
-    setSelectedCreatorId(creatorId);
-    window.localStorage.setItem(STORAGE_KEY, creatorId);
-  }, []);
+  const selectCreator = React.useCallback(
+    (creatorId: string) => {
+      setSelectedCreatorId(creatorId);
+      window.localStorage.setItem(storageKey(organizationId), creatorId);
+    },
+    [organizationId],
+  );
 
   const value = React.useMemo(
     () => ({ creators, selectedCreatorId, selectCreator }),
