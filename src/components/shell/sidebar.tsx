@@ -47,7 +47,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             title={item.label}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "flex min-h-11 items-center gap-2 rounded-md px-3 py-3 text-sm font-medium transition-colors",
               isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
             )}
           >

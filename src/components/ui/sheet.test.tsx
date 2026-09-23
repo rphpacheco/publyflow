@@ -25,4 +25,21 @@ describe("Sheet", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByText("Navegação")).not.toBeInTheDocument();
   });
+
+  it("gives the close button a >=44px tap target on mobile/tablet", async () => {
+    const user = userEvent.setup();
+    render(
+      <Sheet>
+        <SheetTrigger>Abrir menu</SheetTrigger>
+        <SheetContent side="left">
+          <SheetTitle>Navegação</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+
+    await user.click(screen.getByText("Abrir menu"));
+    const closeButton = await screen.findByRole("button", { name: "Fechar" });
+    // size-11 = 2.75rem = 44px, matching the 44x44px minimum touch target.
+    expect(closeButton.className).toContain("size-11");
+  });
 });
