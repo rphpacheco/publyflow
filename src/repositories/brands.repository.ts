@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { brands } from "@/db/schema/companies-brands-contacts";
@@ -17,6 +17,19 @@ export const BrandsRepository = {
         .select()
         .from(brands)
         .where(and(eq(brands.name, name), eq(brands.organizationId, organizationId)));
+    });
+  },
+
+  async listByOrganization(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+  ): Promise<Brand[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      return tx
+        .select()
+        .from(brands)
+        .where(eq(brands.organizationId, organizationId))
+        .orderBy(desc(brands.createdAt));
     });
   },
 
