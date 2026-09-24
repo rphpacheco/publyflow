@@ -4,10 +4,9 @@ import * as React from "react";
 import type { Creator } from "@/repositories/creators.repository";
 
 // Namespaced by organizationId so each organization remembers its own
-// selection independently once multi-org accounts exist (auth isn't
-// implemented yet -- today this only ever sees the single dev
-// organization from getDevOrganizationId(), but a flat key would collide
-// across organizations the moment a user can belong to more than one).
+// selection independently for accounts that belong to more than one
+// organization -- the id comes from the session's organizationId, so a
+// flat key would collide across organizations a user can switch between.
 function storageKey(organizationId: string): string {
   return `publyflow:${organizationId}:selected-creator-id`;
 }
