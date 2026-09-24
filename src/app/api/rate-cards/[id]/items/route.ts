@@ -8,9 +8,10 @@ import {
   ServiceNotFoundError,
   ServiceMismatchError,
 } from "@/domain/rate-cards/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const bodySchema = z.object({
-  organizationId: z.string().uuid(),
   serviceId: z.string().uuid(),
   price: z.number().int().nonnegative(),
   unitDescription: z.string().nullable().optional(),
@@ -18,11 +19,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = bodySchema.parse(await request.json());
 
   try {
-    const item = await RateCardItemService.addItem(db, payload.organizationId, {
+    const item = await RateCardItemService.addItem(db, session.organizationId, {
       rateCardId: id,
       serviceId: payload.serviceId,
       price: payload.price,

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ServiceService } from "@/services/service.service";
 import { ServiceNotFoundError } from "@/domain/rate-cards/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const updateSchema = z.object({
-  organizationId: z.string().uuid(),
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   unitDescription: z.string().nullable().optional(),
@@ -13,11 +14,13 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = updateSchema.parse(await request.json());
-  const { organizationId, ...input } = payload;
   try {
-    const service = await ServiceService.update(db, organizationId, id, input);
+    const service = await ServiceService.update(db, session.organizationId, id, payload);
     return NextResponse.json(service, { status: 200 });
   } catch (error) {
     if (error instanceof ServiceNotFoundError) {

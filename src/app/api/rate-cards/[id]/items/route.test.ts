@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { ServiceService } from "@/services/service.service";
@@ -13,9 +14,7 @@ describe("POST /api/rate-cards/:id/items", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -34,13 +33,15 @@ describe("POST /api/rate-cards/:id/items", () => {
       name: "Tabela 2026",
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(`http://localhost/api/rate-cards/${rateCard.id}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
         serviceId: service.id,
         price: 200000,
       }),
@@ -57,9 +58,7 @@ describe("POST /api/rate-cards/:id/items", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner2@publyflow.test",
       ownerFullName: "Owner",
@@ -79,13 +78,15 @@ describe("POST /api/rate-cards/:id/items", () => {
     });
     await RateCardService.lock(db, organization.id, rateCard.id);
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(`http://localhost/api/rate-cards/${rateCard.id}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
         serviceId: service.id,
         price: 200000,
       }),
@@ -93,5 +94,29 @@ describe("POST /api/rate-cards/:id/items", () => {
 
     const response = await POST(request, { params: Promise.resolve({ id: rateCard.id }) });
     expect(response.status).toBe(409);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/rate-cards/00000000-0000-0000-0000-000000000000/items",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          serviceId: "00000000-0000-0000-0000-000000000000",
+          price: 200000,
+        }),
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
   });
 });

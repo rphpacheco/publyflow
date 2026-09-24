@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { ServiceService } from "@/services/service.service";
@@ -12,9 +13,7 @@ describe("PATCH /api/services/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -29,12 +28,15 @@ describe("PATCH /api/services/:id", () => {
       name: "01 Reel",
     });
 
-    const { PATCH } = await import("./route");
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(`http://localhost/api/services/${service.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ organizationId: organization.id, name: "01 Reel Editado" }),
+      body: JSON.stringify({ name: "01 Reel Editado" }),
     });
 
     const response = await PATCH(request, { params: Promise.resolve({ id: service.id }) });
@@ -50,22 +52,23 @@ describe("PATCH /api/services/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner2@publyflow.test",
       ownerFullName: "Owner",
     });
 
-    const { PATCH } = await import("./route");
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(
       "http://localhost/api/services/00000000-0000-0000-0000-000000000000",
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId: organization.id, name: "Novo nome" }),
+        body: JSON.stringify({ name: "Novo nome" }),
       },
     );
 
@@ -73,5 +76,26 @@ describe("PATCH /api/services/:id", () => {
       params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
     });
     expect(response.status).toBe(404);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { PATCH } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/services/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Novo nome" }),
+      },
+    );
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
   });
 });
