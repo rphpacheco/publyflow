@@ -1,0 +1,5 @@
+const PUBLIC_PREFIXES = ["/login", "/sem-acesso", "/auth"];
+
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
