@@ -11,6 +11,7 @@ export type RateCardItem = typeof rateCardItems.$inferSelect;
 export type RateCardItemWithService = Omit<RateCardItem, "unitDescription"> & {
   unitDescription: string | null;
   serviceName: string;
+  rateCardName: string;
 };
 
 export interface CreateRateCardItemInput {
@@ -130,6 +131,7 @@ async function selectRateCardItemsByCreator(
       item: rateCardItems,
       serviceName: services.name,
       serviceUnitDescription: services.unitDescription,
+      rateCardName: rateCards.name,
     })
     .from(rateCardItems)
     .innerJoin(
@@ -147,6 +149,7 @@ async function selectRateCardItemsByCreator(
     ...row.item,
     unitDescription: row.item.unitDescription ?? row.serviceUnitDescription,
     serviceName: row.serviceName,
+    rateCardName: row.rateCardName,
   }));
 }
 

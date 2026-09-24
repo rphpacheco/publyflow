@@ -69,7 +69,10 @@ describe("GET /api/proposals/:id/blocks", () => {
     expect(response.status).toBe(200);
 
     const json = await response.json();
-    expect(json).toHaveLength(1);
-    expect(json[0].blockType).toBe("COVER");
+    // Proposal is created with 2 auto-seeded blocks (COVER, TEXT), plus 1 from POST = 3 total
+    expect(json).toHaveLength(3);
+    // Check that at least one COVER block exists (from either auto-seeding or POST)
+    const coverBlocks = json.filter((block: { blockType: string }) => block.blockType === "COVER");
+    expect(coverBlocks.length).toBeGreaterThanOrEqual(2);
   });
 });

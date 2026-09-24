@@ -107,16 +107,20 @@ describe("ProposalBlockService", () => {
     });
 
     const blocks = await ProposalBlockService.listByProposal(db, organization.id, proposal.id);
-    expect(blocks).toHaveLength(2);
-    expect(blocks.map((block) => block.blockType)).toEqual(["TEXT", "COVER"]);
+    // Proposal is created with 2 auto-seeded blocks (COVER, TEXT with sortOrder 0),
+    // plus 2 manually added (TEXT with sortOrder 5, COVER with sortOrder 10) = 4 total
+    expect(blocks).toHaveLength(4);
+    expect(blocks.map((block) => block.blockType)).toEqual(["COVER", "TEXT", "TEXT", "COVER"]);
   });
 
-  it("listByProposal returns an empty array for a proposal with no blocks", async () => {
+  it("listByProposal returns the auto-seeded blocks for a new proposal", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
     const { organization, proposal } = await setup(db);
 
     const blocks = await ProposalBlockService.listByProposal(db, organization.id, proposal.id);
-    expect(blocks).toEqual([]);
+    // Proposal is created with 2 auto-seeded blocks (COVER, TEXT)
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((block) => block.blockType).sort()).toEqual(["COVER", "TEXT"]);
   });
 });

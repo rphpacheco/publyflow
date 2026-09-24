@@ -217,8 +217,10 @@ describe("RateCardItemsRepository", () => {
     expect(items[0].price).toBe(150000);
     expect(items[0].unitDescription).toBe("pacote de 3");
     expect(items[0].serviceName).toBe("01 Reel");
+    expect(items[0].rateCardName).toBe("Tabela 2026");
     expect(items[1].price).toBe(200000);
     expect(items[1].unitDescription).toBe("por post");
     expect(items[1].serviceName).toBe("01 Reel");
+    expect(items[1].rateCardName).toBe("Tabela 2026");
   });
 });

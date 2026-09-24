@@ -21,3 +21,20 @@ export function getDevOrganizationId(): string {
   }
   return value;
 }
+
+// See getDevOrganizationId's doc comment above -- same transitional,
+// development-only mechanism, for the current user's id. Every
+// proposal-mutating API call requires an explicit userId (no auth/session
+// exists yet); this is where the frontend sources it from until real auth
+// lands.
+export function getDevUserId(): string {
+  const value = process.env.NEXT_PUBLIC_DEV_USER_ID;
+  if (!value) {
+    throw new Error(
+      "NEXT_PUBLIC_DEV_USER_ID is not set. This is a development-only " +
+        "transitional mechanism used until authentication/session is implemented -- " +
+        "set it in .env.local to a real user id (an organization_members row) from your local database.",
+    );
+  }
+  return value;
+}

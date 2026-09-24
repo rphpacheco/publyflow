@@ -6,6 +6,7 @@ import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { ProposalService } from "./proposal.service";
 import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
+import { ProposalBlocksRepository } from "@/repositories/proposal-blocks.repository";
 import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
 import { users } from "@/db/schema/organizations";
 import { contacts } from "@/db/schema/companies-brands-contacts";
@@ -66,6 +67,23 @@ describe("ProposalService", () => {
     expect(versions[0].versionNumber).toBe(1);
     const snapshot = versions[0].snapshotJson as { proposal: { title: string } };
     expect(snapshot.proposal.title).toBe("Campanha Verão");
+
+    const blocks = await ProposalBlocksRepository.listByProposal(db, organization.id, proposal.id);
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((block) => block.blockType).sort()).toEqual(["COVER", "TEXT"]);
+    const cover = blocks.find((block) => block.blockType === "COVER")!;
+    const text = blocks.find((block) => block.blockType === "TEXT")!;
+    expect(cover.content).toEqual({ headline: "" });
+    expect(text.content).toEqual({ body: "" });
+
+    const snapshotWithBlocks = versions[0].snapshotJson as {
+      proposal: { title: string };
+      blocks: { blockType: string }[];
+    };
+    expect(snapshotWithBlocks.blocks.map((block) => block.blockType).sort()).toEqual([
+      "COVER",
+      "TEXT",
+    ]);
   });
 
   it("rejects create when userId is not a member of the organization", async () => {
