@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { proposalItems } from "@/db/schema/proposals";
@@ -96,7 +96,8 @@ async function selectProposalItemsByProposal(
   return tx
     .select()
     .from(proposalItems)
-    .where(and(eq(proposalItems.organizationId, organizationId), eq(proposalItems.proposalId, proposalId)));
+    .where(and(eq(proposalItems.organizationId, organizationId), eq(proposalItems.proposalId, proposalId)))
+    .orderBy(asc(proposalItems.sortOrder), asc(proposalItems.createdAt));
 }
 
 export const ProposalItemsRepository = {

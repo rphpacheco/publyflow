@@ -161,17 +161,19 @@ describe("ProposalItemService", () => {
       description: "Sessão de fotos",
       unitPrice: 150000,
       userId: owner.id,
+      sortOrder: 10,
     });
     await ProposalItemService.addItem(db, organization.id, {
       proposalId: proposal.id,
       description: "Desconto negociado",
       unitPrice: -20000,
       userId: owner.id,
+      sortOrder: 5,
     });
 
     const items = await ProposalItemService.listByProposal(db, organization.id, proposal.id);
     expect(items).toHaveLength(2);
-    expect(items.map((item) => item.description).sort()).toEqual([
+    expect(items.map((item) => item.description)).toEqual([
       "Desconto negociado",
       "Sessão de fotos",
     ]);

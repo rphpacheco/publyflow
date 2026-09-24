@@ -96,17 +96,19 @@ describe("ProposalBlockService", () => {
       blockType: "COVER",
       content: { headline: "Campanha Verão" },
       userId: owner.id,
+      sortOrder: 10,
     });
     await ProposalBlockService.addBlock(db, organization.id, {
       proposalId: proposal.id,
       blockType: "TEXT",
       content: { body: "Uma proposta especial para sua marca." },
       userId: owner.id,
+      sortOrder: 5,
     });
 
     const blocks = await ProposalBlockService.listByProposal(db, organization.id, proposal.id);
     expect(blocks).toHaveLength(2);
-    expect(blocks.map((block) => block.blockType).sort()).toEqual(["COVER", "TEXT"]);
+    expect(blocks.map((block) => block.blockType)).toEqual(["TEXT", "COVER"]);
   });
 
   it("listByProposal returns an empty array for a proposal with no blocks", async () => {
