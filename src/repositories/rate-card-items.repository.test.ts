@@ -144,4 +144,81 @@ describe("RateCardItemsRepository", () => {
     );
     expect(notFound).toBeNull();
   });
+
+  it("listByCreator returns items enriched with service name, resolved unitDescription, only from active rate cards and active services", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const [user] = await db
+      .insert(users)
+      .values({ email: "thais@publyflow.test", fullName: "Thais" })
+      .returning();
+    const [creator] = await db
+      .insert(creators)
+      .values({ organizationId: org.id, userId: user.id, displayName: "Thais" })
+      .returning();
+
+    const [activeService] = await db
+      .insert(services)
+      .values({
+        organizationId: org.id,
+        creatorId: creator.id,
+        name: "01 Reel",
+        unitDescription: "por post",
+      })
+      .returning();
+    const [inactiveService] = await db
+      .insert(services)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "Story antigo", isActive: false })
+      .returning();
+
+    const [activeRateCard] = await db
+      .insert(rateCards)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "Tabela 2026" })
+      .returning();
+    const [inactiveRateCard] = await db
+      .insert(rateCards)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "Tabela 2024", isActive: false })
+      .returning();
+
+    // Visible: active rate card + active service, no own unitDescription -> falls back to service's.
+    await RateCardItemsRepository.create(db, org.id, {
+      rateCardId: activeRateCard.id,
+      serviceId: activeService.id,
+      price: 200000,
+      sortOrder: 10,
+    });
+    // Visible: active rate card + active service, own unitDescription overrides service's.
+    await RateCardItemsRepository.create(db, org.id, {
+      rateCardId: activeRateCard.id,
+      serviceId: activeService.id,
+      price: 150000,
+      unitDescription: "pacote de 3",
+      sortOrder: 5,
+    });
+    // Hidden: rate card is inactive.
+    await RateCardItemsRepository.create(db, org.id, {
+      rateCardId: inactiveRateCard.id,
+      serviceId: activeService.id,
+      price: 999999,
+    });
+    // Hidden: service is inactive.
+    await RateCardItemsRepository.create(db, org.id, {
+      rateCardId: activeRateCard.id,
+      serviceId: inactiveService.id,
+      price: 999999,
+    });
+
+    const items = await RateCardItemsRepository.listByCreator(db, org.id, creator.id);
+
+    expect(items).toHaveLength(2);
+    // sortOrder 5 comes before sortOrder 10.
+    expect(items[0].price).toBe(150000);
+    expect(items[0].unitDescription).toBe("pacote de 3");
+    expect(items[0].serviceName).toBe("01 Reel");
+    expect(items[1].price).toBe(200000);
+    expect(items[1].unitDescription).toBe("por post");
+    expect(items[1].serviceName).toBe("01 Reel");
+  });
 });

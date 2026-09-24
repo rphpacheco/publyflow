@@ -2,6 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { withTestDb } from "@/test/helpers/db";
+import { organizations, users } from "@/db/schema/organizations";
+import { creators } from "@/db/schema/creators";
+import { services } from "@/db/schema/services";
+import { rateCards } from "@/db/schema/rate-cards";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { ServiceService } from "./service.service";
@@ -241,5 +245,38 @@ describe("RateCardItemService", () => {
         price: 200000,
       }),
     ).rejects.toThrow(ServiceMismatchError);
+  });
+
+  it("listByCreator delegates to the repository", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
+    const [user] = await db
+      .insert(users)
+      .values({ email: "thais@publyflow.test", fullName: "Thais" })
+      .returning();
+    const [creator] = await db
+      .insert(creators)
+      .values({ organizationId: org.id, userId: user.id, displayName: "Thais" })
+      .returning();
+    const [service] = await db
+      .insert(services)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "01 Reel" })
+      .returning();
+    const [rateCard] = await db
+      .insert(rateCards)
+      .values({ organizationId: org.id, creatorId: creator.id, name: "Tabela 2026" })
+      .returning();
+
+    await RateCardItemService.addItem(db, org.id, {
+      rateCardId: rateCard.id,
+      serviceId: service.id,
+      price: 200000,
+    });
+
+    const items = await RateCardItemService.listByCreator(db, org.id, creator.id);
+    expect(items).toHaveLength(1);
+    expect(items[0].serviceName).toBe("01 Reel");
   });
 });

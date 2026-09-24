@@ -5,6 +5,7 @@ import { ServicesRepository } from "@/repositories/services.repository";
 import {
   RateCardItemsRepository,
   type RateCardItem,
+  type RateCardItemWithService,
   type CreateRateCardItemInput,
   type UpdateRateCardItemInput,
 } from "@/repositories/rate-card-items.repository";
@@ -90,5 +91,13 @@ export const RateCardItemService = {
       await assertNotLocked(tx, organizationId, rateCardId);
       return RateCardItemsRepository.removeWithTx(tx, organizationId, itemId, rateCardId);
     });
+  },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<RateCardItemWithService[]> {
+    return RateCardItemsRepository.listByCreator(db, organizationId, creatorId);
   },
 };

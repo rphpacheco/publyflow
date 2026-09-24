@@ -1,11 +1,17 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
-import { rateCardItems } from "@/db/schema/rate-cards";
+import { rateCardItems, rateCards } from "@/db/schema/rate-cards";
+import { services } from "@/db/schema/services";
 import { runInTenantContext } from "./tenant-context";
 import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 
 export type RateCardItem = typeof rateCardItems.$inferSelect;
+
+export type RateCardItemWithService = Omit<RateCardItem, "unitDescription"> & {
+  unitDescription: string | null;
+  serviceName: string;
+};
 
 export interface CreateRateCardItemInput {
   rateCardId: string;
@@ -114,6 +120,36 @@ async function selectRateCardItemsByRateCard(
     .where(and(eq(rateCardItems.organizationId, organizationId), eq(rateCardItems.rateCardId, rateCardId)));
 }
 
+async function selectRateCardItemsByCreator(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  creatorId: string,
+): Promise<RateCardItemWithService[]> {
+  const rows = await tx
+    .select({
+      item: rateCardItems,
+      serviceName: services.name,
+      serviceUnitDescription: services.unitDescription,
+    })
+    .from(rateCardItems)
+    .innerJoin(
+      rateCards,
+      and(eq(rateCards.id, rateCardItems.rateCardId), eq(rateCards.isActive, true)),
+    )
+    .innerJoin(
+      services,
+      and(eq(services.id, rateCardItems.serviceId), eq(services.isActive, true)),
+    )
+    .where(and(eq(rateCardItems.organizationId, organizationId), eq(rateCards.creatorId, creatorId)))
+    .orderBy(asc(rateCardItems.rateCardId), asc(rateCardItems.sortOrder), asc(rateCardItems.createdAt));
+
+  return rows.map((row) => ({
+    ...row.item,
+    unitDescription: row.item.unitDescription ?? row.serviceUnitDescription,
+    serviceName: row.serviceName,
+  }));
+}
+
 export const RateCardItemsRepository = {
   async create(
     db: NodePgDatabase<typeof schema>,
@@ -205,5 +241,15 @@ export const RateCardItemsRepository = {
     rateCardId: string,
   ): Promise<RateCardItem[]> {
     return selectRateCardItemsByRateCard(tx, organizationId, rateCardId);
+  },
+
+  async listByCreator(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<RateCardItemWithService[]> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectRateCardItemsByCreator(tx, organizationId, creatorId),
+    );
   },
 };
