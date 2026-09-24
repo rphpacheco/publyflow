@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Inbox as InboxIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getDevOrganizationId } from "@/lib/organization";
 import { useCreatorContext } from "@/components/shell/creator-context";
 import {
   useCommercialInquiries,
@@ -26,7 +25,6 @@ const TABS: { value: InquiryStatus; label: string }[] = [
 ];
 
 export default function InboxPage() {
-  const organizationId = getDevOrganizationId();
   const { selectedCreatorId } = useCreatorContext();
   const [activeTab, setActiveTab] = React.useState<InquiryStatus>("NEW");
   const [selectedInquiry, setSelectedInquiry] = React.useState<CommercialInquiryListItem | null>(
@@ -36,7 +34,6 @@ export default function InboxPage() {
   const queryClient = useQueryClient();
 
   const { data: inquiries, isLoading } = useCommercialInquiries(
-    organizationId,
     selectedCreatorId ?? "",
     activeTab,
     { enabled: selectedCreatorId !== null },
@@ -123,7 +120,6 @@ export default function InboxPage() {
         onOpenChange={(open) => {
           if (!open) setSelectedInquiry(null);
         }}
-        organizationId={organizationId}
         creatorId={selectedCreatorId}
         status={activeTab}
         registerActions={(actions) => {
@@ -134,12 +130,11 @@ export default function InboxPage() {
       <NewMessageSheet
         open={newMessageOpen}
         onOpenChange={setNewMessageOpen}
-        organizationId={organizationId}
         creatorId={selectedCreatorId}
         onSent={() => {
           setNewMessageOpen(false);
           queryClient.invalidateQueries({
-            queryKey: commercialInquiriesQueryKey(organizationId, selectedCreatorId, "NEW"),
+            queryKey: commercialInquiriesQueryKey(selectedCreatorId, "NEW"),
           });
         }}
       />

@@ -26,7 +26,6 @@ export interface ConvertResult {
 }
 
 export function useConvertInquiry(
-  organizationId: string,
   creatorId: string,
   status: InquiryStatus,
 ): UseMutationResult<ConvertResult, ApiError, ConvertInput> {
@@ -36,18 +35,17 @@ export function useConvertInquiry(
       apiFetch<ConvertResult>(`/api/commercial-inquiries/${inquiryId}/convert`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, contact, companyId, brandId }),
+        body: JSON.stringify({ contact, companyId, brandId }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: commercialInquiriesQueryKey(organizationId, creatorId, status),
+        queryKey: commercialInquiriesQueryKey(creatorId, status),
       });
     },
   });
 }
 
 export function useDiscardInquiry(
-  organizationId: string,
   creatorId: string,
   status: InquiryStatus,
 ): UseMutationResult<void, ApiError, string> {
@@ -56,19 +54,16 @@ export function useDiscardInquiry(
     mutationFn: (inquiryId: string) =>
       apiFetch<void>(`/api/commercial-inquiries/${inquiryId}/discard`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: commercialInquiriesQueryKey(organizationId, creatorId, status),
+        queryKey: commercialInquiriesQueryKey(creatorId, status),
       });
     },
   });
 }
 
 export function useMarkFalsePositiveInquiry(
-  organizationId: string,
   creatorId: string,
   status: InquiryStatus,
 ): UseMutationResult<void, ApiError, string> {
@@ -77,12 +72,10 @@ export function useMarkFalsePositiveInquiry(
     mutationFn: (inquiryId: string) =>
       apiFetch<void>(`/api/commercial-inquiries/${inquiryId}/mark-false-positive`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: commercialInquiriesQueryKey(organizationId, creatorId, status),
+        queryKey: commercialInquiriesQueryKey(creatorId, status),
       });
     },
   });

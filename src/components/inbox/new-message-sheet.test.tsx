@@ -24,13 +24,7 @@ describe("NewMessageSheet", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <NewMessageSheet
-          open
-          onOpenChange={() => {}}
-          organizationId="org1"
-          creatorId="creator1"
-          onSent={onSent}
-        />
+        <NewMessageSheet open onOpenChange={() => {}} creatorId="creator1" onSent={onSent} />
         <Toaster />
       </QueryClientProvider>,
     );
@@ -46,14 +40,15 @@ describe("NewMessageSheet", () => {
 
     await vi.waitFor(() => expect(onSent).toHaveBeenCalled());
 
-    const [, init] = fetchMock.mock.calls[0]!;
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).not.toContain("organizationId");
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body).toEqual({
-      organizationId: "org1",
       creatorId: "creator1",
       source: "WHATSAPP",
       externalContactLabel: "Maria — Bella Cosméticos",
       body: "Olá, gostaríamos de saber os valores.",
     });
+    expect(body).not.toHaveProperty("organizationId");
   });
 });

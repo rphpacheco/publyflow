@@ -24,25 +24,20 @@ export interface CommercialInquiryListItem {
   conversationId: string;
 }
 
-export function commercialInquiriesQueryKey(
-  organizationId: string,
-  creatorId: string,
-  status: InquiryStatus,
-) {
-  return ["commercial-inquiries", organizationId, creatorId, status] as const;
+export function commercialInquiriesQueryKey(creatorId: string, status: InquiryStatus) {
+  return ["commercial-inquiries", creatorId, status] as const;
 }
 
 export function useCommercialInquiries(
-  organizationId: string,
   creatorId: string,
   status: InquiryStatus,
   options?: { enabled?: boolean },
 ): UseQueryResult<CommercialInquiryListItem[]> {
   return useQuery({
-    queryKey: commercialInquiriesQueryKey(organizationId, creatorId, status),
+    queryKey: commercialInquiriesQueryKey(creatorId, status),
     queryFn: () =>
       apiFetch<CommercialInquiryListItem[]>(
-        `/api/commercial-inquiries?organizationId=${organizationId}&creatorId=${creatorId}&status=${status}`,
+        `/api/commercial-inquiries?creatorId=${creatorId}&status=${status}`,
       ),
     enabled: options?.enabled ?? true,
   });

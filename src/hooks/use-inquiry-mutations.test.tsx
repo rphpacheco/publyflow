@@ -21,14 +21,14 @@ function wrapper(queryClient: QueryClient) {
 }
 
 describe("useDiscardInquiry", () => {
-  it("POSTs to the discard endpoint and invalidates the inquiries list on success", async () => {
+  it("POSTs to the discard endpoint with no body and invalidates the inquiries list on success", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
     vi.stubGlobal("fetch", fetchMock);
 
     const queryClient = new QueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { result } = renderHook(() => useDiscardInquiry("org1", "creator1", "NEW"), {
+    const { result } = renderHook(() => useDiscardInquiry("creator1", "NEW"), {
       wrapper: wrapper(queryClient),
     });
 
@@ -38,33 +38,37 @@ describe("useDiscardInquiry", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/commercial-inquiries/inquiry1/discard");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ organizationId: "org1" });
+    expect(url).not.toContain("organizationId");
+    expect((init as RequestInit).body).toBeUndefined();
+    expect((init as RequestInit).headers).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: commercialInquiriesQueryKey("org1", "creator1", "NEW"),
+      queryKey: commercialInquiriesQueryKey("creator1", "NEW"),
     });
   });
 });
 
 describe("useMarkFalsePositiveInquiry", () => {
-  it("POSTs to the mark-false-positive endpoint", async () => {
+  it("POSTs to the mark-false-positive endpoint with no body", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
     vi.stubGlobal("fetch", fetchMock);
 
     const queryClient = new QueryClient();
-    const { result } = renderHook(() => useMarkFalsePositiveInquiry("org1", "creator1", "NEW"), {
+    const { result } = renderHook(() => useMarkFalsePositiveInquiry("creator1", "NEW"), {
       wrapper: wrapper(queryClient),
     });
 
     result.current.mutate("inquiry1");
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const [url] = fetchMock.mock.calls[0]!;
+    const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/commercial-inquiries/inquiry1/mark-false-positive");
+    expect(url).not.toContain("organizationId");
+    expect((init as RequestInit).body).toBeUndefined();
   });
 });
 
 describe("useConvertInquiry", () => {
-  it("POSTs contact/company/brand to the convert endpoint and surfaces an ApiError on 422", async () => {
+  it("POSTs contact/company/brand (no organizationId) to the convert endpoint and surfaces an ApiError on 422", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
@@ -74,7 +78,7 @@ describe("useConvertInquiry", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const queryClient = new QueryClient();
-    const { result } = renderHook(() => useConvertInquiry("org1", "creator1", "NEW"), {
+    const { result } = renderHook(() => useConvertInquiry("creator1", "NEW"), {
       wrapper: wrapper(queryClient),
     });
 
@@ -85,9 +89,12 @@ describe("useConvertInquiry", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/commercial-inquiries/inquiry1/convert");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    expect(url).not.toContain("organizationId");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       contact: { fullName: "Maria" },
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 });

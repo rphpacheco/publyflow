@@ -18,7 +18,6 @@ export interface InquirySidePanelProps {
   inquiry: CommercialInquiryListItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  organizationId: string;
   creatorId: string;
   status: InquiryStatus;
   registerActions?: (actions: {
@@ -32,14 +31,13 @@ export function InquirySidePanel({
   inquiry,
   open,
   onOpenChange,
-  organizationId,
   creatorId,
   status,
   registerActions,
 }: InquirySidePanelProps) {
-  const convert = useConvertInquiry(organizationId, creatorId, status);
-  const discard = useDiscardInquiry(organizationId, creatorId, status);
-  const markFalsePositive = useMarkFalsePositiveInquiry(organizationId, creatorId, status);
+  const convert = useConvertInquiry(creatorId, status);
+  const discard = useDiscardInquiry(creatorId, status);
+  const markFalsePositive = useMarkFalsePositiveInquiry(creatorId, status);
 
   const [editMode, setEditMode] = React.useState(false);
 
@@ -155,7 +153,6 @@ export function InquirySidePanel({
 
         {editMode ? (
           <InquiryEditForm
-            organizationId={organizationId}
             initialCompanyName={inquiry.companyGuess}
             initialContactName={inquiry.contactNameGuess}
             onConfirm={handleEditConfirm}

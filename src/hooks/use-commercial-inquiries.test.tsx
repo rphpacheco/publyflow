@@ -8,14 +8,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function Probe({ organizationId, creatorId, status }: { organizationId: string; creatorId: string; status: "NEW" }) {
-  const { data, isLoading } = useCommercialInquiries(organizationId, creatorId, status);
+function Probe({ creatorId, status }: { creatorId: string; status: "NEW" }) {
+  const { data, isLoading } = useCommercialInquiries(creatorId, status);
   if (isLoading) return <span>loading</span>;
   return <span>{data?.length ?? 0} inquiries</span>;
 }
 
 describe("useCommercialInquiries", () => {
-  it("fetches the list for the given organization/creator/status and requests the right URL", async () => {
+  it("fetches the list for the given creator/status and requests the right URL", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -26,16 +26,16 @@ describe("useCommercialInquiries", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <Probe organizationId="org1" creatorId="creator1" status="NEW" />
+        <Probe creatorId="creator1" status="NEW" />
       </QueryClientProvider>,
     );
 
     expect(await screen.findByText("1 inquiries")).toBeInTheDocument();
 
     const requestedUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(requestedUrl).toContain("organizationId=org1");
     expect(requestedUrl).toContain("creatorId=creator1");
     expect(requestedUrl).toContain("status=NEW");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 
   it("does not fetch when enabled is false", async () => {
@@ -48,7 +48,7 @@ describe("useCommercialInquiries", () => {
 
     const queryClient = new QueryClient();
     function DisabledProbe() {
-      const { isLoading } = useCommercialInquiries("org1", "", "NEW", { enabled: false });
+      const { isLoading } = useCommercialInquiries("", "NEW", { enabled: false });
       return <span>{isLoading ? "loading" : "idle"}</span>;
     }
     render(

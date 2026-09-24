@@ -12,7 +12,6 @@ import { useSendInboxMessage } from "@/hooks/use-send-inbox-message";
 export interface NewMessageSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  organizationId: string;
   creatorId: string;
   onSent: () => void;
 }
@@ -26,7 +25,6 @@ const CHANNEL_LABELS = {
 export function NewMessageSheet({
   open,
   onOpenChange,
-  organizationId,
   creatorId,
   onSent,
 }: NewMessageSheetProps) {
@@ -38,7 +36,7 @@ export function NewMessageSheet({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     sendMessage.mutate(
-      { organizationId, creatorId, source, externalContactLabel, body },
+      { creatorId, source, externalContactLabel, body },
       {
         onSuccess: () => {
           toast.success("Mensagem enviada");

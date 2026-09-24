@@ -11,7 +11,6 @@ import {
 } from "@/hooks/use-party-options";
 
 export interface InquiryEditFormProps {
-  organizationId: string;
   initialCompanyName: string | null;
   initialContactName: string | null;
   onConfirm: (input: {
@@ -24,14 +23,13 @@ export interface InquiryEditFormProps {
 type PartyResolution = { type: "selected"; id: string } | { type: "none" };
 
 export function InquiryEditForm({
-  organizationId,
   initialCompanyName,
   initialContactName,
   onConfirm,
 }: InquiryEditFormProps) {
-  const { data: companyOptions = [] } = useCompanyOptions(organizationId);
-  const { data: brandOptions = [] } = useBrandOptions(organizationId);
-  const { data: contactOptions = [] } = useContactOptions(organizationId);
+  const { data: companyOptions = [] } = useCompanyOptions();
+  const { data: brandOptions = [] } = useBrandOptions();
+  const { data: contactOptions = [] } = useContactOptions();
 
   const [companyResolution, setCompanyResolution] = React.useState<PartyResolution | null>(null);
   const [brandResolution, setBrandResolution] = React.useState<PartyResolution | null>(null);

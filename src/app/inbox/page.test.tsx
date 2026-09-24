@@ -41,7 +41,6 @@ const newInquiry = {
 
 beforeEach(() => {
   window.localStorage.clear();
-  process.env.NEXT_PUBLIC_DEV_ORGANIZATION_ID = "org1";
 });
 
 afterEach(() => {

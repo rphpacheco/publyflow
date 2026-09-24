@@ -41,7 +41,6 @@ function renderPanel(onOpenChange = vi.fn()) {
         inquiry={inquiry}
         open
         onOpenChange={onOpenChange}
-        organizationId="org1"
         creatorId="creator1"
         status="NEW"
       />

@@ -16,7 +16,7 @@ function wrapper(queryClient: QueryClient) {
 }
 
 describe("useSendInboxMessage", () => {
-  it("POSTs the message payload to /api/inbox/messages", async () => {
+  it("POSTs the message payload (no organizationId) to /api/inbox/messages", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 201,
@@ -29,7 +29,6 @@ describe("useSendInboxMessage", () => {
     });
 
     result.current.mutate({
-      organizationId: "org1",
       creatorId: "creator1",
       source: "INSTAGRAM",
       externalContactLabel: "Maria — Bella Cosméticos",
@@ -40,12 +39,14 @@ describe("useSendInboxMessage", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/inbox/messages");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    expect(url).not.toContain("organizationId");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       creatorId: "creator1",
       source: "INSTAGRAM",
       externalContactLabel: "Maria — Bella Cosméticos",
       body: "Olá, gostaríamos de saber os valores.",
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
   });
 });

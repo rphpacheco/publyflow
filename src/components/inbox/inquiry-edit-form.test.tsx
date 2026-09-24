@@ -43,7 +43,6 @@ function renderForm(onConfirm = vi.fn()) {
   render(
     <QueryClientProvider client={queryClient}>
       <InquiryEditForm
-        organizationId="org1"
         initialCompanyName="Bella Cosméticos"
         initialContactName="Maria"
         onConfirm={onConfirm}
