@@ -9,8 +9,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function ListProbe({ organizationId, opportunityId }: { organizationId: string; opportunityId: string }) {
-  const { data, isLoading } = useProposals(organizationId, opportunityId);
+function ListProbe({ opportunityId }: { opportunityId: string }) {
+  const { data, isLoading } = useProposals(opportunityId);
   if (isLoading) return <span>loading</span>;
   return <span>{data?.length ?? 0} proposals</span>;
 }
@@ -27,20 +27,20 @@ describe("useProposals", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ListProbe organizationId="org1" opportunityId="opp1" />
+        <ListProbe opportunityId="opp1" />
       </QueryClientProvider>,
     );
 
     expect(await screen.findByText("1 proposals")).toBeInTheDocument();
 
     const requestedUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(requestedUrl).toContain("organizationId=org1");
     expect(requestedUrl).toContain("opportunityId=opp1");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 });
 
 function CreateProbe() {
-  const create = useCreateProposal("org1");
+  const create = useCreateProposal();
   return (
     <button
       onClick={() =>
@@ -48,7 +48,6 @@ function CreateProbe() {
           opportunityId: "opp1",
           title: "Campanha Verão",
           template: "PREMIUM",
-          userId: "user1",
         })
       }
     >
@@ -58,7 +57,7 @@ function CreateProbe() {
 }
 
 describe("useCreateProposal", () => {
-  it("POSTs the new proposal with organizationId/userId injected", async () => {
+  it("POSTs the new proposal without organizationId/userId", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -87,13 +86,15 @@ describe("useCreateProposal", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/proposals");
+    expect(url).not.toContain("organizationId");
     expect((init as RequestInit).method).toBe("POST");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       opportunityId: "opp1",
       title: "Campanha Verão",
       template: "PREMIUM",
-      userId: "user1",
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 });

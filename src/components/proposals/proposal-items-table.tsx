@@ -28,9 +28,7 @@ import {
 } from "@/hooks/use-proposal-items";
 
 export interface ProposalItemsTableProps {
-  organizationId: string;
   proposalId: string;
-  userId: string;
   items: ProposalItem[];
   creatorId: string | null;
   readOnly: boolean;
@@ -52,19 +50,17 @@ function centsToReaisInput(cents: number): string {
 }
 
 export function ProposalItemsTable({
-  organizationId,
   proposalId,
-  userId,
   items,
   creatorId,
   readOnly,
 }: ProposalItemsTableProps) {
-  const { data: catalogItems } = useRateCardItems(organizationId, creatorId ?? "", {
+  const { data: catalogItems } = useRateCardItems(creatorId ?? "", {
     enabled: creatorId !== null,
   });
-  const addItem = useAddProposalItem(organizationId, proposalId, userId);
-  const updateItem = useUpdateProposalItem(organizationId, proposalId, userId);
-  const removeItem = useRemoveProposalItem(organizationId, proposalId, userId);
+  const addItem = useAddProposalItem(proposalId);
+  const updateItem = useUpdateProposalItem(proposalId);
+  const removeItem = useRemoveProposalItem(proposalId);
 
   const [adHocOpen, setAdHocOpen] = React.useState(false);
   const [adHocDescription, setAdHocDescription] = React.useState("");

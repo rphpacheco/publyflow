@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 function GetProbe() {
-  const { data, isLoading } = useProposal("org1", "p1");
+  const { data, isLoading } = useProposal("p1");
   if (isLoading) return <span>loading</span>;
   return <span>{data?.title}</span>;
 }
@@ -41,17 +41,19 @@ describe("useProposal", () => {
     );
 
     expect(await screen.findByText("Campanha Verão")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0]![0]).toBe("/api/proposals/p1?organizationId=org1");
+    const requestedUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(requestedUrl).toBe("/api/proposals/p1");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 });
 
 function UpdateProbe() {
-  const update = useUpdateProposal("org1", "p1");
-  return <button onClick={() => update.mutate({ userId: "user1", status: "ARCHIVED" })}>Arquivar</button>;
+  const update = useUpdateProposal("p1");
+  return <button onClick={() => update.mutate({ status: "ARCHIVED" })}>Arquivar</button>;
 }
 
 describe("useUpdateProposal", () => {
-  it("PATCHes with organizationId/userId injected", async () => {
+  it("PATCHes without organizationId/userId", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -80,11 +82,11 @@ describe("useUpdateProposal", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/proposals/p1");
+    expect(url).not.toContain("organizationId");
     expect((init as RequestInit).method).toBe("PATCH");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
-      userId: "user1",
-      status: "ARCHIVED",
-    });
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({ status: "ARCHIVED" });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 });

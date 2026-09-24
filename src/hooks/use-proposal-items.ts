@@ -20,19 +20,17 @@ export interface ProposalItem {
   createdAt: string;
 }
 
-export function proposalItemsQueryKey(organizationId: string, proposalId: string) {
-  return ["proposal-items", organizationId, proposalId] as const;
+export function proposalItemsQueryKey(proposalId: string) {
+  return ["proposal-items", proposalId] as const;
 }
 
 export function useProposalItems(
-  organizationId: string,
   proposalId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<ProposalItem[]> {
   return useQuery({
-    queryKey: proposalItemsQueryKey(organizationId, proposalId),
-    queryFn: () =>
-      apiFetch<ProposalItem[]>(`/api/proposals/${proposalId}/items?organizationId=${organizationId}`),
+    queryKey: proposalItemsQueryKey(proposalId),
+    queryFn: () => apiFetch<ProposalItem[]>(`/api/proposals/${proposalId}/items`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -42,19 +40,17 @@ export type AddProposalItemInput =
   | { description: string; unitPrice: number };
 
 export function useAddProposalItem(
-  organizationId: string,
   proposalId: string,
-  userId: string,
 ): UseMutationResult<ProposalItem, ApiError, AddProposalItemInput> {
   const queryClient = useQueryClient();
-  const queryKey = proposalItemsQueryKey(organizationId, proposalId);
+  const queryKey = proposalItemsQueryKey(proposalId);
 
   return useMutation({
     mutationFn: (input) =>
       apiFetch<ProposalItem>(`/api/proposals/${proposalId}/items`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, userId, ...input }),
+        body: JSON.stringify(input),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -73,19 +69,17 @@ export interface UpdateProposalItemInput {
 }
 
 export function useUpdateProposalItem(
-  organizationId: string,
   proposalId: string,
-  userId: string,
 ): UseMutationResult<ProposalItem, ApiError, UpdateProposalItemInput> {
   const queryClient = useQueryClient();
-  const queryKey = proposalItemsQueryKey(organizationId, proposalId);
+  const queryKey = proposalItemsQueryKey(proposalId);
 
   return useMutation({
     mutationFn: ({ itemId, ...input }) =>
       apiFetch<ProposalItem>(`/api/proposal-items/${itemId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, proposalId, userId, ...input }),
+        body: JSON.stringify({ proposalId, ...input }),
       }),
     onSuccess: (data) => {
       queryClient.setQueryData<ProposalItem[]>(queryKey, (old) =>
@@ -99,19 +93,17 @@ export function useUpdateProposalItem(
 }
 
 export function useRemoveProposalItem(
-  organizationId: string,
   proposalId: string,
-  userId: string,
 ): UseMutationResult<void, ApiError, string> {
   const queryClient = useQueryClient();
-  const queryKey = proposalItemsQueryKey(organizationId, proposalId);
+  const queryKey = proposalItemsQueryKey(proposalId);
 
   return useMutation({
     mutationFn: (itemId) =>
       apiFetch<void>(`/api/proposal-items/${itemId}`, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, proposalId, userId }),
+        body: JSON.stringify({ proposalId }),
       }),
     onSuccess: (_data, itemId) => {
       queryClient.setQueryData<ProposalItem[]>(queryKey, (old) => old?.filter((item) => item.id !== itemId) ?? old);

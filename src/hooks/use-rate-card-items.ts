@@ -14,21 +14,18 @@ export interface RateCardItemWithService {
   rateCardName: string;
 }
 
-export function rateCardItemsQueryKey(organizationId: string, creatorId: string) {
-  return ["rate-card-items", organizationId, creatorId] as const;
+export function rateCardItemsQueryKey(creatorId: string) {
+  return ["rate-card-items", creatorId] as const;
 }
 
 export function useRateCardItems(
-  organizationId: string,
   creatorId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<RateCardItemWithService[]> {
   return useQuery({
-    queryKey: rateCardItemsQueryKey(organizationId, creatorId),
+    queryKey: rateCardItemsQueryKey(creatorId),
     queryFn: () =>
-      apiFetch<RateCardItemWithService[]>(
-        `/api/rate-card-items?organizationId=${organizationId}&creatorId=${creatorId}`,
-      ),
+      apiFetch<RateCardItemWithService[]>(`/api/rate-card-items?creatorId=${creatorId}`),
     enabled: options?.enabled ?? true,
   });
 }

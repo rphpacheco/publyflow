@@ -6,21 +6,17 @@ import { useUpdateProposalBlock } from "@/hooks/use-proposal-blocks";
 import type { ProposalBlock } from "@/hooks/use-proposal-blocks";
 
 export interface ProposalCoverSectionProps {
-  organizationId: string;
   proposalId: string;
-  userId: string;
   block: ProposalBlock;
   readOnly: boolean;
 }
 
 export function ProposalCoverSection({
-  organizationId,
   proposalId,
-  userId,
   block,
   readOnly,
 }: ProposalCoverSectionProps) {
-  const updateBlock = useUpdateProposalBlock(organizationId, proposalId, userId);
+  const updateBlock = useUpdateProposalBlock(proposalId);
   const initialHeadline = (block.content as { headline?: string })?.headline ?? "";
   const [headline, setHeadline] = React.useState(initialHeadline);
 

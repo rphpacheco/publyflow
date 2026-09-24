@@ -19,21 +19,18 @@ export interface Proposal {
   createdAt: string;
 }
 
-export function proposalsQueryKey(organizationId: string, opportunityId: string) {
-  return ["proposals", organizationId, opportunityId] as const;
+export function proposalsQueryKey(opportunityId: string) {
+  return ["proposals", opportunityId] as const;
 }
 
 export function useProposals(
-  organizationId: string,
   opportunityId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<Proposal[]> {
   return useQuery({
-    queryKey: proposalsQueryKey(organizationId, opportunityId),
+    queryKey: proposalsQueryKey(opportunityId),
     queryFn: () =>
-      apiFetch<Proposal[]>(
-        `/api/proposals?organizationId=${organizationId}&opportunityId=${opportunityId}`,
-      ),
+      apiFetch<Proposal[]>(`/api/proposals?opportunityId=${opportunityId}`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -42,12 +39,9 @@ export interface CreateProposalInput {
   opportunityId: string;
   title: string;
   template: ProposalTemplate;
-  userId: string;
 }
 
-export function useCreateProposal(
-  organizationId: string,
-): UseMutationResult<Proposal, ApiError, CreateProposalInput> {
+export function useCreateProposal(): UseMutationResult<Proposal, ApiError, CreateProposalInput> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input) =>
@@ -55,16 +49,14 @@ export function useCreateProposal(
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          organizationId,
           opportunityId: input.opportunityId,
           title: input.title,
           template: input.template,
-          userId: input.userId,
         }),
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: proposalsQueryKey(organizationId, variables.opportunityId),
+        queryKey: proposalsQueryKey(variables.opportunityId),
       });
     },
     onError: () => {

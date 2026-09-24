@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 function ListProbe() {
-  const { data, isLoading } = useProposalBlocks("org1", "p1");
+  const { data, isLoading } = useProposalBlocks("p1");
   if (isLoading) return <span>loading</span>;
   return <span>{data?.length ?? 0} blocks</span>;
 }
@@ -33,12 +33,14 @@ describe("useProposalBlocks", () => {
     );
 
     expect(await screen.findByText("1 blocks")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0]![0]).toBe("/api/proposals/p1/blocks?organizationId=org1");
+    const requestedUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(requestedUrl).toBe("/api/proposals/p1/blocks");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 });
 
 function UpdateProbe() {
-  const update = useUpdateProposalBlock("org1", "p1", "user1");
+  const update = useUpdateProposalBlock("p1");
   return (
     <button onClick={() => update.mutate({ blockId: "b1", content: { headline: "Nova capa" } })}>
       Salvar
@@ -47,7 +49,7 @@ function UpdateProbe() {
 }
 
 describe("useUpdateProposalBlock", () => {
-  it("PATCHes the block with organizationId/proposalId/userId injected", async () => {
+  it("PATCHes the block with proposalId but no organizationId/userId", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -68,12 +70,14 @@ describe("useUpdateProposalBlock", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/proposal-blocks/b1");
+    expect(url).not.toContain("organizationId");
     expect((init as RequestInit).method).toBe("PATCH");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       proposalId: "p1",
-      userId: "user1",
       content: { headline: "Nova capa" },
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 });

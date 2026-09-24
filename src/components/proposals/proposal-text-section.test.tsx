@@ -35,9 +35,7 @@ describe("ProposalTextSection", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
-    renderWithClient(
-      <ProposalTextSection organizationId="org1" proposalId="p1" userId="user1" block={block} readOnly={false} />,
-    );
+    renderWithClient(<ProposalTextSection proposalId="p1" block={block} readOnly={false} />);
 
     const textarea = screen.getByLabelText("Texto");
     expect(textarea).toHaveValue("Texto original");
@@ -49,18 +47,18 @@ describe("ProposalTextSection", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/proposal-blocks/b2");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    expect(url).not.toContain("organizationId");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       proposalId: "p1",
-      userId: "user1",
       content: { body: "Texto novo" },
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("disables the textarea when readOnly", () => {
-    renderWithClient(
-      <ProposalTextSection organizationId="org1" proposalId="p1" userId="user1" block={block} readOnly />,
-    );
+    renderWithClient(<ProposalTextSection proposalId="p1" block={block} readOnly />);
     expect(screen.getByLabelText("Texto")).toBeDisabled();
   });
 });

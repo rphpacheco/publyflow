@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getDevOrganizationId, getDevUserId } from "@/lib/organization";
 import { useProposal, useUpdateProposal } from "@/hooks/use-proposal";
 import { useOpportunity } from "@/hooks/use-opportunity";
 import { useProposalBlocks } from "@/hooks/use-proposal-blocks";
@@ -35,10 +34,9 @@ import { ProposalItemsTable } from "@/components/proposals/proposal-items-table"
 
 export default function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: proposalId } = React.use(params);
-  const organizationId = getDevOrganizationId();
 
-  const { data: proposal, isLoading, isError, refetch } = useProposal(organizationId, proposalId);
-  const { data: opportunity } = useOpportunity(organizationId, proposal?.opportunityId ?? "", {
+  const { data: proposal, isLoading, isError, refetch } = useProposal(proposalId);
+  const { data: opportunity } = useOpportunity(proposal?.opportunityId ?? "", {
     enabled: proposal !== undefined,
   });
   const {
@@ -46,15 +44,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     isLoading: blocksLoading,
     isError: blocksError,
     refetch: refetchBlocks,
-  } = useProposalBlocks(organizationId, proposalId);
+  } = useProposalBlocks(proposalId);
   const {
     data: items,
     isLoading: itemsLoading,
     isError: itemsError,
     refetch: refetchItems,
-  } = useProposalItems(organizationId, proposalId);
+  } = useProposalItems(proposalId);
 
-  const updateProposal = useUpdateProposal(organizationId, proposalId);
+  const updateProposal = useUpdateProposal(proposalId);
 
   const [title, setTitle] = React.useState("");
   React.useEffect(() => {
@@ -66,16 +64,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       setTitle(proposal?.title ?? "");
       return;
     }
-    updateProposal.mutate({ userId: getDevUserId(), title: title.trim() });
+    updateProposal.mutate({ title: title.trim() });
   }
 
   function handleTemplateChange(value: string) {
-    updateProposal.mutate({ userId: getDevUserId(), template: value as ProposalTemplate });
+    updateProposal.mutate({ template: value as ProposalTemplate });
   }
 
   function handleArchiveToggle() {
     updateProposal.mutate({
-      userId: getDevUserId(),
       status: proposal?.status === "ARCHIVED" ? "DRAFT" : "ARCHIVED",
     });
   }
@@ -107,9 +104,6 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   }
 
   const readOnly = proposal.status === "ARCHIVED";
-  // Viewing an archived (read-only) proposal must never require NEXT_PUBLIC_DEV_USER_ID to be
-  // set — nothing mutates in that state, so getDevUserId() is only called when editing is possible.
-  const userId = readOnly ? "" : getDevUserId();
   const coverBlock = blocks?.find((block) => block.blockType === "COVER") ?? null;
   const textBlock = blocks?.find((block) => block.blockType === "TEXT") ?? null;
 
@@ -185,29 +179,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       </div>
 
       {coverBlock ? (
-        <ProposalCoverSection
-          organizationId={organizationId}
-          proposalId={proposalId}
-          userId={userId}
-          block={coverBlock}
-          readOnly={readOnly}
-        />
+        <ProposalCoverSection proposalId={proposalId} block={coverBlock} readOnly={readOnly} />
       ) : null}
 
       {textBlock ? (
-        <ProposalTextSection
-          organizationId={organizationId}
-          proposalId={proposalId}
-          userId={userId}
-          block={textBlock}
-          readOnly={readOnly}
-        />
+        <ProposalTextSection proposalId={proposalId} block={textBlock} readOnly={readOnly} />
       ) : null}
 
       <ProposalItemsTable
-        organizationId={organizationId}
         proposalId={proposalId}
-        userId={userId}
         items={items ?? []}
         creatorId={opportunity?.creatorId ?? null}
         readOnly={readOnly}

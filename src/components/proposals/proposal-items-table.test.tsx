@@ -72,7 +72,7 @@ describe("ProposalItemsTable", () => {
   it("shows an EmptyState when there are no items", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }));
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={[]} creatorId="creator1" readOnly={false} />,
     );
     expect(screen.getByText("Nenhum item ainda")).toBeInTheDocument();
   });
@@ -80,7 +80,7 @@ describe("ProposalItemsTable", () => {
   it("renders items with a total footer", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => catalogItems }));
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={items} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={items} creatorId="creator1" readOnly={false} />,
     );
     expect(screen.getByText("Reel patrocinado")).toBeInTheDocument();
     // 2 * R$1.500,00 = R$3.000,00
@@ -88,11 +88,12 @@ describe("ProposalItemsTable", () => {
   });
 
   it("disambiguates catalog options with the rate card name only when the service name repeats", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => catalogItems }));
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => catalogItems });
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={[]} creatorId="creator1" readOnly={false} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Adicionar item" }));
@@ -103,6 +104,10 @@ describe("ProposalItemsTable", () => {
     // "Stories" is unique -> no rate card name appended.
     const storiesOption = screen.getByText(/^Stories/);
     expect(storiesOption.textContent).not.toContain("Tabela");
+
+    const requestedUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(requestedUrl).toBe("/api/rate-card-items?creatorId=creator1");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 
   it("adds a catalog item on selection", async () => {
@@ -116,7 +121,7 @@ describe("ProposalItemsTable", () => {
     const user = userEvent.setup();
 
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={[]} creatorId="creator1" readOnly={false} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Adicionar item" }));
@@ -129,15 +134,15 @@ describe("ProposalItemsTable", () => {
       );
       expect(postCall).toBeDefined();
     });
-    const [, init] = fetchMock.mock.calls.find(
-      ([url, callInit]) =>
-        (url as string).includes("/items") && (callInit as RequestInit | undefined)?.method === "POST",
+    const [url, init] = fetchMock.mock.calls.find(
+      ([callUrl, callInit]) =>
+        (callUrl as string).includes("/items") && (callInit as RequestInit | undefined)?.method === "POST",
     )!;
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
-      userId: "user1",
-      rateCardItemId: "rci3",
-    });
+    expect(url).toBe("/api/proposals/p1/items");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({ rateCardItemId: "rci3" });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("adds an ad-hoc item with a negative price via the form", async () => {
@@ -151,7 +156,7 @@ describe("ProposalItemsTable", () => {
     const user = userEvent.setup();
 
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={[]} creatorId="creator1" readOnly={false} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Adicionar item" }));
@@ -172,12 +177,13 @@ describe("ProposalItemsTable", () => {
       ([url, callInit]) =>
         (url as string).includes("/items") && (callInit as RequestInit | undefined)?.method === "POST",
     )!;
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
-      userId: "user1",
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       description: "Desconto negociado",
       unitPrice: -20000,
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("parses a BR-locale price with thousands separator ('1.500,00') as 150000 cents", async () => {
@@ -191,7 +197,7 @@ describe("ProposalItemsTable", () => {
     const user = userEvent.setup();
 
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={[]} creatorId="creator1" readOnly={false} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Adicionar item" }));
@@ -212,12 +218,13 @@ describe("ProposalItemsTable", () => {
       ([url, callInit]) =>
         (url as string).includes("/items") && (callInit as RequestInit | undefined)?.method === "POST",
     )!;
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
-      userId: "user1",
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       description: "Reel patrocinado",
       unitPrice: 150000,
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("removes an item after confirming the AlertDialog", async () => {
@@ -231,7 +238,7 @@ describe("ProposalItemsTable", () => {
     const user = userEvent.setup();
 
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={items} creatorId="creator1" readOnly={false} />,
+      <ProposalItemsTable proposalId="p1" items={items} creatorId="creator1" readOnly={false} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Remover Reel patrocinado" }));
@@ -244,12 +251,21 @@ describe("ProposalItemsTable", () => {
       );
       expect(deleteCall).toBeDefined();
     });
+
+    const [url, init] = fetchMock.mock.calls.find(
+      ([, callInit]) => (callInit as RequestInit | undefined)?.method === "DELETE",
+    )!;
+    expect(url).toBe("/api/proposal-items/i1");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({ proposalId: "p1" });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("does not render the combobox, ad-hoc form trigger, or remove button when readOnly", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }));
     renderWithClient(
-      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={items} creatorId="creator1" readOnly />,
+      <ProposalItemsTable proposalId="p1" items={items} creatorId="creator1" readOnly />,
     );
     expect(screen.queryByRole("combobox", { name: "Adicionar item" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remover Reel patrocinado" })).not.toBeInTheDocument();

@@ -31,19 +31,17 @@ export interface ProposalBlock {
   createdAt: string;
 }
 
-export function proposalBlocksQueryKey(organizationId: string, proposalId: string) {
-  return ["proposal-blocks", organizationId, proposalId] as const;
+export function proposalBlocksQueryKey(proposalId: string) {
+  return ["proposal-blocks", proposalId] as const;
 }
 
 export function useProposalBlocks(
-  organizationId: string,
   proposalId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<ProposalBlock[]> {
   return useQuery({
-    queryKey: proposalBlocksQueryKey(organizationId, proposalId),
-    queryFn: () =>
-      apiFetch<ProposalBlock[]>(`/api/proposals/${proposalId}/blocks?organizationId=${organizationId}`),
+    queryKey: proposalBlocksQueryKey(proposalId),
+    queryFn: () => apiFetch<ProposalBlock[]>(`/api/proposals/${proposalId}/blocks`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -54,19 +52,17 @@ export interface UpdateProposalBlockInput {
 }
 
 export function useUpdateProposalBlock(
-  organizationId: string,
   proposalId: string,
-  userId: string,
 ): UseMutationResult<ProposalBlock, ApiError, UpdateProposalBlockInput> {
   const queryClient = useQueryClient();
-  const queryKey = proposalBlocksQueryKey(organizationId, proposalId);
+  const queryKey = proposalBlocksQueryKey(proposalId);
 
   return useMutation({
     mutationFn: ({ blockId, content }) =>
       apiFetch<ProposalBlock>(`/api/proposal-blocks/${blockId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, proposalId, userId, content }),
+        body: JSON.stringify({ proposalId, content }),
       }),
     onSuccess: (data) => {
       queryClient.setQueryData<ProposalBlock[]>(queryKey, (old) =>

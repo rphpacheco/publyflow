@@ -34,12 +34,11 @@ function renderWithClient(ui: React.ReactElement) {
 
 describe("OpportunitySidePanel", () => {
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_DEV_USER_ID", "11111111-1111-1111-1111-111111111111");
+    // no-op: this component no longer reads a dev user/org id.
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
     pushMock.mockClear();
   });
 
@@ -99,6 +98,9 @@ describe("OpportunitySidePanel", () => {
 
     expect(await screen.findByText("Campanha Verão")).toBeInTheDocument();
     expect(screen.getByText("Rascunho")).toBeInTheDocument();
+
+    const requestedUrl = (vi.mocked(fetch).mock.calls[0]![0] as string) ?? "";
+    expect(requestedUrl).not.toContain("organizationId");
   });
 
   it("creates a new proposal via the dialog", async () => {
@@ -139,6 +141,18 @@ describe("OpportunitySidePanel", () => {
       );
       expect(postCall).toBeDefined();
     });
+
+    const postCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+    )!;
+    const parsedBody = JSON.parse((postCall[1] as RequestInit).body as string);
+    expect(parsedBody).toEqual({
+      opportunityId: "o1",
+      title: "Nova Campanha",
+      template: "PREMIUM",
+    });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/proposals/p2");

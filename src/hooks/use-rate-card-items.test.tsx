@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 function Probe() {
-  const { data, isLoading } = useRateCardItems("org1", "creator1");
+  const { data, isLoading } = useRateCardItems("creator1");
   if (isLoading) return <span>loading</span>;
   return <span>{data?.length ?? 0} items</span>;
 }
@@ -44,6 +44,8 @@ describe("useRateCardItems", () => {
     );
 
     expect(await screen.findByText("1 items")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0]![0]).toBe("/api/rate-card-items?organizationId=org1&creatorId=creator1");
+    const requestedUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(requestedUrl).toBe("/api/rate-card-items?creatorId=creator1");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 });

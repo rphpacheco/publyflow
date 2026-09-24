@@ -18,21 +18,18 @@ export interface OpportunityListItem {
   contactName: string;
 }
 
-export function opportunitiesQueryKey(organizationId: string, creatorId: string) {
-  return ["opportunities", organizationId, creatorId] as const;
+export function opportunitiesQueryKey(creatorId: string) {
+  return ["opportunities", creatorId] as const;
 }
 
 export function useOpportunities(
-  organizationId: string,
   creatorId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<OpportunityListItem[]> {
   return useQuery({
-    queryKey: opportunitiesQueryKey(organizationId, creatorId),
+    queryKey: opportunitiesQueryKey(creatorId),
     queryFn: () =>
-      apiFetch<OpportunityListItem[]>(
-        `/api/opportunities?organizationId=${organizationId}&creatorId=${creatorId}`,
-      ),
+      apiFetch<OpportunityListItem[]>(`/api/opportunities?creatorId=${creatorId}`),
     enabled: options?.enabled ?? true,
   });
 }

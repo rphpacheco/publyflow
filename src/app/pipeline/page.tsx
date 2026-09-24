@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { KanbanSquare } from "lucide-react";
-import { getDevOrganizationId } from "@/lib/organization";
 import { useCreatorContext } from "@/components/shell/creator-context";
 import { useOpportunities } from "@/hooks/use-opportunities";
 import { useUpdateOpportunityStage } from "@/hooks/use-update-opportunity-stage";
@@ -15,7 +14,6 @@ import type { OpportunityListItem } from "@/hooks/use-opportunities";
 import type { OpportunityStage } from "@/lib/opportunity-stages";
 
 export default function PipelinePage() {
-  const organizationId = getDevOrganizationId();
   const { selectedCreatorId } = useCreatorContext();
   const [selectedOpportunityId, setSelectedOpportunityId] = React.useState<string | null>(null);
 
@@ -24,10 +22,10 @@ export default function PipelinePage() {
     isLoading,
     isError,
     refetch,
-  } = useOpportunities(organizationId, selectedCreatorId ?? "", {
+  } = useOpportunities(selectedCreatorId ?? "", {
     enabled: selectedCreatorId !== null,
   });
-  const updateStage = useUpdateOpportunityStage(organizationId, selectedCreatorId ?? "");
+  const updateStage = useUpdateOpportunityStage(selectedCreatorId ?? "");
 
   function handleSelect(opportunity: OpportunityListItem) {
     setSelectedOpportunityId(opportunity.id);

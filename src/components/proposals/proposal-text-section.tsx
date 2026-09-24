@@ -6,21 +6,17 @@ import { useUpdateProposalBlock } from "@/hooks/use-proposal-blocks";
 import type { ProposalBlock } from "@/hooks/use-proposal-blocks";
 
 export interface ProposalTextSectionProps {
-  organizationId: string;
   proposalId: string;
-  userId: string;
   block: ProposalBlock;
   readOnly: boolean;
 }
 
 export function ProposalTextSection({
-  organizationId,
   proposalId,
-  userId,
   block,
   readOnly,
 }: ProposalTextSectionProps) {
-  const updateBlock = useUpdateProposalBlock(organizationId, proposalId, userId);
+  const updateBlock = useUpdateProposalBlock(proposalId);
   const initialBody = (block.content as { body?: string })?.body ?? "";
   const [body, setBody] = React.useState(initialBody);
 

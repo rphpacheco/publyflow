@@ -35,9 +35,7 @@ describe("ProposalCoverSection", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
-    renderWithClient(
-      <ProposalCoverSection organizationId="org1" proposalId="p1" userId="user1" block={block} readOnly={false} />,
-    );
+    renderWithClient(<ProposalCoverSection proposalId="p1" block={block} readOnly={false} />);
 
     const input = screen.getByLabelText("Capa");
     expect(input).toHaveValue("Campanha Verão");
@@ -49,12 +47,14 @@ describe("ProposalCoverSection", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/proposal-blocks/b1");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
+    expect(url).not.toContain("organizationId");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
       proposalId: "p1",
-      userId: "user1",
       content: { headline: "Nova Capa" },
     });
+    expect(parsedBody).not.toHaveProperty("organizationId");
+    expect(parsedBody).not.toHaveProperty("userId");
   });
 
   it("does not save on blur when the value is unchanged", async () => {
@@ -62,9 +62,7 @@ describe("ProposalCoverSection", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
-    renderWithClient(
-      <ProposalCoverSection organizationId="org1" proposalId="p1" userId="user1" block={block} readOnly={false} />,
-    );
+    renderWithClient(<ProposalCoverSection proposalId="p1" block={block} readOnly={false} />);
 
     await user.click(screen.getByLabelText("Capa"));
     await user.tab();
@@ -73,9 +71,7 @@ describe("ProposalCoverSection", () => {
   });
 
   it("disables the input when readOnly", () => {
-    renderWithClient(
-      <ProposalCoverSection organizationId="org1" proposalId="p1" userId="user1" block={block} readOnly />,
-    );
+    renderWithClient(<ProposalCoverSection proposalId="p1" block={block} readOnly />);
     expect(screen.getByLabelText("Capa")).toBeDisabled();
   });
 });

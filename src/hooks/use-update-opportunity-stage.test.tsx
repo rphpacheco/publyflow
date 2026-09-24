@@ -40,10 +40,10 @@ describe("useUpdateOpportunityStage", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const queryClient = new QueryClient();
-    const key = opportunitiesQueryKey("org1", "creator1");
+    const key = opportunitiesQueryKey("creator1");
     queryClient.setQueryData(key, seedOpportunities);
 
-    const { result } = renderHook(() => useUpdateOpportunityStage("org1", "creator1"), {
+    const { result } = renderHook(() => useUpdateOpportunityStage("creator1"), {
       wrapper: wrapper(queryClient),
     });
 
@@ -59,11 +59,11 @@ describe("useUpdateOpportunityStage", () => {
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/opportunities/o1");
+    expect(url).not.toContain("organizationId");
     expect((init as RequestInit).method).toBe("PATCH");
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      organizationId: "org1",
-      stage: "QUALIFICACAO",
-    });
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({ stage: "QUALIFICACAO" });
+    expect(parsedBody).not.toHaveProperty("organizationId");
   });
 
   it("rolls back the cache and shows an error toast when the PATCH fails", async () => {
@@ -78,10 +78,10 @@ describe("useUpdateOpportunityStage", () => {
     );
 
     const queryClient = new QueryClient();
-    const key = opportunitiesQueryKey("org1", "creator1");
+    const key = opportunitiesQueryKey("creator1");
     queryClient.setQueryData(key, seedOpportunities);
 
-    const { result } = renderHook(() => useUpdateOpportunityStage("org1", "creator1"), {
+    const { result } = renderHook(() => useUpdateOpportunityStage("creator1"), {
       wrapper: wrapper(queryClient),
     });
 

@@ -29,7 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { relativeTime, formatCurrencyBRL } from "@/lib/format";
 import { STAGES, STAGE_LABELS, type OpportunityStage } from "@/lib/opportunity-stages";
-import { getDevUserId } from "@/lib/organization";
 import { useProposals, useCreateProposal } from "@/hooks/use-proposals";
 import {
   PROPOSAL_TEMPLATES,
@@ -53,13 +52,12 @@ export function OpportunitySidePanel({
   onMoveToStage,
 }: OpportunitySidePanelProps) {
   const router = useRouter();
-  const organizationId = opportunity?.organizationId ?? "";
   const opportunityId = opportunity?.id ?? "";
 
-  const { data: proposals } = useProposals(organizationId, opportunityId, {
+  const { data: proposals } = useProposals(opportunityId, {
     enabled: opportunity !== null,
   });
-  const createProposal = useCreateProposal(organizationId);
+  const createProposal = useCreateProposal();
 
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [title, setTitle] = React.useState("");
@@ -68,7 +66,7 @@ export function OpportunitySidePanel({
   function handleCreate() {
     if (!title.trim() || !template) return;
     createProposal.mutate(
-      { opportunityId, title: title.trim(), template, userId: getDevUserId() },
+      { opportunityId, title: title.trim(), template },
       {
         onSuccess: (proposal) => {
           setCreateDialogOpen(false);

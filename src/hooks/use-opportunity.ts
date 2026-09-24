@@ -15,19 +15,17 @@ export interface Opportunity {
   createdAt: string;
 }
 
-export function opportunityQueryKey(organizationId: string, opportunityId: string) {
-  return ["opportunity", organizationId, opportunityId] as const;
+export function opportunityQueryKey(opportunityId: string) {
+  return ["opportunity", opportunityId] as const;
 }
 
 export function useOpportunity(
-  organizationId: string,
   opportunityId: string,
   options?: { enabled?: boolean },
 ): UseQueryResult<Opportunity> {
   return useQuery({
-    queryKey: opportunityQueryKey(organizationId, opportunityId),
-    queryFn: () =>
-      apiFetch<Opportunity>(`/api/opportunities/${opportunityId}?organizationId=${organizationId}`),
+    queryKey: opportunityQueryKey(opportunityId),
+    queryFn: () => apiFetch<Opportunity>(`/api/opportunities/${opportunityId}`),
     enabled: options?.enabled ?? true,
   });
 }

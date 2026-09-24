@@ -8,8 +8,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function Probe({ organizationId, creatorId }: { organizationId: string; creatorId: string }) {
-  const { data, isLoading } = useOpportunities(organizationId, creatorId);
+function Probe({ creatorId }: { creatorId: string }) {
+  const { data, isLoading } = useOpportunities(creatorId);
   if (isLoading) return <span>loading</span>;
   return <span>{data?.length ?? 0} opportunities</span>;
 }
@@ -26,15 +26,15 @@ describe("useOpportunities", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <Probe organizationId="org1" creatorId="creator1" />
+        <Probe creatorId="creator1" />
       </QueryClientProvider>,
     );
 
     expect(await screen.findByText("1 opportunities")).toBeInTheDocument();
 
     const requestedUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(requestedUrl).toContain("organizationId=org1");
     expect(requestedUrl).toContain("creatorId=creator1");
+    expect(requestedUrl).not.toContain("organizationId");
     expect(requestedUrl).not.toContain("stage=");
   });
 
@@ -55,6 +55,6 @@ describe("useOpportunities", () => {
 });
 
 function DisabledProbe() {
-  useOpportunities("org1", "", { enabled: false });
+  useOpportunities("", { enabled: false });
   return <span>disabled</span>;
 }

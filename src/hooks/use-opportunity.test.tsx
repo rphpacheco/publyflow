@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 function Probe() {
-  const { data, isLoading } = useOpportunity("org1", "opp1");
+  const { data, isLoading } = useOpportunity("opp1");
   if (isLoading) return <span>loading</span>;
   return <span>{data?.creatorId}</span>;
 }
@@ -43,7 +43,9 @@ describe("useOpportunity", () => {
     );
 
     expect(await screen.findByText("creator1")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0]![0]).toBe("/api/opportunities/opp1?organizationId=org1");
+    const requestedUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(requestedUrl).toBe("/api/opportunities/opp1");
+    expect(requestedUrl).not.toContain("organizationId");
   });
 
   it("does not fetch when disabled", async () => {
@@ -51,7 +53,7 @@ describe("useOpportunity", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     function DisabledProbe() {
-      useOpportunity("org1", "", { enabled: false });
+      useOpportunity("", { enabled: false });
       return <span>disabled</span>;
     }
 

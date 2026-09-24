@@ -14,18 +14,17 @@ interface MutationContext {
 }
 
 export function useUpdateOpportunityStage(
-  organizationId: string,
   creatorId: string,
 ): UseMutationResult<unknown, ApiError, UpdateStageInput, MutationContext> {
   const queryClient = useQueryClient();
-  const queryKey = opportunitiesQueryKey(organizationId, creatorId);
+  const queryKey = opportunitiesQueryKey(creatorId);
 
   return useMutation({
     mutationFn: ({ opportunityId, stage }) =>
       apiFetch(`/api/opportunities/${opportunityId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, stage }),
+        body: JSON.stringify({ stage }),
       }),
     onMutate: async ({ opportunityId, stage }) => {
       await queryClient.cancelQueries({ queryKey });
