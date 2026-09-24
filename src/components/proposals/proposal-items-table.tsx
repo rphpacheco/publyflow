@@ -39,7 +39,11 @@ export interface ProposalItemsTableProps {
 type CatalogOption = { type: "catalog"; item: RateCardItemWithService } | { type: "adhoc" };
 
 function reaisToCents(value: string): number {
-  const parsed = Number.parseFloat(value.replace(",", "."));
+  // BR currency is displayed as "R$ 1.500,00" (`.` thousands separator, `,` decimal separator).
+  // Only strip `.` as a thousands separator when the value actually contains a decimal comma —
+  // otherwise a plain dotted-decimal string like "-200.00" or "1500.00" is used as-is.
+  const normalized = value.includes(",") ? value.replace(/\./g, "").replace(",", ".") : value;
+  const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }
 
@@ -230,6 +234,12 @@ function ProposalItemRow({ item, readOnly, onUpdate, onRemove }: ProposalItemRow
   }
 
   function handlePriceBlur() {
+    const normalized = price.includes(",") ? price.replace(/\./g, "").replace(",", ".") : price;
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed)) {
+      setPrice(centsToReaisInput(item.unitPrice));
+      return;
+    }
     const cents = reaisToCents(price);
     if (cents === item.unitPrice) return;
     onUpdate({ unitPrice: cents });

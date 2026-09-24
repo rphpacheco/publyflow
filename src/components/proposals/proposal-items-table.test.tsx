@@ -180,6 +180,46 @@ describe("ProposalItemsTable", () => {
     });
   });
 
+  it("parses a BR-locale price with thousands separator ('1.500,00') as 150000 cents", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith("/api/rate-card-items")) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+      }
+      return Promise.resolve({ ok: true, status: 201, json: async () => items[0] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    renderWithClient(
+      <ProposalItemsTable organizationId="org1" proposalId="p1" userId="user1" items={[]} creatorId="creator1" readOnly={false} />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Adicionar item" }));
+    await user.click(await screen.findByText("+ Item avulso"));
+
+    await user.type(screen.getByLabelText("Descrição"), "Reel patrocinado");
+    await user.type(screen.getByLabelText("Preço (R$)"), "1.500,00");
+    await user.click(screen.getByRole("button", { name: "Adicionar" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          (url as string).includes("/items") && (init as RequestInit | undefined)?.method === "POST",
+      );
+      expect(postCall).toBeDefined();
+    });
+    const [, init] = fetchMock.mock.calls.find(
+      ([url, callInit]) =>
+        (url as string).includes("/items") && (callInit as RequestInit | undefined)?.method === "POST",
+    )!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      organizationId: "org1",
+      userId: "user1",
+      description: "Reel patrocinado",
+      unitPrice: 150000,
+    });
+  });
+
   it("removes an item after confirming the AlertDialog", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (url.startsWith("/api/rate-card-items")) {

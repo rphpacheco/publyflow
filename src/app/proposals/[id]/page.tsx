@@ -36,7 +36,6 @@ import { ProposalItemsTable } from "@/components/proposals/proposal-items-table"
 export default function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: proposalId } = React.use(params);
   const organizationId = getDevOrganizationId();
-  const userId = getDevUserId();
 
   const { data: proposal, isLoading, isError, refetch } = useProposal(organizationId, proposalId);
   const { data: opportunity } = useOpportunity(organizationId, proposal?.opportunityId ?? "", {
@@ -55,7 +54,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     refetch: refetchItems,
   } = useProposalItems(organizationId, proposalId);
 
-  const updateProposal = useUpdateProposal(organizationId, proposalId, userId);
+  const updateProposal = useUpdateProposal(organizationId, proposalId);
 
   const [title, setTitle] = React.useState("");
   React.useEffect(() => {
@@ -67,15 +66,18 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       setTitle(proposal?.title ?? "");
       return;
     }
-    updateProposal.mutate({ title: title.trim() });
+    updateProposal.mutate({ userId: getDevUserId(), title: title.trim() });
   }
 
   function handleTemplateChange(value: string) {
-    updateProposal.mutate({ template: value as ProposalTemplate });
+    updateProposal.mutate({ userId: getDevUserId(), template: value as ProposalTemplate });
   }
 
   function handleArchiveToggle() {
-    updateProposal.mutate({ status: proposal?.status === "ARCHIVED" ? "DRAFT" : "ARCHIVED" });
+    updateProposal.mutate({
+      userId: getDevUserId(),
+      status: proposal?.status === "ARCHIVED" ? "DRAFT" : "ARCHIVED",
+    });
   }
 
   const anyLoading = isLoading || blocksLoading || itemsLoading;
@@ -105,6 +107,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   }
 
   const readOnly = proposal.status === "ARCHIVED";
+  // Viewing an archived (read-only) proposal must never require NEXT_PUBLIC_DEV_USER_ID to be
+  // set — nothing mutates in that state, so getDevUserId() is only called when editing is possible.
+  const userId = readOnly ? "" : getDevUserId();
   const coverBlock = blocks?.find((block) => block.blockType === "COVER") ?? null;
   const textBlock = blocks?.find((block) => block.blockType === "TEXT") ?? null;
 

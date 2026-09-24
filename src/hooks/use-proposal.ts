@@ -5,6 +5,7 @@ import {
   type UseQueryResult,
   type UseMutationResult,
 } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { Proposal } from "./use-proposals";
 import type { ProposalTemplate, ProposalStatus } from "@/lib/proposal-templates";
@@ -26,6 +27,7 @@ export function useProposal(
 }
 
 export interface UpdateProposalInput {
+  userId: string;
   title?: string;
   template?: ProposalTemplate;
   status?: ProposalStatus;
@@ -34,7 +36,6 @@ export interface UpdateProposalInput {
 export function useUpdateProposal(
   organizationId: string,
   proposalId: string,
-  userId: string,
 ): UseMutationResult<Proposal, ApiError, UpdateProposalInput> {
   const queryClient = useQueryClient();
   const queryKey = proposalQueryKey(organizationId, proposalId);
@@ -44,10 +45,13 @@ export function useUpdateProposal(
       apiFetch<Proposal>(`/api/proposals/${proposalId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, userId, ...input }),
+        body: JSON.stringify({ organizationId, ...input }),
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
+    },
+    onError: () => {
+      toast.error("Não foi possível salvar. Tente novamente.");
     },
   });
 }

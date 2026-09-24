@@ -46,8 +46,8 @@ describe("useProposal", () => {
 });
 
 function UpdateProbe() {
-  const update = useUpdateProposal("org1", "p1", "user1");
-  return <button onClick={() => update.mutate({ status: "ARCHIVED" })}>Arquivar</button>;
+  const update = useUpdateProposal("org1", "p1");
+  return <button onClick={() => update.mutate({ userId: "user1", status: "ARCHIVED" })}>Arquivar</button>;
 }
 
 describe("useUpdateProposal", () => {

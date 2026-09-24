@@ -5,6 +5,7 @@ import {
   type UseQueryResult,
   type UseMutationResult,
 } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { ProposalTemplate, ProposalStatus } from "@/lib/proposal-templates";
 
@@ -65,6 +66,9 @@ export function useCreateProposal(
       queryClient.invalidateQueries({
         queryKey: proposalsQueryKey(organizationId, variables.opportunityId),
       });
+    },
+    onError: () => {
+      toast.error("Não foi possível criar a proposta. Tente novamente.");
     },
   });
 }
