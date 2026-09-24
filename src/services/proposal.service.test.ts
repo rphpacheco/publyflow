@@ -161,4 +161,28 @@ describe("ProposalService", () => {
     const list = await ProposalService.listByOpportunity(db, organization.id, opportunity.id);
     expect(list.some((row) => row.id === created.id)).toBe(true);
   });
+
+  it("findById returns the proposal, or null if it doesn't exist", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, opportunity } = await setup(db);
+
+    const proposal = await ProposalService.create(db, organization.id, {
+      opportunityId: opportunity.id,
+      title: "Campanha Verão",
+      template: "PREMIUM",
+      userId: owner.id,
+    });
+
+    const found = await ProposalService.findById(db, organization.id, proposal.id);
+    expect(found).not.toBeNull();
+    expect(found?.title).toBe("Campanha Verão");
+
+    const missing = await ProposalService.findById(
+      db,
+      organization.id,
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(missing).toBeNull();
+  });
 });

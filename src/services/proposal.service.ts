@@ -89,4 +89,12 @@ export const ProposalService = {
   ): Promise<Proposal[]> {
     return ProposalsRepository.listByOpportunity(db, organizationId, opportunityId);
   },
+
+  async findById(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+  ): Promise<Proposal | null> {
+    return ProposalsRepository.findById(db, organizationId, proposalId);
+  },
 };
