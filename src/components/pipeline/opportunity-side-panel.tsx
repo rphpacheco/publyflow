@@ -59,7 +59,7 @@ export function OpportunitySidePanel({
   const { data: proposals } = useProposals(organizationId, opportunityId, {
     enabled: opportunity !== null,
   });
-  const createProposal = useCreateProposal(organizationId, getDevUserId());
+  const createProposal = useCreateProposal(organizationId);
 
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [title, setTitle] = React.useState("");
@@ -68,7 +68,7 @@ export function OpportunitySidePanel({
   function handleCreate() {
     if (!title.trim() || !template) return;
     createProposal.mutate(
-      { opportunityId, title: title.trim(), template },
+      { opportunityId, title: title.trim(), template, userId: getDevUserId() },
       {
         onSuccess: (proposal) => {
           setCreateDialogOpen(false);

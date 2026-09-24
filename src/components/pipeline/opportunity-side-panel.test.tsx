@@ -6,8 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OpportunitySidePanel } from "./opportunity-side-panel";
 import type { OpportunityListItem } from "@/hooks/use-opportunities";
 
+const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
 }));
 
 const opportunity: OpportunityListItem = {
@@ -39,6 +40,7 @@ describe("OpportunitySidePanel", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    pushMock.mockClear();
   });
 
   it("renders null when there's no opportunity", () => {
@@ -136,6 +138,13 @@ describe("OpportunitySidePanel", () => {
         ([, init]) => (init as RequestInit | undefined)?.method === "POST",
       );
       expect(postCall).toBeDefined();
+    });
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/proposals/p2");
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Nova Proposta" })).not.toBeInTheDocument();
     });
   });
 });

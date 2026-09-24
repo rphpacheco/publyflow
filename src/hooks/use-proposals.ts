@@ -41,11 +41,11 @@ export interface CreateProposalInput {
   opportunityId: string;
   title: string;
   template: ProposalTemplate;
+  userId: string;
 }
 
 export function useCreateProposal(
   organizationId: string,
-  userId: string,
 ): UseMutationResult<Proposal, ApiError, CreateProposalInput> {
   const queryClient = useQueryClient();
   return useMutation({
@@ -58,7 +58,7 @@ export function useCreateProposal(
           opportunityId: input.opportunityId,
           title: input.title,
           template: input.template,
-          userId,
+          userId: input.userId,
         }),
       }),
     onSuccess: (_data, variables) => {

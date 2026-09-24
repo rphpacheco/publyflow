@@ -40,11 +40,16 @@ describe("useProposals", () => {
 });
 
 function CreateProbe() {
-  const create = useCreateProposal("org1", "user1");
+  const create = useCreateProposal("org1");
   return (
     <button
       onClick={() =>
-        create.mutate({ opportunityId: "opp1", title: "Campanha Verão", template: "PREMIUM" })
+        create.mutate({
+          opportunityId: "opp1",
+          title: "Campanha Verão",
+          template: "PREMIUM",
+          userId: "user1",
+        })
       }
     >
       Criar
