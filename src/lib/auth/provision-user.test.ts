@@ -89,4 +89,34 @@ describe("provisionUser", () => {
     expect(result.createdUser).toBe(false);
     expect(result.createdMembership).toBe(false);
   });
+
+  it("throws when the users row gets linked to a different auth user concurrently", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    // Simulate another process linking this row before admin.createUser resolves.
+    const admin: AuthAdmin & { createUser: ReturnType<typeof vi.fn> } = {
+      createUser: vi.fn(async () => {
+        await db.update(users).set({ authUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }).where(eq(users.id, owner.id));
+        return { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+      }),
+    };
+
+    await expect(
+      provisionUser(db, admin, {
+        email: "owner@publyflow.test",
+        fullName: "Owner",
+        role: "OWNER",
+        organization: { id: organization.id },
+        password: "s3nha-forte",
+      }),
+    ).rejects.toThrow(/linked concurrently/);
+
+    const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(reloaded.authUserId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  });
 });

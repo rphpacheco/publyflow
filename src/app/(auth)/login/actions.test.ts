@@ -7,7 +7,7 @@ class RedirectSignal extends Error {
 }
 
 async function importActions(options: {
-  signIn: { data: { user: { id: string; email?: string } | null }; error: unknown };
+  signIn: { data: { user: { id: string; email?: string; email_confirmed_at?: string } | null }; error: unknown };
   session: unknown;
 }) {
   const signOut = vi.fn(async () => ({ error: null }));
@@ -58,7 +58,10 @@ describe("loginWithPassword", () => {
 
   it("redirects to /pipeline for a provisioned user", async () => {
     const { loginWithPassword } = await importActions({
-      signIn: { data: { user: { id: "a", email: "a@x.test" } }, error: null },
+      signIn: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
       session: { userId: "u", organizationId: "o", role: "OWNER" },
     });
     await expect(loginWithPassword({ error: null }, form("a@x.test", "secret"))).rejects.toMatchObject({
@@ -68,7 +71,10 @@ describe("loginWithPassword", () => {
 
   it("signs out and redirects to /sem-acesso for an unprovisioned user", async () => {
     const { loginWithPassword, signOut } = await importActions({
-      signIn: { data: { user: { id: "a", email: "a@x.test" } }, error: null },
+      signIn: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
       session: null,
     });
     await expect(loginWithPassword({ error: null }, form("a@x.test", "secret"))).rejects.toMatchObject({

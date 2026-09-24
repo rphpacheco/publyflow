@@ -21,10 +21,16 @@ export const UsersRepository = {
     return user ?? null;
   },
 
-  async linkAuthUser(db: NodePgDatabase<typeof schema>, userId: string, authUserId: string): Promise<void> {
-    await db
+  // Returns true when the row was actually linked (it was unlinked at the
+  // time of the write). Returns false when another auth user won the race
+  // and linked this row first — callers must treat that as a failed link,
+  // not silently proceed as if it were theirs.
+  async linkAuthUser(db: NodePgDatabase<typeof schema>, userId: string, authUserId: string): Promise<boolean> {
+    const rows = await db
       .update(users)
       .set({ authUserId })
-      .where(and(eq(users.id, userId), isNull(users.authUserId)));
+      .where(and(eq(users.id, userId), isNull(users.authUserId)))
+      .returning({ id: users.id });
+    return rows.length > 0;
   },
 };

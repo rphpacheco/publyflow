@@ -8,7 +8,11 @@ export async function getSession(): Promise<Session | null> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
-  return resolveSessionForAuthUser(db, { id: data.user.id, email: data.user.email ?? undefined });
+  return resolveSessionForAuthUser(db, {
+    id: data.user.id,
+    email: data.user.email ?? undefined,
+    emailVerified: Boolean(data.user.email_confirmed_at),
+  });
 }
 
 export async function requireSession(): Promise<Session> {

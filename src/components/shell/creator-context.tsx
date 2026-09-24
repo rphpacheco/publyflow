@@ -3,10 +3,10 @@
 import * as React from "react";
 import type { Creator } from "@/repositories/creators.repository";
 
-// Namespaced by organizationId so each organization remembers its own
-// selection independently for accounts that belong to more than one
-// organization -- the id comes from the session's organizationId, so a
-// flat key would collide across organizations a user can switch between.
+// Namespaced by organizationId -- the id comes from the session's single
+// organization (v1 has exactly one organization per session, no
+// switching), so the namespacing just keeps the key scoped to that
+// organization rather than being a flat, unscoped key.
 function storageKey(organizationId: string): string {
   return `publyflow:${organizationId}:selected-creator-id`;
 }

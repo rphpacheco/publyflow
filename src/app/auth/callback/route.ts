@@ -16,7 +16,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=oauth", url.origin));
   }
 
-  const session = await resolveSessionForAuthUser(db, { id: data.user.id, email: data.user.email });
+  const session = await resolveSessionForAuthUser(db, {
+    id: data.user.id,
+    email: data.user.email,
+    emailVerified: Boolean(data.user.email_confirmed_at),
+  });
   if (!session) {
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/sem-acesso", url.origin));

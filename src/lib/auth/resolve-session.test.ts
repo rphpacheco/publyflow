@@ -23,7 +23,7 @@ describe("resolveSessionForAuthUser", () => {
     });
     await db.update(users).set({ authUserId: AUTH_ID }).where(eq(users.id, owner.id));
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "whatever@x.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "whatever@x.test", emailVerified: true });
 
     expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER" });
   });
@@ -37,7 +37,7 @@ describe("resolveSessionForAuthUser", () => {
       ownerFullName: "Owner",
     });
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test", emailVerified: true });
 
     expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER" });
     const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
@@ -54,7 +54,7 @@ describe("resolveSessionForAuthUser", () => {
     });
     await db.update(users).set({ authUserId: OTHER_AUTH_ID }).where(eq(users.id, owner.id));
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test", emailVerified: true });
 
     expect(session).toBeNull();
     const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
@@ -65,7 +65,7 @@ describe("resolveSessionForAuthUser", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "stranger@x.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "stranger@x.test", emailVerified: true });
 
     expect(session).toBeNull();
     expect(await db.select().from(users)).toHaveLength(0);
@@ -75,7 +75,7 @@ describe("resolveSessionForAuthUser", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    expect(await resolveSessionForAuthUser(db, { id: AUTH_ID, email: undefined })).toBeNull();
+    expect(await resolveSessionForAuthUser(db, { id: AUTH_ID, email: undefined, emailVerified: true })).toBeNull();
   });
 
   it("returns null for a user without any membership", async () => {
@@ -93,7 +93,7 @@ describe("resolveSessionForAuthUser", () => {
       displayName: "Creator",
     });
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "creator@publyflow.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "creator@publyflow.test", emailVerified: true });
 
     expect(session).toBeNull();
   });
@@ -114,9 +114,51 @@ describe("resolveSessionForAuthUser", () => {
       createdAt: new Date(Date.now() + 60_000),
     });
 
-    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test" });
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test", emailVerified: true });
 
     expect(session?.organizationId).toBe(first.id);
     expect(session?.role).toBe("OWNER");
+  });
+
+  it("refuses to link an unlinked user by e-mail when the auth user's e-mail is not confirmed", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const session = await resolveSessionForAuthUser(db, {
+      id: AUTH_ID,
+      email: "owner@publyflow.test",
+      emailVerified: false,
+    });
+
+    expect(session).toBeNull();
+    const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(reloaded.authUserId).toBeNull();
+  });
+
+  it("returns null when the e-mail link loses a race to another auth user", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const [first, second] = await Promise.all([
+      resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test", emailVerified: true }),
+      resolveSessionForAuthUser(db, { id: OTHER_AUTH_ID, email: "owner@publyflow.test", emailVerified: true }),
+    ]);
+
+    const results = [first, second];
+    expect(results.filter((r) => r !== null)).toHaveLength(1);
+    expect(results.filter((r) => r === null)).toHaveLength(1);
+
+    const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect([AUTH_ID, OTHER_AUTH_ID]).toContain(reloaded.authUserId);
   });
 });

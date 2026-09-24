@@ -4,7 +4,7 @@ import { OrganizationService } from "@/services/organization.service";
 
 async function importSessionModule(options: {
   db: Awaited<ReturnType<typeof withTestDb>>["db"];
-  authUser: { id: string; email?: string } | null;
+  authUser: { id: string; email?: string; email_confirmed_at?: string } | null;
 }) {
   vi.resetModules();
   vi.doMock("@/db", () => ({ db: options.db }));
@@ -36,7 +36,11 @@ describe("getSession / requireSession", () => {
 
     const { getSession, requireSession } = await importSessionModule({
       db,
-      authUser: { id: "55555555-5555-4555-8555-555555555555", email: "owner@publyflow.test" },
+      authUser: {
+        id: "55555555-5555-4555-8555-555555555555",
+        email: "owner@publyflow.test",
+        email_confirmed_at: "2026-01-01T00:00:00Z",
+      },
     });
 
     const expected = { userId: owner.id, organizationId: organization.id, role: "OWNER" };
@@ -61,7 +65,28 @@ describe("getSession / requireSession", () => {
 
     const { getSession } = await importSessionModule({
       db,
-      authUser: { id: "66666666-6666-4666-8666-666666666666", email: "stranger@x.test" },
+      authUser: {
+        id: "66666666-6666-4666-8666-666666666666",
+        email: "stranger@x.test",
+        email_confirmed_at: "2026-01-01T00:00:00Z",
+      },
+    });
+
+    expect(await getSession()).toBeNull();
+  });
+
+  it("returns null for a matching but unconfirmed e-mail", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const { getSession } = await importSessionModule({
+      db,
+      authUser: { id: "99999999-9999-4999-8999-999999999999", email: "owner@publyflow.test" },
     });
 
     expect(await getSession()).toBeNull();

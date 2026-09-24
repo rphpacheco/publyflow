@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 async function importCallback(options: {
-  exchange: { data: { user: { id: string; email?: string } | null }; error: unknown };
+  exchange: { data: { user: { id: string; email?: string; email_confirmed_at?: string } | null }; error: unknown };
   session: unknown;
   signOut?: ReturnType<typeof vi.fn>;
 }) {
@@ -23,7 +23,10 @@ async function importCallback(options: {
 describe("GET /auth/callback", () => {
   it("redirects to /pipeline when the user resolves to a session", async () => {
     const { GET } = await importCallback({
-      exchange: { data: { user: { id: "a", email: "a@x.test" } }, error: null },
+      exchange: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
       session: { userId: "u", organizationId: "o", role: "OWNER" },
     });
     const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc"));
@@ -33,7 +36,10 @@ describe("GET /auth/callback", () => {
 
   it("signs out and redirects to /sem-acesso for an unprovisioned user", async () => {
     const { GET, signOut } = await importCallback({
-      exchange: { data: { user: { id: "a", email: "a@x.test" } }, error: null },
+      exchange: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
       session: null,
     });
     const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc"));

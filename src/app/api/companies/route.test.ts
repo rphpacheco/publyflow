@@ -43,4 +43,35 @@ describe("GET /api/companies", () => {
     const response = await GET(new Request("http://localhost/api/companies"));
     expect(response.status).toBe(401);
   });
+
+  it("ignores a caller-supplied organizationId and only returns the session organization's companies", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization: orgA, owner: ownerA } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org A",
+      ownerEmail: "owner-a@publyflow.test",
+      ownerFullName: "Owner A",
+    });
+    const { organization: orgB } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org B",
+      ownerEmail: "owner-b@publyflow.test",
+      ownerFullName: "Owner B",
+    });
+    const companyA = await CompaniesRepository.create(db, orgA.id, { name: "Empresa A" });
+    await CompaniesRepository.create(db, orgB.id, { name: "Empresa B" });
+
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(orgA.id, ownerA.id),
+    });
+
+    const request = new Request(`http://localhost/api/companies?organizationId=${orgB.id}`);
+    const response = await GET(request);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json).toHaveLength(1);
+    expect(json[0].id).toBe(companyA.id);
+  });
 });

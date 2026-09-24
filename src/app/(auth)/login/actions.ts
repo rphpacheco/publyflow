@@ -23,7 +23,11 @@ export async function loginWithPassword(_prev: LoginState, formData: FormData): 
     return { error: "E-mail ou senha inválidos." };
   }
 
-  const session = await resolveSessionForAuthUser(db, { id: data.user.id, email: data.user.email });
+  const session = await resolveSessionForAuthUser(db, {
+    id: data.user.id,
+    email: data.user.email,
+    emailVerified: Boolean(data.user.email_confirmed_at),
+  });
   if (!session) {
     await supabase.auth.signOut();
     redirect("/sem-acesso");

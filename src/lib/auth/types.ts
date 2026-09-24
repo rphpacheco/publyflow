@@ -9,4 +9,5 @@ export interface Session {
 export interface AuthUserIdentity {
   id: string;
   email: string | undefined;
+  emailVerified: boolean;
 }

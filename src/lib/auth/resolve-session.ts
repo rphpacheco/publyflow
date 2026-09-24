@@ -12,9 +12,11 @@ export async function resolveSessionForAuthUser(
 
   if (!user) {
     if (!authUser.email) return null;
+    if (!authUser.emailVerified) return null;
     const byEmail = await UsersRepository.findByEmail(db, authUser.email);
     if (!byEmail || byEmail.authUserId !== null) return null;
-    await UsersRepository.linkAuthUser(db, byEmail.id, authUser.id);
+    const linked = await UsersRepository.linkAuthUser(db, byEmail.id, authUser.id);
+    if (!linked) return null;
     user = { ...byEmail, authUserId: authUser.id };
   }
 

@@ -49,7 +49,7 @@ export const OrganizationMembersRepository = {
       })
       .from(organizationMembers)
       .where(eq(organizationMembers.userId, userId))
-      .orderBy(asc(organizationMembers.createdAt))
+      .orderBy(asc(organizationMembers.createdAt), asc(organizationMembers.id))
       .limit(1);
     return row ?? null;
   },

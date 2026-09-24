@@ -74,7 +74,12 @@ export async function provisionUser(
   let authUserId = existingAuthUserId;
   if (input.password && !authUserId) {
     const authUser = await admin.createUser({ email: input.email, password: input.password });
-    await UsersRepository.linkAuthUser(db, userId, authUser.id);
+    const linked = await UsersRepository.linkAuthUser(db, userId, authUser.id);
+    if (!linked) {
+      throw new Error(
+        `Could not link auth user ${authUser.id} to user ${userId}: the row was linked concurrently to a different auth user.`,
+      );
+    }
     authUserId = authUser.id;
   }
 
