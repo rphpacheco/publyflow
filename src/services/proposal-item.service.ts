@@ -161,4 +161,12 @@ export const ProposalItemService = {
       await ProposalVersionService.createVersionWithTx(tx, organizationId, proposalId, userId);
     });
   },
+
+  async listByProposal(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+  ): Promise<ProposalItem[]> {
+    return ProposalItemsRepository.listByProposal(db, organizationId, proposalId);
+  },
 };

@@ -9,6 +9,8 @@ import {
 } from "@/domain/proposals/errors";
 import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 
+const getQuerySchema = z.object({ organizationId: z.string().uuid() });
+
 const catalogSchema = z.object({
   organizationId: z.string().uuid(),
   userId: z.string().uuid(),
@@ -27,6 +29,15 @@ const adHocSchema = z.object({
 });
 
 const bodySchema = z.union([catalogSchema, adHocSchema]);
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const url = new URL(request.url);
+  const payload = getQuerySchema.parse({ organizationId: url.searchParams.get("organizationId") });
+
+  const items = await ProposalItemService.listByProposal(db, payload.organizationId, id);
+  return NextResponse.json(items, { status: 200 });
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

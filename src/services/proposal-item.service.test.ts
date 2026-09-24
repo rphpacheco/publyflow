@@ -150,4 +150,39 @@ describe("ProposalItemService", () => {
     const versionsAfterNoopUpdate = await ProposalVersionsRepository.listByProposal(db, organization.id, proposal.id);
     expect(versionsAfterNoopUpdate).toHaveLength(versionsAfterAdd.length);
   });
+
+  it("listByProposal returns all items added to the proposal", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await setup(db);
+
+    await ProposalItemService.addItem(db, organization.id, {
+      proposalId: proposal.id,
+      description: "Sessão de fotos",
+      unitPrice: 150000,
+      userId: owner.id,
+    });
+    await ProposalItemService.addItem(db, organization.id, {
+      proposalId: proposal.id,
+      description: "Desconto negociado",
+      unitPrice: -20000,
+      userId: owner.id,
+    });
+
+    const items = await ProposalItemService.listByProposal(db, organization.id, proposal.id);
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.description).sort()).toEqual([
+      "Desconto negociado",
+      "Sessão de fotos",
+    ]);
+  });
+
+  it("listByProposal returns an empty array for a proposal with no items", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, proposal } = await setup(db);
+
+    const items = await ProposalItemService.listByProposal(db, organization.id, proposal.id);
+    expect(items).toEqual([]);
+  });
 });
