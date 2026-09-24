@@ -3,22 +3,27 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ProposalBlockService } from "@/services/proposal-block.service";
 import { ProposalBlockNotFoundError } from "@/domain/proposals/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const updateSchema = z.object({
-  organizationId: z.string().uuid(),
   proposalId: z.string().uuid(),
-  userId: z.string().uuid(),
   content: z.unknown().optional(),
   sortOrder: z.number().int().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
-  const payload = updateSchema.parse(await request.json());
-  const { organizationId, proposalId, ...input } = payload;
+  const { proposalId, ...input } = updateSchema.parse(await request.json());
 
   try {
-    const block = await ProposalBlockService.updateBlock(db, organizationId, id, proposalId, input);
+    const block = await ProposalBlockService.updateBlock(db, session.organizationId, id, proposalId, {
+      ...input,
+      userId: session.userId,
+    });
     return NextResponse.json(block, { status: 200 });
   } catch (error) {
     if (error instanceof ProposalBlockNotFoundError) {
@@ -28,18 +33,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-const deleteSchema = z.object({
-  organizationId: z.string().uuid(),
-  proposalId: z.string().uuid(),
-  userId: z.string().uuid(),
-});
+const deleteSchema = z.object({ proposalId: z.string().uuid() });
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = deleteSchema.parse(await request.json());
 
   try {
-    await ProposalBlockService.removeBlock(db, payload.organizationId, id, payload.proposalId, payload.userId);
+    await ProposalBlockService.removeBlock(db, session.organizationId, id, payload.proposalId, session.userId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof ProposalBlockNotFoundError) {

@@ -3,8 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ProposalBlockService } from "@/services/proposal-block.service";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
-
-const getQuerySchema = z.object({ organizationId: z.string().uuid() });
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const blockTypeEnum = z.enum([
   "COVER",
@@ -21,33 +21,35 @@ const blockTypeEnum = z.enum([
 ]);
 
 const bodySchema = z.object({
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
   blockType: blockTypeEnum,
   content: z.unknown(),
   sortOrder: z.number().int().optional(),
 });
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const url = new URL(request.url);
-  const payload = getQuerySchema.parse({ organizationId: url.searchParams.get("organizationId") });
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-  const blocks = await ProposalBlockService.listByProposal(db, payload.organizationId, id);
+  const { id } = await params;
+
+  const blocks = await ProposalBlockService.listByProposal(db, session.organizationId, id);
   return NextResponse.json(blocks, { status: 200 });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = bodySchema.parse(await request.json());
 
   try {
-    const block = await ProposalBlockService.addBlock(db, payload.organizationId, {
+    const block = await ProposalBlockService.addBlock(db, session.organizationId, {
       proposalId: id,
       blockType: payload.blockType,
       content: payload.content,
       sortOrder: payload.sortOrder,
-      userId: payload.userId,
+      userId: session.userId,
     });
     return NextResponse.json(block, { status: 201 });
   } catch (error) {

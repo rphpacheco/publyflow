@@ -3,11 +3,11 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ProposalItemService } from "@/services/proposal-item.service";
 import { ProposalItemNotFoundError } from "@/domain/proposals/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const updateSchema = z.object({
-  organizationId: z.string().uuid(),
   proposalId: z.string().uuid(),
-  userId: z.string().uuid(),
   description: z.string().min(1).optional(),
   unitPrice: z.number().int().optional(),
   quantity: z.number().int().positive().optional(),
@@ -15,12 +15,17 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
-  const payload = updateSchema.parse(await request.json());
-  const { organizationId, proposalId, ...input } = payload;
+  const { proposalId, ...input } = updateSchema.parse(await request.json());
 
   try {
-    const item = await ProposalItemService.updateItem(db, organizationId, id, proposalId, input);
+    const item = await ProposalItemService.updateItem(db, session.organizationId, id, proposalId, {
+      ...input,
+      userId: session.userId,
+    });
     return NextResponse.json(item, { status: 200 });
   } catch (error) {
     if (error instanceof ProposalItemNotFoundError) {
@@ -30,18 +35,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-const deleteSchema = z.object({
-  organizationId: z.string().uuid(),
-  proposalId: z.string().uuid(),
-  userId: z.string().uuid(),
-});
+const deleteSchema = z.object({ proposalId: z.string().uuid() });
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = deleteSchema.parse(await request.json());
 
   try {
-    await ProposalItemService.removeItem(db, payload.organizationId, id, payload.proposalId, payload.userId);
+    await ProposalItemService.removeItem(db, session.organizationId, id, payload.proposalId, session.userId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof ProposalItemNotFoundError) {

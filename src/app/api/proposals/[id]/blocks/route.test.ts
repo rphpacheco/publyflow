@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { ProposalService } from "@/services/proposal.service";
@@ -13,8 +14,6 @@ describe("GET /api/proposals/:id/blocks", () => {
   it("returns 200 with the proposal's blocks", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-
-    vi.doMock("@/db", () => ({ db }));
 
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
@@ -46,14 +45,15 @@ describe("GET /api/proposals/:id/blocks", () => {
       userId: owner.id,
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
     await POST(
       new Request(`http://localhost/api/proposals/${proposal.id}/blocks`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          organizationId: organization.id,
-          userId: owner.id,
           blockType: "COVER",
           content: { headline: "Campanha Verão" },
         }),
@@ -61,9 +61,12 @@ describe("GET /api/proposals/:id/blocks", () => {
       { params: Promise.resolve({ id: proposal.id }) },
     );
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
     const response = await GET(
-      new Request(`http://localhost/api/proposals/${proposal.id}/blocks?organizationId=${organization.id}`),
+      new Request(`http://localhost/api/proposals/${proposal.id}/blocks`),
       { params: Promise.resolve({ id: proposal.id }) },
     );
     expect(response.status).toBe(200);
@@ -74,5 +77,40 @@ describe("GET /api/proposals/:id/blocks", () => {
     // Check that at least one COVER block exists (from either auto-seeding or POST)
     const coverBlocks = json.filter((block: { blockType: string }) => block.blockType === "COVER");
     expect(coverBlocks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const response = await GET(
+      new Request("http://localhost/api/proposals/00000000-0000-0000-0000-000000000000/blocks"),
+      { params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }) },
+    );
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("POST /api/proposals/:id/blocks", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const response = await POST(
+      new Request("http://localhost/api/proposals/00000000-0000-0000-0000-000000000000/blocks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ blockType: "COVER", content: {} }),
+      }),
+      { params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }) },
+    );
+    expect(response.status).toBe(401);
   });
 });

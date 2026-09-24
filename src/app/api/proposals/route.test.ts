@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { contacts } from "@/db/schema/companies-brands-contacts";
@@ -12,8 +13,6 @@ describe("POST /api/proposals", () => {
   it("returns 201 with the created proposal", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-
-    vi.doMock("@/db", () => ({ db }));
 
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
@@ -35,17 +34,18 @@ describe("POST /api/proposals", () => {
       .values({ organizationId: organization.id, creatorId: creator.id, leadId: lead.id, companyId: null, brandId: null })
       .returning();
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request("http://localhost/api/proposals", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
         opportunityId: opportunity.id,
         title: "Campanha Verão",
         template: "PREMIUM",
-        userId: owner.id,
       }),
     });
 
@@ -61,29 +61,66 @@ describe("POST /api/proposals", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request("http://localhost/api/proposals", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
         opportunityId: "00000000-0000-0000-0000-000000000000",
         title: "Campanha Verão",
         template: "PREMIUM",
-        userId: owner.id,
       }),
     });
 
     const response = await POST(request);
     expect(response.status).toBe(404);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request("http://localhost/api/proposals", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        opportunityId: "00000000-0000-0000-0000-000000000000",
+        title: "Campanha Verão",
+        template: "PREMIUM",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("GET /api/proposals", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/proposals?opportunityId=00000000-0000-0000-0000-000000000000",
+    );
+    const response = await GET(request);
+    expect(response.status).toBe(401);
   });
 });

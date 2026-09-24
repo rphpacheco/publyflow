@@ -8,20 +8,16 @@ import {
   RateCardItemCreatorMismatchError,
 } from "@/domain/proposals/errors";
 import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
-
-const getQuerySchema = z.object({ organizationId: z.string().uuid() });
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const catalogSchema = z.object({
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
   rateCardItemId: z.string().uuid(),
   quantity: z.number().int().positive().optional(),
   sortOrder: z.number().int().optional(),
 });
 
 const adHocSchema = z.object({
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
   description: z.string().min(1),
   unitPrice: z.number().int(),
   quantity: z.number().int().positive().optional(),
@@ -30,25 +26,29 @@ const adHocSchema = z.object({
 
 const bodySchema = z.union([catalogSchema, adHocSchema]);
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const url = new URL(request.url);
-  const payload = getQuerySchema.parse({ organizationId: url.searchParams.get("organizationId") });
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-  const items = await ProposalItemService.listByProposal(db, payload.organizationId, id);
+  const { id } = await params;
+
+  const items = await ProposalItemService.listByProposal(db, session.organizationId, id);
   return NextResponse.json(items, { status: 200 });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = bodySchema.parse(await request.json());
 
   try {
-    const item = await ProposalItemService.addItem(db, payload.organizationId, {
+    const item = await ProposalItemService.addItem(db, session.organizationId, {
       proposalId: id,
       quantity: payload.quantity,
       sortOrder: payload.sortOrder,
-      userId: payload.userId,
+      userId: session.userId,
       ...("rateCardItemId" in payload
         ? { rateCardItemId: payload.rateCardItemId }
         : { description: payload.description, unitPrice: payload.unitPrice }),

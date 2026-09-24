@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { ProposalService } from "@/services/proposal.service";
@@ -13,8 +14,6 @@ describe("POST /api/proposals/:id/items", () => {
   it("returns 201 with the created ad-hoc item", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-
-    vi.doMock("@/db", () => ({ db }));
 
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
@@ -42,14 +41,15 @@ describe("POST /api/proposals/:id/items", () => {
       userId: owner.id,
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(`http://localhost/api/proposals/${proposal.id}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
-        userId: owner.id,
         description: "Desconto negociado",
         unitPrice: -50000,
       }),
@@ -61,6 +61,27 @@ describe("POST /api/proposals/:id/items", () => {
     const json = await response.json();
     expect(json.description).toBe("Desconto negociado");
   });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/proposals/00000000-0000-0000-0000-000000000000/items",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ description: "x", unitPrice: 1 }),
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
+  });
 });
 
 describe("GET /api/proposals/:id/items", () => {
@@ -70,8 +91,6 @@ describe("GET /api/proposals/:id/items", () => {
   it("returns 200 with the proposal's items", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-
-    vi.doMock("@/db", () => ({ db }));
 
     const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
@@ -103,14 +122,15 @@ describe("GET /api/proposals/:id/items", () => {
       userId: owner.id,
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
     await POST(
       new Request(`http://localhost/api/proposals/${proposal.id}/items`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          organizationId: organization.id,
-          userId: owner.id,
           description: "Sessão de fotos",
           unitPrice: 150000,
         }),
@@ -118,9 +138,12 @@ describe("GET /api/proposals/:id/items", () => {
       { params: Promise.resolve({ id: proposal.id }) },
     );
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
     const response = await GET(
-      new Request(`http://localhost/api/proposals/${proposal.id}/items?organizationId=${organization.id}`),
+      new Request(`http://localhost/api/proposals/${proposal.id}/items`),
       { params: Promise.resolve({ id: proposal.id }) },
     );
     expect(response.status).toBe(200);
@@ -128,5 +151,18 @@ describe("GET /api/proposals/:id/items", () => {
     const json = await response.json();
     expect(json).toHaveLength(1);
     expect(json[0].description).toBe("Sessão de fotos");
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const response = await GET(
+      new Request("http://localhost/api/proposals/00000000-0000-0000-0000-000000000000/items"),
+      { params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }) },
+    );
+    expect(response.status).toBe(401);
   });
 });
