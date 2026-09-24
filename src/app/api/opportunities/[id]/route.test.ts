@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { OpportunityService } from "@/services/opportunity.service";
@@ -14,9 +15,7 @@ describe("PATCH /api/opportunities/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -51,12 +50,15 @@ describe("PATCH /api/opportunities/:id", () => {
       brandId: null,
     });
 
-    const { PATCH } = await import("./route");
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(`http://localhost/api/opportunities/${opportunity.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ organizationId: organization.id, stage: "PRIMEIRO_CONTATO" }),
+      body: JSON.stringify({ stage: "PRIMEIRO_CONTATO" }),
     });
 
     const response = await PATCH(request, { params: Promise.resolve({ id: opportunity.id }) });
@@ -70,22 +72,23 @@ describe("PATCH /api/opportunities/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner2@publyflow.test",
       ownerFullName: "Owner",
     });
 
-    const { PATCH } = await import("./route");
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(
       "http://localhost/api/opportunities/00000000-0000-0000-0000-000000000000",
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId: organization.id, stage: "PRIMEIRO_CONTATO" }),
+        body: JSON.stringify({ stage: "PRIMEIRO_CONTATO" }),
       },
     );
 
@@ -93,5 +96,46 @@ describe("PATCH /api/opportunities/:id", () => {
       params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
     });
     expect(response.status).toBe(404);
+  });
+
+  it("returns 401 without a session on PATCH", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { PATCH } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/opportunities/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stage: "PRIMEIRO_CONTATO" }),
+      },
+    );
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("GET /api/opportunities/:id", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/opportunities/00000000-0000-0000-0000-000000000000",
+    );
+    const response = await GET(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
   });
 });

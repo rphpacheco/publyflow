@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
 import { InquiryNotFoundError, InquiryAlreadyResolvedError } from "@/domain/commercial-flow/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
-const bodySchema = z.object({ organizationId: z.string().uuid() });
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const payload = bodySchema.parse(await request.json());
 
   try {
-    await CommercialInquiryService.markFalsePositive(db, payload.organizationId, id);
+    await CommercialInquiryService.markFalsePositive(db, session.organizationId, id);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof InquiryNotFoundError) {

@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/db";
 import { LeadService } from "@/services/lead.service";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
-const querySchema = z.object({ organizationId: z.string().uuid() });
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const url = new URL(request.url);
-  const payload = querySchema.parse({ organizationId: url.searchParams.get("organizationId") });
 
-  const lead = await LeadService.findById(db, payload.organizationId, id);
+  const lead = await LeadService.findById(db, session.organizationId, id);
   if (!lead) {
     return NextResponse.json({ error: `Lead ${id} not found` }, { status: 404 });
   }

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const stageEnum = z.enum([
   "NOVO_LEAD",
@@ -17,21 +19,22 @@ const stageEnum = z.enum([
 ]);
 
 const querySchema = z.object({
-  organizationId: z.string().uuid(),
   creatorId: z.string().uuid(),
   stage: stageEnum.optional(),
 });
 
 export async function GET(request: Request) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const url = new URL(request.url);
   const payload = querySchema.parse({
-    organizationId: url.searchParams.get("organizationId"),
     creatorId: url.searchParams.get("creatorId"),
     stage: url.searchParams.get("stage") ?? undefined,
   });
   const list = await OpportunityService.listByCreator(
     db,
-    payload.organizationId,
+    session.organizationId,
     payload.creatorId,
     payload.stage,
   );

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 
@@ -11,28 +12,7 @@ describe("POST /api/inbox/messages", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.resetModules();
-    vi.doMock("@/db", () => ({ db }));
-    vi.doMock("@/lib/ai", () => ({
-      ai: {
-        classifyMessage: async () => ({
-          category: "COMMERCIAL_LEAD",
-          commercialScore: 94,
-          intent: "Pedido de mídia kit",
-          extracted: {
-            companyName: "Bella Cosméticos",
-            brandName: null,
-            contactName: "Maria",
-            email: null,
-            phone: null,
-            budget: null,
-            deliverables: null,
-          },
-        }),
-      },
-    }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -43,13 +23,35 @@ describe("POST /api/inbox/messages", () => {
       displayName: "Thais",
     });
 
-    const { POST } = await import("./route");
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+      extraMocks: () => {
+        vi.doMock("@/lib/ai", () => ({
+          ai: {
+            classifyMessage: async () => ({
+              category: "COMMERCIAL_LEAD",
+              commercialScore: 94,
+              intent: "Pedido de mídia kit",
+              extracted: {
+                companyName: "Bella Cosméticos",
+                brandName: null,
+                contactName: "Maria",
+                email: null,
+                phone: null,
+                budget: null,
+                deliverables: null,
+              },
+            }),
+          },
+        }));
+      },
+    });
 
     const request = new Request("http://localhost/api/inbox/messages", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        organizationId: organization.id,
         creatorId: creator.id,
         source: "INSTAGRAM",
         externalContactLabel: "Maria — Bella Cosméticos",
@@ -63,5 +65,34 @@ describe("POST /api/inbox/messages", () => {
     const json = await response.json();
     expect(json.classification.category).toBe("COMMERCIAL_LEAD");
     expect(json.inquiry).not.toBeNull();
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: null,
+      extraMocks: () => {
+        vi.doMock("@/lib/ai", () => ({
+          ai: { classifyMessage: async () => ({}) },
+        }));
+      },
+    });
+
+    const request = new Request("http://localhost/api/inbox/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        creatorId: "00000000-0000-0000-0000-000000000000",
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria",
+        body: "Olá",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(401);
   });
 });

@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { OpportunityService } from "@/services/opportunity.service";
@@ -14,9 +15,7 @@ describe("GET /api/opportunities", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -51,10 +50,13 @@ describe("GET /api/opportunities", () => {
       brandId: null,
     });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(
-      `http://localhost/api/opportunities?organizationId=${organization.id}&creatorId=${creator.id}`,
+      `http://localhost/api/opportunities?creatorId=${creator.id}`,
     );
     const response = await GET(request);
     expect(response.status).toBe(200);
@@ -66,5 +68,18 @@ describe("GET /api/opportunities", () => {
     expect(enrichedRow.companyName).toBe("Bella Cosméticos");
     expect(enrichedRow.contactName).toBe("Maria");
     expect(enrichedRow.brandName).toBeNull();
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      `http://localhost/api/opportunities?creatorId=00000000-0000-0000-0000-000000000000`,
+    );
+    const response = await GET(request);
+    expect(response.status).toBe(401);
   });
 });

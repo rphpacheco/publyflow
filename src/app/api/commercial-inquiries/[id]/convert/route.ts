@@ -7,9 +7,10 @@ import {
   InquiryAlreadyResolvedError,
   AmbiguousPartyGuessError,
 } from "@/domain/commercial-flow/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
 const bodySchema = z.object({
-  organizationId: z.string().uuid(),
   contact: z.union([
     z.object({ id: z.string().uuid() }),
     z.object({
@@ -23,6 +24,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const payload = bodySchema.parse(await request.json());
   // companyId/brandId are left as-is (undefined when omitted from the
@@ -30,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // CommercialInquiryService.resolve can tell "not provided -- resolve
   // from the AI's guess" apart from "explicitly no company/brand".
   try {
-    const result = await CommercialInquiryService.resolve(db, payload.organizationId, id, {
+    const result = await CommercialInquiryService.resolve(db, session.organizationId, id, {
       contact: payload.contact,
       companyId: payload.companyId,
       brandId: payload.brandId,

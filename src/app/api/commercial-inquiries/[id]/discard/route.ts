@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
-const bodySchema = z.object({ organizationId: z.string().uuid() });
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const payload = bodySchema.parse(await request.json());
-  await CommercialInquiryService.discard(db, payload.organizationId, id);
+  await CommercialInquiryService.discard(db, session.organizationId, id);
   return new NextResponse(null, { status: 204 });
 }

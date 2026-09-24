@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { LeadsRepository } from "@/repositories/leads.repository";
@@ -13,9 +14,7 @@ describe("GET /api/leads/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -38,11 +37,12 @@ describe("GET /api/leads/:id", () => {
       qualified: true,
     });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
-    const request = new Request(
-      `http://localhost/api/leads/${lead.id}?organizationId=${organization.id}`,
-    );
+    const request = new Request(`http://localhost/api/leads/${lead.id}`);
     const response = await GET(request, { params: Promise.resolve({ id: lead.id }) });
     expect(response.status).toBe(200);
 
@@ -54,18 +54,19 @@ describe("GET /api/leads/:id", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner2@publyflow.test",
       ownerFullName: "Owner",
     });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
     const request = new Request(
-      `http://localhost/api/leads/00000000-0000-0000-0000-000000000000?organizationId=${organization.id}`,
+      "http://localhost/api/leads/00000000-0000-0000-0000-000000000000",
     );
     const response = await GET(request, {
       params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
@@ -74,5 +75,20 @@ describe("GET /api/leads/:id", () => {
 
     const json = await response.json();
     expect(json.error).toContain("00000000-0000-0000-0000-000000000000");
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      "http://localhost/api/leads/00000000-0000-0000-0000-000000000000",
+    );
+    const response = await GET(request, {
+      params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
+    });
+    expect(response.status).toBe(401);
   });
 });

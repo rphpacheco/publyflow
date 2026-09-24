@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { LeadsRepository } from "@/repositories/leads.repository";
@@ -13,9 +14,7 @@ describe("GET /api/leads", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
-    const { organization } = await OrganizationService.createWithOwner(db, {
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
       organizationName: "Org",
       ownerEmail: "owner@publyflow.test",
       ownerFullName: "Owner",
@@ -38,15 +37,29 @@ describe("GET /api/leads", () => {
       qualified: true,
     });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
 
-    const request = new Request(
-      `http://localhost/api/leads?organizationId=${organization.id}&creatorId=${creator.id}`,
-    );
+    const request = new Request(`http://localhost/api/leads?creatorId=${creator.id}`);
     const response = await GET(request);
     expect(response.status).toBe(200);
 
     const json = await response.json();
     expect(json.some((row: { id: string }) => row.id === lead.id)).toBe(true);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const request = new Request(
+      `http://localhost/api/leads?creatorId=00000000-0000-0000-0000-000000000000`,
+    );
+    const response = await GET(request);
+    expect(response.status).toBe(401);
   });
 });
