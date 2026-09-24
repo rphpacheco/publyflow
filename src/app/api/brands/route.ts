@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/db";
 import { BrandService } from "@/services/brand.service";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
 
-const querySchema = z.object({ organizationId: z.string().uuid() });
+export async function GET(_request: Request) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const payload = querySchema.parse({ organizationId: url.searchParams.get("organizationId") });
-  const list = await BrandService.listByOrganization(db, payload.organizationId);
+  const list = await BrandService.listByOrganization(db, session.organizationId);
   return NextResponse.json(list, { status: 200 });
 }

@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, users } from "@/db/schema/organizations";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { CreatorsRepository } from "@/repositories/creators.repository";
 
 describe("GET /api/creators", () => {
@@ -10,8 +11,6 @@ describe("GET /api/creators", () => {
   it("returns 200 with the organization's creators, ordered by displayName", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-
-    vi.doMock("@/db", () => ({ db }));
 
     const [org] = await db.insert(organizations).values({ name: "Org" }).returning();
     const [userA] = await db
@@ -25,9 +24,12 @@ describe("GET /api/creators", () => {
     await CreatorsRepository.create(db, org.id, { userId: userA.id, displayName: "Zeca Silva" });
     await CreatorsRepository.create(db, org.id, { userId: userB.id, displayName: "Ana Costa" });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(org.id, userA.id),
+    });
 
-    const request = new Request(`http://localhost/api/creators?organizationId=${org.id}`);
+    const request = new Request("http://localhost/api/creators");
     const response = await GET(request);
     expect(response.status).toBe(200);
 
@@ -42,8 +44,6 @@ describe("GET /api/creators", () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
 
-    vi.doMock("@/db", () => ({ db }));
-
     const [orgA] = await db.insert(organizations).values({ name: "Org A" }).returning();
     const [orgB] = await db.insert(organizations).values({ name: "Org B" }).returning();
     const [userB] = await db
@@ -52,13 +52,26 @@ describe("GET /api/creators", () => {
       .returning();
     await CreatorsRepository.create(db, orgB.id, { userId: userB.id, displayName: "Creator B" });
 
-    const { GET } = await import("./route");
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(orgA.id, userB.id),
+    });
 
-    const request = new Request(`http://localhost/api/creators?organizationId=${orgA.id}`);
+    const request = new Request("http://localhost/api/creators");
     const response = await GET(request);
     expect(response.status).toBe(200);
 
     const json = await response.json();
     expect(json).toEqual([]);
+  });
+
+  it("returns 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    const response = await GET(new Request("http://localhost/api/creators"));
+    expect(response.status).toBe(401);
   });
 });
