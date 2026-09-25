@@ -63,4 +63,13 @@ export const ProposalVersionService = {
   ): Promise<ProposalVersion[]> {
     return ProposalVersionsRepository.listByProposal(db, organizationId, proposalId);
   },
+
+  /** The snapshot of the proposal's current state (same shape versions store). */
+  async buildSnapshotWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+  ): Promise<ProposalSnapshot> {
+    return buildSnapshotWithTx(tx, organizationId, proposalId);
+  },
 };

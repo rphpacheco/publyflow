@@ -93,4 +93,16 @@ export const CreatorsRepository = {
   ): Promise<boolean> {
     return selectCreatorExists(tx, organizationId, creatorId);
   },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+  ): Promise<Creator | null> {
+    const [row] = await tx
+      .select()
+      .from(creators)
+      .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)));
+    return row ?? null;
+  },
 };

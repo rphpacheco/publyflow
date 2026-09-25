@@ -57,4 +57,16 @@ export const CompaniesRepository = {
       return row ?? null;
     });
   },
+
+  async findByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    companyId: string,
+  ): Promise<Company | null> {
+    const [row] = await tx
+      .select()
+      .from(companies)
+      .where(and(eq(companies.id, companyId), eq(companies.organizationId, organizationId)));
+    return row ?? null;
+  },
 };
