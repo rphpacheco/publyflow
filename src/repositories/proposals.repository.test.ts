@@ -46,7 +46,7 @@ describe("ProposalsRepository", () => {
     const created = await ProposalsRepository.create(db, org.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
     expect(created.status).toBe("DRAFT");
 

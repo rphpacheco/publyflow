@@ -47,7 +47,7 @@ function CreateProbe() {
         create.mutate({
           opportunityId: "opp1",
           title: "Campanha Verão",
-          template: "PREMIUM",
+          theme: "PREMIUM",
         })
       }
     >
@@ -67,7 +67,7 @@ describe("useCreateProposal", () => {
         organizationId: "org1",
         opportunityId: "opp1",
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
         status: "DRAFT",
         createdAt: new Date().toISOString(),
       }),
@@ -92,7 +92,7 @@ describe("useCreateProposal", () => {
     expect(parsedBody).toEqual({
       opportunityId: "opp1",
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
     expect(parsedBody).not.toHaveProperty("organizationId");
     expect(parsedBody).not.toHaveProperty("userId");

@@ -36,7 +36,7 @@ describe("proposal_versions schema", () => {
       .returning();
     const [proposal] = await db
       .insert(proposals)
-      .values({ organizationId: org.id, opportunityId: opportunity.id, title: "P", template: "PREMIUM" })
+      .values({ organizationId: org.id, opportunityId: opportunity.id, title: "P", theme: "PREMIUM" })
       .returning();
     return { org, user, proposal };
   }

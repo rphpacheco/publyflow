@@ -48,7 +48,7 @@ describe("proposals schema", () => {
         organizationId: org.id,
         opportunityId: opportunity.id,
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
       })
       .returning();
 

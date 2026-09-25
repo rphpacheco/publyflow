@@ -40,7 +40,7 @@ describe("ProposalBlockService", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "P",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
     return { organization, owner, proposal };

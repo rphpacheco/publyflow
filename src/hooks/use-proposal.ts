@@ -8,7 +8,7 @@ import {
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { Proposal } from "./use-proposals";
-import type { ProposalTemplate, ProposalStatus } from "@/lib/proposal-templates";
+import type { ProposalTheme, ProposalStatus } from "@/lib/proposal-themes";
 
 export function proposalQueryKey(proposalId: string) {
   return ["proposal", proposalId] as const;
@@ -27,7 +27,7 @@ export function useProposal(
 
 export interface UpdateProposalInput {
   title?: string;
-  template?: ProposalTemplate;
+  theme?: ProposalTheme;
   status?: ProposalStatus;
 }
 

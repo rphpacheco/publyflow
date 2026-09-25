@@ -7,14 +7,14 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
-import type { ProposalTemplate, ProposalStatus } from "@/lib/proposal-templates";
+import type { ProposalTheme, ProposalStatus } from "@/lib/proposal-themes";
 
 export interface Proposal {
   id: string;
   organizationId: string;
   opportunityId: string;
   title: string;
-  template: ProposalTemplate;
+  theme: ProposalTheme;
   status: ProposalStatus;
   createdAt: string;
 }
@@ -38,7 +38,7 @@ export function useProposals(
 export interface CreateProposalInput {
   opportunityId: string;
   title: string;
-  template: ProposalTemplate;
+  theme: ProposalTheme;
 }
 
 export function useCreateProposal(): UseMutationResult<Proposal, ApiError, CreateProposalInput> {
@@ -51,7 +51,7 @@ export function useCreateProposal(): UseMutationResult<Proposal, ApiError, Creat
         body: JSON.stringify({
           opportunityId: input.opportunityId,
           title: input.title,
-          template: input.template,
+          theme: input.theme,
         }),
       }),
     onSuccess: (_data, variables) => {

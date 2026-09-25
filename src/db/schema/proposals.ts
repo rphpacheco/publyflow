@@ -3,7 +3,7 @@ import { organizations, users } from "./organizations";
 import { opportunities } from "./commercial-flow";
 import { rateCardItems } from "./rate-cards";
 
-export const proposalTemplateEnum = pgEnum("proposal_template", [
+export const proposalThemeEnum = pgEnum("proposal_theme", [
   "PREMIUM",
   "MINIMAL",
   "EDITORIAL",
@@ -23,7 +23,7 @@ export const proposals = pgTable("proposals", {
     .notNull()
     .references(() => opportunities.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
-  template: proposalTemplateEnum("template").notNull(),
+  theme: proposalThemeEnum("theme").notNull(),
   status: proposalStatusEnum("status").notNull().default("DRAFT"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

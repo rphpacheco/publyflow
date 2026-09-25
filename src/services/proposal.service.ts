@@ -44,7 +44,7 @@ export const ProposalService = {
       const proposal = await ProposalsRepository.createWithTx(tx, organizationId, {
         opportunityId: input.opportunityId,
         title: input.title,
-        template: input.template,
+        theme: input.theme,
       });
 
       await ProposalBlocksRepository.createWithTx(tx, organizationId, {
@@ -76,14 +76,14 @@ export const ProposalService = {
       const before = await ProposalsRepository.findByIdWithTx(tx, organizationId, proposalId);
       const after = await ProposalsRepository.updateWithTx(tx, organizationId, proposalId, {
         title: input.title,
-        template: input.template,
+        theme: input.theme,
         status: input.status,
       });
 
       const changed =
         !before ||
         before.title !== after.title ||
-        before.template !== after.template ||
+        before.theme !== after.theme ||
         before.status !== after.status;
 
       if (changed) {

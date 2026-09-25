@@ -6,12 +6,12 @@ import { OpportunityNotFoundError } from "@/domain/proposals/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 
-const templateEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
+const themeEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
 
 const createSchema = z.object({
   opportunityId: z.string().uuid(),
   title: z.string().min(1),
-  template: templateEnum,
+  theme: themeEnum,
 });
 
 export async function POST(request: Request) {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const proposal = await ProposalService.create(db, session.organizationId, {
       opportunityId: payload.opportunityId,
       title: payload.title,
-      template: payload.template,
+      theme: payload.theme,
       userId: session.userId,
     });
     return NextResponse.json(proposal, { status: 201 });

@@ -56,7 +56,7 @@ describe("ProposalService", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 
@@ -100,7 +100,7 @@ describe("ProposalService", () => {
       ProposalService.create(db, organization.id, {
         opportunityId: opportunity.id,
         title: "X",
-        template: "PREMIUM",
+        theme: "PREMIUM",
         userId: stranger.id,
       }),
     ).rejects.toThrow(UserNotOrganizationMemberError);
@@ -116,7 +116,7 @@ describe("ProposalService", () => {
       ProposalService.create(db, organization.id, {
         opportunityId: foreignOpportunity.id,
         title: "X",
-        template: "PREMIUM",
+        theme: "PREMIUM",
         userId: owner.id,
       }),
     ).rejects.toThrow(OpportunityNotFoundError);
@@ -130,7 +130,7 @@ describe("ProposalService", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 
@@ -151,7 +151,7 @@ describe("ProposalService", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 
@@ -172,7 +172,7 @@ describe("ProposalService", () => {
     const created = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 
@@ -188,7 +188,7 @@ describe("ProposalService", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 

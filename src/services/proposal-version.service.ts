@@ -10,7 +10,7 @@ import { ProposalBlocksRepository, type ProposalBlock } from "@/repositories/pro
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 
 export interface ProposalSnapshot {
-  proposal: { title: string; template: string; status: string };
+  proposal: { title: string; theme: string; status: string };
   items: ProposalItem[];
   blocks: ProposalBlock[];
 }
@@ -27,7 +27,7 @@ async function buildSnapshotWithTx(
   const items = await ProposalItemsRepository.listByProposalWithTx(tx, organizationId, proposalId);
   const blocks = await ProposalBlocksRepository.listByProposalWithTx(tx, organizationId, proposalId);
   return {
-    proposal: { title: proposal.title, template: proposal.template, status: proposal.status },
+    proposal: { title: proposal.title, theme: proposal.theme, status: proposal.status },
     items,
     blocks,
   };

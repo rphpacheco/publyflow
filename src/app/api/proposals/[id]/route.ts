@@ -19,12 +19,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(proposal, { status: 200 });
 }
 
-const templateEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
+const themeEnum = z.enum(["PREMIUM", "MINIMAL", "EDITORIAL", "FASHION", "BEAUTY", "CORPORATE"]);
 const statusEnum = z.enum(["DRAFT", "ARCHIVED"]);
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
-  template: templateEnum.optional(),
+  theme: themeEnum.optional(),
   status: statusEnum.optional(),
 });
 

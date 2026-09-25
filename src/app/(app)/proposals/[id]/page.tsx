@@ -27,7 +27,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-import { PROPOSAL_TEMPLATES, PROPOSAL_TEMPLATE_LABELS, type ProposalTemplate } from "@/lib/proposal-templates";
+import { PROPOSAL_THEMES, PROPOSAL_THEME_LABELS, type ProposalTheme } from "@/lib/proposal-themes";
 import { ProposalCoverSection } from "@/components/proposals/proposal-cover-section";
 import { ProposalTextSection } from "@/components/proposals/proposal-text-section";
 import { ProposalItemsTable } from "@/components/proposals/proposal-items-table";
@@ -67,8 +67,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     updateProposal.mutate({ title: title.trim() });
   }
 
-  function handleTemplateChange(value: string) {
-    updateProposal.mutate({ template: value as ProposalTemplate });
+  function handleThemeChange(value: string) {
+    updateProposal.mutate({ theme: value as ProposalTheme });
   }
 
   function handleArchiveToggle() {
@@ -160,17 +160,17 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           aria-label="Título da proposta"
         />
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground" htmlFor="proposal-template">
-            Template
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="proposal-theme">
+            Tema
           </label>
-          <Select value={proposal.template} onValueChange={handleTemplateChange} disabled={readOnly}>
-            <SelectTrigger id="proposal-template" aria-label="Template" className="max-w-xs">
+          <Select value={proposal.theme} onValueChange={handleThemeChange} disabled={readOnly}>
+            <SelectTrigger id="proposal-theme" aria-label="Tema" className="max-w-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PROPOSAL_TEMPLATES.map((item) => (
+              {PROPOSAL_THEMES.map((item) => (
                 <SelectItem key={item} value={item}>
-                  {PROPOSAL_TEMPLATE_LABELS[item]}
+                  {PROPOSAL_THEME_LABELS[item]}
                 </SelectItem>
               ))}
             </SelectContent>

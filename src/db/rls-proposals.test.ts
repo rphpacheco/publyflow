@@ -47,13 +47,13 @@ describe("RLS on proposals", () => {
       organizationId: a.org.id,
       opportunityId: a.opportunity.id,
       title: "Proposal A",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
     await db.insert(proposals).values({
       organizationId: b.org.id,
       opportunityId: b.opportunity.id,
       title: "Proposal B",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
 
     const appDb = getAppUserDb();

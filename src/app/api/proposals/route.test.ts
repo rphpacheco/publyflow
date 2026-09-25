@@ -46,7 +46,7 @@ describe("POST /api/proposals", () => {
       body: JSON.stringify({
         opportunityId: opportunity.id,
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
       }),
     });
 
@@ -93,7 +93,7 @@ describe("POST /api/proposals", () => {
       body: JSON.stringify({
         opportunityId: opportunity.id,
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
         userId: "00000000-0000-0000-0000-000000000000",
       }),
     });
@@ -128,7 +128,7 @@ describe("POST /api/proposals", () => {
       body: JSON.stringify({
         opportunityId: "00000000-0000-0000-0000-000000000000",
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
       }),
     });
 
@@ -148,7 +148,7 @@ describe("POST /api/proposals", () => {
       body: JSON.stringify({
         opportunityId: "00000000-0000-0000-0000-000000000000",
         title: "Campanha Verão",
-        template: "PREMIUM",
+        theme: "PREMIUM",
       }),
     });
 

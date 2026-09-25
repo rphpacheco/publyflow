@@ -10,12 +10,12 @@ export type Proposal = typeof proposals.$inferSelect;
 export interface CreateProposalInput {
   opportunityId: string;
   title: string;
-  template: Proposal["template"];
+  theme: Proposal["theme"];
 }
 
 export interface UpdateProposalInput {
   title?: string;
-  template?: Proposal["template"];
+  theme?: Proposal["theme"];
   status?: Proposal["status"];
 }
 
@@ -30,7 +30,7 @@ async function insertProposal(
       organizationId,
       opportunityId: input.opportunityId,
       title: input.title,
-      template: input.template,
+      theme: input.theme,
     })
     .returning();
   return proposal;

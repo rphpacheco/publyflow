@@ -31,11 +31,11 @@ import { relativeTime, formatCurrencyBRL } from "@/lib/format";
 import { STAGES, STAGE_LABELS, type OpportunityStage } from "@/lib/opportunity-stages";
 import { useProposals, useCreateProposal } from "@/hooks/use-proposals";
 import {
-  PROPOSAL_TEMPLATES,
-  PROPOSAL_TEMPLATE_LABELS,
+  PROPOSAL_THEMES,
+  PROPOSAL_THEME_LABELS,
   PROPOSAL_STATUS_LABELS,
-  type ProposalTemplate,
-} from "@/lib/proposal-templates";
+  type ProposalTheme,
+} from "@/lib/proposal-themes";
 import type { OpportunityListItem } from "@/hooks/use-opportunities";
 
 export interface OpportunitySidePanelProps {
@@ -61,17 +61,17 @@ export function OpportunitySidePanel({
 
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [title, setTitle] = React.useState("");
-  const [template, setTemplate] = React.useState<ProposalTemplate | "">("");
+  const [theme, setTheme] = React.useState<ProposalTheme | "">("");
 
   function handleCreate() {
-    if (!title.trim() || !template) return;
+    if (!title.trim() || !theme) return;
     createProposal.mutate(
-      { opportunityId, title: title.trim(), template },
+      { opportunityId, title: title.trim(), theme },
       {
         onSuccess: (proposal) => {
           setCreateDialogOpen(false);
           setTitle("");
-          setTemplate("");
+          setTheme("");
           router.push(`/proposals/${proposal.id}`);
         },
       },
@@ -148,7 +148,7 @@ export function OpportunitySidePanel({
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Nova Proposta</DialogTitle>
-                  <DialogDescription>Título e template podem ser ajustados depois.</DialogDescription>
+                  <DialogDescription>Título e tema podem ser ajustados depois.</DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1">
@@ -163,17 +163,17 @@ export function OpportunitySidePanel({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-template">
-                      Template
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-theme">
+                      Tema
                     </label>
-                    <Select value={template} onValueChange={(value) => setTemplate(value as ProposalTemplate)}>
-                      <SelectTrigger id="new-proposal-template" aria-label="Template">
-                        <SelectValue placeholder="Selecionar template" />
+                    <Select value={theme} onValueChange={(value) => setTheme(value as ProposalTheme)}>
+                      <SelectTrigger id="new-proposal-theme" aria-label="Tema">
+                        <SelectValue placeholder="Selecionar tema" />
                       </SelectTrigger>
                       <SelectContent>
-                        {PROPOSAL_TEMPLATES.map((item) => (
+                        {PROPOSAL_THEMES.map((item) => (
                           <SelectItem key={item} value={item}>
-                            {PROPOSAL_TEMPLATE_LABELS[item]}
+                            {PROPOSAL_THEME_LABELS[item]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -181,7 +181,7 @@ export function OpportunitySidePanel({
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button onClick={handleCreate} disabled={!title.trim() || !template || createProposal.isPending}>
+                  <Button onClick={handleCreate} disabled={!title.trim() || !theme || createProposal.isPending}>
                     Criar
                   </Button>
                 </div>

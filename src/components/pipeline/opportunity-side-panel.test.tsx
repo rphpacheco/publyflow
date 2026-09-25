@@ -84,7 +84,7 @@ describe("OpportunitySidePanel", () => {
             organizationId: "org1",
             opportunityId: "o1",
             title: "Campanha Verão",
-            template: "PREMIUM",
+            theme: "PREMIUM",
             status: "DRAFT",
             createdAt: new Date().toISOString(),
           },
@@ -116,7 +116,7 @@ describe("OpportunitySidePanel", () => {
           organizationId: "org1",
           opportunityId: "o1",
           title: "Nova Campanha",
-          template: "PREMIUM",
+          theme: "PREMIUM",
           status: "DRAFT",
           createdAt: new Date().toISOString(),
         }),
@@ -131,7 +131,7 @@ describe("OpportunitySidePanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Nova Proposta" }));
     await user.type(screen.getByLabelText("Título"), "Nova Campanha");
-    await user.click(screen.getByRole("combobox", { name: "Template" }));
+    await user.click(screen.getByRole("combobox", { name: "Tema" }));
     await user.click(await screen.findByRole("option", { name: "Premium" }));
     await user.click(screen.getByRole("button", { name: "Criar" }));
 
@@ -149,7 +149,7 @@ describe("OpportunitySidePanel", () => {
     expect(parsedBody).toEqual({
       opportunityId: "o1",
       title: "Nova Campanha",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
     expect(parsedBody).not.toHaveProperty("organizationId");
     expect(parsedBody).not.toHaveProperty("userId");

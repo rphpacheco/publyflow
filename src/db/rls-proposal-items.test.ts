@@ -39,7 +39,7 @@ describe("RLS on proposal_items", () => {
         .returning();
       const [proposal] = await db
         .insert(proposals)
-        .values({ organizationId: org.id, opportunityId: opportunity.id, title: `Proposal ${orgName}`, template: "PREMIUM" })
+        .values({ organizationId: org.id, opportunityId: opportunity.id, title: `Proposal ${orgName}`, theme: "PREMIUM" })
         .returning();
       return { org, proposal };
     }

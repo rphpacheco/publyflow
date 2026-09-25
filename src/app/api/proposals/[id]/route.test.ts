@@ -41,7 +41,7 @@ describe("GET /api/proposals/:id", () => {
     const proposal = await ProposalService.create(db, organization.id, {
       opportunityId: opportunity.id,
       title: "Campanha Verão",
-      template: "PREMIUM",
+      theme: "PREMIUM",
       userId: owner.id,
     });
 

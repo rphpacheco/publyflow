@@ -39,7 +39,7 @@ describe("ProposalBlocksRepository", () => {
     const proposal = await ProposalsRepository.create(db, org.id, {
       opportunityId: opportunity.id,
       title: "P",
-      template: "PREMIUM",
+      theme: "PREMIUM",
     });
     return { org, proposal };
   }

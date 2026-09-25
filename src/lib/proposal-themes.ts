@@ -1,4 +1,4 @@
-export type ProposalTemplate =
+export type ProposalTheme =
   | "PREMIUM"
   | "MINIMAL"
   | "EDITORIAL"
@@ -6,7 +6,7 @@ export type ProposalTemplate =
   | "BEAUTY"
   | "CORPORATE";
 
-export const PROPOSAL_TEMPLATES: ProposalTemplate[] = [
+export const PROPOSAL_THEMES: ProposalTheme[] = [
   "PREMIUM",
   "MINIMAL",
   "EDITORIAL",
@@ -15,7 +15,7 @@ export const PROPOSAL_TEMPLATES: ProposalTemplate[] = [
   "CORPORATE",
 ];
 
-export const PROPOSAL_TEMPLATE_LABELS: Record<ProposalTemplate, string> = {
+export const PROPOSAL_THEME_LABELS: Record<ProposalTheme, string> = {
   PREMIUM: "Premium",
   MINIMAL: "Minimalista",
   EDITORIAL: "Editorial",
