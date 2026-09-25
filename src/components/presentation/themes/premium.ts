@@ -1,0 +1,32 @@
+import { FONT } from "../font-families";
+import type { ThemeDefinition } from "../theme-types";
+
+export const premiumTheme: ThemeDefinition = {
+  id: "PREMIUM",
+  cover: "centered",
+  items: "lines",
+  fonts: { display: FONT.cormorant, text: FONT.cormorant, ui: FONT.inter },
+  classes: {
+    page: "min-h-full bg-[#121212] text-[#EDE6DA]",
+    document: "mx-auto flex w-full max-w-[880px] flex-col gap-12 px-6 py-14 @xl:px-12 @xl:py-20",
+    coverBox: "",
+    eyebrow: "text-[10px] uppercase tracking-[0.3em] text-[#C9A96E]",
+    headline: "mt-5 text-4xl font-medium leading-[1.05] break-words @xl:text-6xl",
+    byline: "mt-4 text-lg italic text-[#BDB3A2]",
+    meta: "text-xs text-[#9B917F]",
+    rule: "mx-auto mt-8 h-px w-12 bg-[#C9A96E]",
+    body: "mx-auto max-w-[60ch] space-y-4 text-center text-lg leading-relaxed text-[#CFC6B8]",
+    sectionLabel: "mb-3 text-center text-[10px] uppercase tracking-[0.3em] text-[#C9A96E]",
+    itemsBox: "",
+    item: "flex items-start justify-between gap-4 border-t border-[#3A342A] py-4",
+    itemName: "text-xl break-words",
+    itemDetail: "mt-1 text-xs text-[#9B917F]",
+    itemAmount: "text-xl",
+    totalBox: "flex items-baseline justify-between gap-4 border-t border-[#C9A96E] pt-4",
+    totalLabel: "text-[10px] uppercase tracking-[0.3em] text-[#C9A96E]",
+    totalAmount: "text-3xl text-[#C9A96E]",
+    actions: "flex flex-wrap justify-center gap-3 pt-2",
+    ctaPrimary: "bg-[#C9A96E] px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#121212] aria-disabled:cursor-default",
+    ctaSecondary: "border border-[#6B604E] px-6 py-3 text-[11px] uppercase tracking-[0.2em] text-[#CFC6B8] aria-disabled:cursor-default",
+  },
+};

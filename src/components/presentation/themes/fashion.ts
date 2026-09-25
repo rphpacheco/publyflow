@@ -1,0 +1,32 @@
+import { FONT } from "../font-families";
+import type { ThemeDefinition } from "../theme-types";
+
+export const fashionTheme: ThemeDefinition = {
+  id: "FASHION",
+  cover: "block",
+  items: "grid",
+  fonts: { display: FONT.bodoni, text: FONT.inter, ui: FONT.inter },
+  classes: {
+    page: "min-h-full bg-white text-black",
+    document: "mx-auto flex w-full max-w-[880px] flex-col gap-10 pb-12 @xl:pb-16",
+    coverBox: "bg-black px-6 py-12 text-white @xl:px-12 @xl:py-20",
+    eyebrow: "text-[10px] uppercase tracking-[0.4em]",
+    headline: "mt-6 text-5xl uppercase leading-[0.9] tracking-tight break-words @xl:text-8xl",
+    byline: "mt-6 text-[10px] uppercase tracking-[0.3em]",
+    meta: "text-[10px] uppercase tracking-[0.3em]",
+    rule: "hidden",
+    body: "space-y-4 px-6 text-base leading-relaxed @xl:px-12",
+    sectionLabel: "mb-3 text-[10px] uppercase tracking-[0.4em]",
+    itemsBox: "px-6 @xl:px-12",
+    item: "flex flex-col justify-between gap-6 border border-black p-4",
+    itemName: "text-xl uppercase break-words",
+    itemDetail: "mt-1 text-[10px] uppercase tracking-[0.2em]",
+    itemAmount: "text-lg",
+    totalBox: "mx-6 flex items-baseline justify-between gap-4 border-t border-black pt-4 @xl:mx-12",
+    totalLabel: "text-[10px] uppercase tracking-[0.4em]",
+    totalAmount: "text-3xl uppercase",
+    actions: "mx-6 flex flex-wrap @xl:mx-12",
+    ctaPrimary: "bg-black px-6 py-3 text-[10px] uppercase tracking-[0.3em] text-white aria-disabled:cursor-default",
+    ctaSecondary: "-ml-px border border-black px-6 py-3 text-[10px] uppercase tracking-[0.3em] aria-disabled:cursor-default",
+  },
+};
