@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
-import { getSession } from "@/lib/auth/session";
+import { requireAppSession } from "@/lib/auth/require-app-session";
 import { CreatorProvider } from "@/components/shell/creator-context";
 import { SidebarDesktop } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
@@ -10,12 +9,7 @@ import { Header } from "@/components/shell/header";
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  if (!session) {
-    // src/proxy.ts already sent unauthenticated visitors to /login, so a null
-    // session here means a Supabase user without PublyFlow access.
-    redirect("/auth/signout?reason=no-access");
-  }
+  const session = await requireAppSession();
 
   const creators = await CreatorService.listByOrganization(db, session.organizationId);
 
