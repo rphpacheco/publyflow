@@ -11,6 +11,8 @@ export interface PresentationRendererProps {
   theme?: ProposalTheme;
   /** Without a handler the action buttons are inert (preview). */
   onAction?: (action: PresentationAction) => void;
+  /** Merged onto the [data-theme] root, e.g. so the preview can make it grow to fill the viewport. */
+  className?: string;
 }
 
 /**
@@ -19,13 +21,13 @@ export interface PresentationRendererProps {
  * Responsive rules are container queries on this root, so a 390px frame
  * renders the phone layout even on a wide screen.
  */
-export function PresentationRenderer({ model, theme, onAction }: PresentationRendererProps) {
+export function PresentationRenderer({ model, theme, onAction, className }: PresentationRendererProps) {
   const definition = THEMES[theme ?? model.theme];
 
   return (
     <div
       data-theme={definition.id}
-      className={cn("@container w-full", definition.classes.page)}
+      className={cn("@container w-full", definition.classes.page, className)}
       style={{ fontFamily: definition.fonts.text }}
     >
       <article className={definition.classes.document}>

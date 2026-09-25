@@ -129,10 +129,10 @@ function ItemsTable({ items, theme }: { items: PresentationItem[]; theme: ThemeD
     <table className="w-full table-fixed border-collapse text-left">
       <thead style={{ fontFamily: theme.fonts.ui }}>
         <tr className={c.itemDetail}>
-          <th scope="col" className="w-1/2 px-2 py-2 font-semibold">Entrega</th>
-          <th scope="col" className="px-2 py-2 text-right font-semibold">Qtd</th>
-          <th scope="col" className="hidden px-2 py-2 text-right font-semibold @xl:table-cell">Unitário</th>
-          <th scope="col" className="px-2 py-2 text-right font-semibold">Subtotal</th>
+          <th scope="col" className="px-2 py-2 font-semibold">Entrega</th>
+          <th scope="col" className="w-12 whitespace-nowrap px-2 py-2 text-right font-semibold">Qtd</th>
+          <th scope="col" className="hidden whitespace-nowrap px-2 py-2 text-right font-semibold @xl:table-cell @xl:w-32">Unitário</th>
+          <th scope="col" className="w-32 whitespace-nowrap px-2 py-2 text-right font-semibold">Subtotal</th>
         </tr>
       </thead>
       <tbody>
@@ -141,9 +141,9 @@ function ItemsTable({ items, theme }: { items: PresentationItem[]; theme: ThemeD
             <td className={cn("px-2 py-2", c.itemName)}>
               <span>{item.description}</span>
             </td>
-            <td className="px-2 py-2 text-right tabular-nums">{item.quantity}</td>
-            <td className="hidden px-2 py-2 text-right tabular-nums @xl:table-cell">{item.unitPriceLabel}</td>
-            <td className={cn("px-2 py-2 text-right tabular-nums", c.itemAmount)}>{item.subtotalLabel}</td>
+            <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{item.quantity}</td>
+            <td className="hidden whitespace-nowrap px-2 py-2 text-right tabular-nums @xl:table-cell">{item.unitPriceLabel}</td>
+            <td className={cn("whitespace-nowrap px-2 py-2 text-right tabular-nums", c.itemAmount)}>{item.subtotalLabel}</td>
           </tr>
         ))}
       </tbody>
@@ -185,7 +185,7 @@ export function ItemsSection({ items, theme }: { items: PresentationItem[]; them
                   {item.quantity} × {item.unitPriceLabel}
                 </p>
               </div>
-              <p className={cn("shrink-0 tabular-nums", c.itemAmount)} style={display}>
+              <p className={cn("shrink-0 whitespace-nowrap tabular-nums", c.itemAmount)} style={display}>
                 {item.subtotalLabel}
               </p>
             </li>
@@ -203,7 +203,7 @@ export function TotalSection({ model, theme }: { model: PresentationModel; theme
       <p className={c.totalLabel} style={{ fontFamily: theme.fonts.ui }}>
         Total
       </p>
-      <p className={cn("tabular-nums", c.totalAmount)} style={{ fontFamily: theme.fonts.display }}>
+      <p className={cn("whitespace-nowrap tabular-nums", c.totalAmount)} style={{ fontFamily: theme.fonts.display }}>
         {model.totalLabel}
       </p>
     </section>

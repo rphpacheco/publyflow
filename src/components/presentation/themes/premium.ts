@@ -22,7 +22,7 @@ export const premiumTheme: ThemeDefinition = {
     itemName: "text-xl break-words",
     itemDetail: "mt-1 text-xs text-[#9B917F]",
     itemAmount: "text-xl",
-    totalBox: "flex items-baseline justify-between gap-4 border-t border-[#C9A96E] pt-4",
+    totalBox: "flex flex-wrap items-baseline justify-between gap-4 border-t border-[#C9A96E] pt-4",
     totalLabel: "text-[10px] uppercase tracking-[0.3em] text-[#C9A96E]",
     totalAmount: "text-3xl text-[#C9A96E]",
     actions: "flex flex-wrap justify-center gap-3 pt-2",

@@ -10,6 +10,8 @@ vi.mock("@/hooks/use-proposal", () => ({
 }));
 const toastSuccess = vi.fn();
 vi.mock("sonner", () => ({ toast: { success: (...args: unknown[]) => toastSuccess(...args), error: vi.fn() } }));
+const refreshMock = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 
 import { PreviewShell } from "./preview-shell";
 
@@ -38,6 +40,7 @@ describe("PreviewShell", () => {
   beforeEach(() => {
     mutateMock.mockReset();
     toastSuccess.mockReset();
+    refreshMock.mockReset();
     window.history.replaceState(null, "", "/proposals/p1/preview");
   });
 
@@ -90,6 +93,7 @@ describe("PreviewShell", () => {
 
     expect(mutateMock).toHaveBeenCalledWith({ theme: "PREMIUM" }, expect.anything());
     expect(toastSuccess).toHaveBeenCalledWith("Tema aplicado.");
+    expect(refreshMock).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Premium (atual)" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aplicar este tema" })).not.toBeInTheDocument();
     expect(window.location.search).toBe("");
@@ -111,7 +115,7 @@ describe("PreviewShell", () => {
 
     const warning = screen.getByText("Adicione itens para mostrar valores");
     expect(warning.closest('[data-theme]')).toBeNull();
-    expect(warning.closest('[role="toolbar"]')).not.toBeNull();
+    expect(warning.closest('header')).not.toBeNull();
   });
 
   it("links back to the editor", () => {

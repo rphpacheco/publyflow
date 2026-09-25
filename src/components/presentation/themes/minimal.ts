@@ -22,7 +22,7 @@ export const minimalTheme: ThemeDefinition = {
     itemName: "text-sm font-medium break-words",
     itemDetail: "mt-0.5 text-xs text-[#999999]",
     itemAmount: "text-sm",
-    totalBox: "flex items-baseline justify-between gap-4 border-t border-[#111111] pt-3",
+    totalBox: "flex flex-wrap items-baseline justify-between gap-4 border-t border-[#111111] pt-3",
     totalLabel: "text-sm font-semibold",
     totalAmount: "text-lg font-semibold",
     actions: "flex flex-wrap items-center gap-4 pt-2",

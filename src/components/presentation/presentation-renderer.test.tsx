@@ -72,4 +72,9 @@ describe("PresentationRenderer", () => {
     render(<PresentationRenderer model={{ ...model, clientName: null }} theme="PREMIUM" />);
     expect(screen.queryByText(/Bella Cosméticos/)).not.toBeInTheDocument();
   });
+
+  it("merges an extra className onto the [data-theme] root", () => {
+    render(<PresentationRenderer model={model} theme="PREMIUM" className="flex-1" />);
+    expect(document.querySelector('[data-theme="PREMIUM"]')).toHaveClass("flex-1");
+  });
 });

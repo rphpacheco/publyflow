@@ -24,7 +24,7 @@ export const corporateTheme: ThemeDefinition = {
     itemDetail: "border-b border-[#C5CEDB] bg-[#EEF2F7] text-[11px] uppercase tracking-wide text-[#5B6678]",
     itemAmount: "font-medium",
     totalBox:
-      "mx-6 flex items-baseline justify-between gap-4 bg-[#EEF2F7] px-4 py-3 @xl:mr-10 @xl:ml-auto @xl:w-[45%]",
+      "mx-6 flex flex-wrap items-baseline justify-between gap-4 bg-[#EEF2F7] px-4 py-3 @xl:mr-10 @xl:ml-auto @xl:w-[45%]",
     totalLabel: "text-sm font-semibold",
     totalAmount: "text-xl font-semibold",
     actions: "flex flex-wrap gap-3 px-6 @xl:px-10",

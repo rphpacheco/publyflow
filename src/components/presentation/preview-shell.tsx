@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
   const [savedTheme, setSavedTheme] = React.useState<ProposalTheme>(initialSavedTheme);
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const updateProposal = useUpdateProposal(proposalId);
+  const router = useRouter();
 
   const canApply = theme !== savedTheme && status !== "ARCHIVED";
 
@@ -62,6 +64,7 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
           setSavedTheme(applied);
           writeThemeParam(null);
           toast.success("Tema aplicado.");
+          router.refresh();
         },
       },
     );
@@ -71,10 +74,9 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
 
   return (
     <div className="flex min-h-screen flex-col bg-muted">
-      <div
-        role="toolbar"
+      <header
         aria-label="Pré-visualização"
-        className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3"
+        className="sm:sticky sm:top-0 sm:z-10 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3"
       >
         <Link
           href={`/proposals/${proposalId}`}
@@ -133,7 +135,7 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
             </Button>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className={cn("flex-1", viewport === "mobile" && "flex justify-center px-4 py-6")}>
         {viewport === "mobile" ? (
@@ -144,7 +146,9 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
             {renderer}
           </div>
         ) : (
-          renderer
+          <div className="flex flex-1 flex-col">
+            <PresentationRenderer model={model} theme={theme} className="flex-1" />
+          </div>
         )}
       </div>
     </div>

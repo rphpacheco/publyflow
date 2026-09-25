@@ -23,7 +23,7 @@ export const beautyTheme: ThemeDefinition = {
     itemName: "text-lg text-[#6D3440] break-words",
     itemDetail: "mt-0.5 text-xs text-[#B08990]",
     itemAmount: "text-lg text-[#6D3440]",
-    totalBox: "flex items-baseline justify-between gap-4 px-5",
+    totalBox: "flex flex-wrap items-baseline justify-between gap-4 px-5",
     totalLabel: "text-sm font-medium text-[#A4505E]",
     totalAmount: "text-3xl text-[#6D3440]",
     actions: "flex flex-wrap justify-center gap-3",
