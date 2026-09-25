@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 import { useProposal, useUpdateProposal } from "@/hooks/use-proposal";
 import { useOpportunity } from "@/hooks/use-opportunity";
 import { useProposalBlocks } from "@/hooks/use-proposal-blocks";
@@ -163,18 +163,26 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           <label className="text-xs font-medium text-muted-foreground" htmlFor="proposal-theme">
             Tema
           </label>
-          <Select value={proposal.theme} onValueChange={handleThemeChange} disabled={readOnly}>
-            <SelectTrigger id="proposal-theme" aria-label="Tema" className="max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROPOSAL_THEMES.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {PROPOSAL_THEME_LABELS[item]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={proposal.theme} onValueChange={handleThemeChange} disabled={readOnly}>
+              <SelectTrigger id="proposal-theme" aria-label="Tema" className="max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROPOSAL_THEMES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {PROPOSAL_THEME_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/proposals/${proposalId}/preview`}>
+                <Eye className="size-4" aria-hidden="true" />
+                Pré-visualizar
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 
