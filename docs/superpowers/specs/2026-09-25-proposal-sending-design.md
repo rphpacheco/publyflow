@@ -125,6 +125,8 @@ Invariantes verificáveis (testados ao fim de cada cenário de domínio):
 - `/p` entra em `isPublicPath` (`src/lib/auth/public-paths.ts`) para o proxy não redirecionar a
   `/login`.
 - `export const dynamic = "force-dynamic"`; nada é cacheado (o estado muda quando o cliente responde).
+  A resposta HTML da página também sai com `Cache-Control: private, no-store` (configurado em
+  `next.config.ts` `headers()` para `/p/:path*`), para caches intermediários não guardarem a página.
 - Metadata: `robots: { index: false, follow: false }`, `referrer: "no-referrer"` (o token não vaza
   via Referer). Título da aba: o título da proposta publicada; página indisponível usa "PublyFlow".
 
@@ -146,7 +148,9 @@ Invariantes verificáveis (testados ao fim de cada cenário de domínio):
 
 Página: `not_found` → `notFound()`; `unavailable` → "Esta proposta não está mais disponível.";
 `available` → `buildPresentation(snapshot, { creator: context.creator, client: { name:
-context.clientName }, issuedAt: new Date(context.issuedAt) })`. O tema vem do snapshot publicado;
+context.clientName }, issuedAt: context.issuedAt })`, onde o loader já entrega `context.issuedAt`
+normalizado como `Date` (o `publicationContextSchema` converte a string ISO); `buildPresentation()`
+continua puro e não converte nada. O tema vem do snapshot publicado;
 **nada é lido ao vivo** (renomear creator ou marca depois do envio não muda a página).
 
 ### 4.3 Renderizador e wrapper cliente
