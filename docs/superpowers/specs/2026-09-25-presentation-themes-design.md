@@ -155,6 +155,19 @@ Registradas aqui para não se perderem; a Spec 2 fará o próprio brainstorming 
 - **Aviso ao creator:** só dentro do app (status da proposta, badge no builder e no painel da
   oportunidade, oportunidade movida no pipeline, resposta com quem/quando/mensagem no builder).
 
+**Notas da revisão final da V1 para a Spec 2:**
+- **Congelar o contexto na publicação.** Nome/@ do creator, nome do cliente e `issuedAt` hoje entram
+  via `context`, carregados ao vivo. Na página pública, persistir esse contexto junto com a versão
+  publicada (ou o `PresentationModel` construído); senão, renomear creator/marca depois de enviar
+  mudaria o que o cliente vê, quebrando a garantia do §4.
+- **Validar o snapshot salvo.** `proposal_versions.snapshot_json` é `jsonb` sem tipo; validar (ex.:
+  zod) para `PresentationSnapshotInput` em vez de cast — linhas antigas têm `template`.
+- **Ações do cliente.** O renderer expõe `onAction?: (action) => void` (não um slot `actions`);
+  funções não atravessam de Server Component, então a página pública precisa de um wrapper cliente
+  fino (como o `PreviewShell`) para ligar Aceitar / Pedir ajustes / Recusar aos diálogos.
+- **Deploy da V1:** a migration 0016 (rename) e o código precisam subir juntos; rollback é o par
+  inverso de `RENAME`s.
+
 ## 7. Próximo Passo
 
 Gerar o plano de implementação via `writing-plans`.
