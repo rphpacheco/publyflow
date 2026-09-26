@@ -195,7 +195,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       </div>
 
       <ProposalSendPanel proposalId={proposalId} />
-      <ProposalSendHistory proposalId={proposalId} />
+      <ProposalSendHistory proposalId={proposalId} status={proposal.status} />
 
       {coverBlock ? (
         <ProposalCoverSection proposalId={proposalId} block={coverBlock} readOnly={readOnly} />

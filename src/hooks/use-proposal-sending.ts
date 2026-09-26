@@ -56,7 +56,7 @@ export function usePublishProposal(proposalId: string): UseMutationResult<Publis
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => apiFetch<PublishResultDto>(`/api/proposals/${proposalId}/publications`, { method: "POST" }),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
       queryClient.invalidateQueries({ queryKey: proposalPublicationsQueryKey(proposalId) });
       queryClient.invalidateQueries({ queryKey: proposalQueryKey(proposalId) });

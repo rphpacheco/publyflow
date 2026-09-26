@@ -73,7 +73,7 @@ export const ProposalService = {
     return runInTenantContext(db, organizationId, async (tx) => {
       await assertMember(tx, organizationId, input.userId);
 
-      const before = await ProposalsRepository.findByIdWithTx(tx, organizationId, proposalId);
+      const before = await ProposalsRepository.lockByIdWithTx(tx, organizationId, proposalId);
 
       if (input.status === "DRAFT" && before && before.status !== "ARCHIVED" && before.status !== "DRAFT") {
         throw new ProposalStatusTransitionError(before.status, "DRAFT");

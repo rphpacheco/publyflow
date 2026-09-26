@@ -10,7 +10,7 @@ export async function moveOpportunityIfOpenWithTx(
   opportunityId: string,
   stage: Opportunity["stage"],
 ): Promise<void> {
-  const opportunity = await OpportunitiesRepository.findByIdWithTx(tx, organizationId, opportunityId);
+  const opportunity = await OpportunitiesRepository.lockByIdWithTx(tx, organizationId, opportunityId);
   if (!opportunity || CLOSED_STAGES.has(opportunity.stage)) return;
   await OpportunitiesRepository.updateStageWithTx(tx, organizationId, opportunityId, stage);
 }

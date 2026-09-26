@@ -173,6 +173,20 @@ export const OpportunitiesRepository = {
     return selectOpportunityById(tx, organizationId, opportunityId);
   },
 
+  /** Row lock: serializes concurrent automated stage moves on the same opportunity. */
+  async lockByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    opportunityId: string,
+  ): Promise<Opportunity | null> {
+    const [opportunity] = await tx
+      .select()
+      .from(opportunities)
+      .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)))
+      .for("update");
+    return opportunity ?? null;
+  },
+
   async findOpenForParty(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,

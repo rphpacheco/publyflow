@@ -38,9 +38,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       action: parsed.data.action,
       name: parsed.data.name,
       email: parsed.data.email,
-      message: parsed.data.message || null,
+      message: parsed.data.action === "ACCEPT" ? null : parsed.data.message || null,
     });
-    return NextResponse.json({ response }, { status: 201, headers: NO_STORE });
+    return NextResponse.json(
+      { response: { action: response.action, respondedAt: response.respondedAt } },
+      { status: 201, headers: NO_STORE },
+    );
   } catch (error) {
     if (error instanceof PublicProposalNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404, headers: NO_STORE });

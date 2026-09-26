@@ -27,7 +27,7 @@ describe("POST /api/public/proposals/:token/responses (no session)", () => {
     return { db, ...seeded, sent, token: sent.publicPath.replace("/p/", ""), POST };
   }
 
-  it("201 records the response, with Cache-Control: no-store", async () => {
+  it("201 records the response, with Cache-Control: no-store, without leaking internal ids", async () => {
     const { POST, token, sent } = await published();
     const response = await POST(
       request(token, { publicationId: sent.publication.id, action: "ACCEPT", name: " Maria ", email: "maria@bella.test" }),
@@ -35,7 +35,30 @@ describe("POST /api/public/proposals/:token/responses (no session)", () => {
     );
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect((await response.json()).response.respondentName).toBe("Maria");
+    const body = await response.json();
+    expect(body.response.action).toBe("ACCEPT");
+    expect(body.response.respondedAt).toBeDefined();
+    expect(body.response.organizationId).toBeUndefined();
+    expect(body.response.publicationId).toBeUndefined();
+    expect(body.response.id).toBeUndefined();
+  });
+
+  it("ignores a message sent alongside ACCEPT and never stores it", async () => {
+    const { db, POST, token, sent, organization, proposal } = await published();
+    const response = await POST(
+      request(token, {
+        publicationId: sent.publication.id,
+        action: "ACCEPT",
+        name: "Maria",
+        email: "maria@bella.test",
+        message: "Isso não deveria ser salvo",
+      }),
+      params(token),
+    );
+    expect(response.status).toBe(201);
+
+    const state = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
+    expect(state?.latestPublication?.response?.message).toBeNull();
   });
 
   it("400 for invalid input, including a missing message when requesting changes", async () => {

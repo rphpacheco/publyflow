@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
-import { proposalSendStateQueryKey, usePublishProposal, useProposalSendState } from "./use-proposal-sending";
+import { proposalSendStateQueryKey, proposalPublicationsQueryKey, usePublishProposal, useProposalSendState } from "./use-proposal-sending";
 import { useUpdateProposal } from "./use-proposal";
 
 function wrapperWith(client: QueryClient) {
@@ -35,6 +35,20 @@ describe("proposal sending hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchMock).toHaveBeenCalledWith("/api/proposals/p1/publications", { method: "POST" });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: proposalSendStateQueryKey("p1") });
+  });
+
+  it("invalidates send-state and publications even when publish fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "PROPOSAL_ARCHIVED" }), { status: 409 }),
+    );
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => usePublishProposal("p1"), { wrapper: wrapperWith(client) });
+
+    result.current.mutate();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: proposalSendStateQueryKey("p1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: proposalPublicationsQueryKey("p1") });
   });
 
   it("content mutations invalidate send-state", async () => {

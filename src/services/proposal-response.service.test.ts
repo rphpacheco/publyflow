@@ -13,7 +13,7 @@ import {
   PublicationAlreadyRespondedError,
   PublicationSupersededError,
 } from "@/domain/proposals/errors";
-import { opportunities } from "@/db/schema/commercial-flow";
+import { opportunities, opportunityStageHistory } from "@/db/schema/commercial-flow";
 
 function tokenOf(publicPath: string) {
   return publicPath.replace("/p/", "");
@@ -49,6 +49,13 @@ describe("ProposalResponseService.respond", () => {
     expect(opp.stage).toBe(stage);
     expect(await ProposalVersionsRepository.listByProposal(db, organization.id, proposal.id)).toHaveLength(1);
     await expectProposalInvariants(db, organization.id, proposal.id);
+
+    const history = await db
+      .select()
+      .from(opportunityStageHistory)
+      .where(eq(opportunityStageHistory.opportunityId, opportunity.id));
+    const moveRow = history.find((row) => row.fromStage === "PROPOSTA_ENVIADA" && row.toStage === stage);
+    expect(moveRow, `expected a PROPOSTA_ENVIADA → ${stage} stage-history row`).toBeDefined();
   });
 
   it("does not move a closed opportunity but still updates the proposal", async () => {
@@ -149,5 +156,60 @@ describe("ProposalResponseService.respond", () => {
     const history = await ProposalSendingService.listPublications(db, organization.id, proposal.id);
     expect(history?.map((item) => item.response?.action ?? null)).toEqual([null, "ACCEPT"]);
     await expectProposalInvariants(db, organization.id, proposal.id);
+  });
+
+  it("two proposals on the same opportunity, answered concurrently: the opportunity moves to exactly one closed stage", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, opportunity, proposal: proposal1 } = await seedProposal(db);
+    const proposal2 = await ProposalService.create(db, organization.id, {
+      opportunityId: opportunity.id,
+      title: "Campanha Verão — segunda proposta",
+      theme: "PREMIUM",
+      userId: owner.id,
+    });
+
+    const sent1 = await ProposalSendingService.publish(db, organization.id, proposal1.id, owner.id);
+    const sent2 = await ProposalSendingService.publish(db, organization.id, proposal2.id, owner.id);
+
+    const results = await Promise.allSettled([
+      ProposalResponseService.respond(db, tokenOf(sent1.publicPath), {
+        publicationId: sent1.publication.id,
+        action: "ACCEPT",
+        ...maria,
+        message: null,
+      }),
+      ProposalResponseService.respond(db, tokenOf(sent2.publicPath), {
+        publicationId: sent2.publication.id,
+        action: "REJECT",
+        ...maria,
+        message: null,
+      }),
+    ]);
+
+    // Both responses succeed (they're on different publications/proposals);
+    // it's the shared opportunity's stage move that must not race.
+    expect(results.every((result) => result.status === "fulfilled")).toBe(true);
+
+    const [opp] = await db.select().from(opportunities).where(eq(opportunities.id, opportunity.id));
+    expect(["FECHADO", "PERDIDO"]).toContain(opp.stage);
+
+    const history = await db
+      .select()
+      .from(opportunityStageHistory)
+      .where(eq(opportunityStageHistory.opportunityId, opportunity.id));
+
+    const closedTransitions = history.filter(
+      (row) => row.fromStage === "PROPOSTA_ENVIADA" && (row.toStage === "FECHADO" || row.toStage === "PERDIDO"),
+    );
+    expect(closedTransitions).toHaveLength(1);
+    expect(closedTransitions[0].toStage).toBe(opp.stage);
+
+    const closedToClosed = history.filter(
+      (row) =>
+        (row.fromStage === "FECHADO" || row.fromStage === "PERDIDO") &&
+        (row.toStage === "FECHADO" || row.toStage === "PERDIDO"),
+    );
+    expect(closedToClosed).toHaveLength(0);
   });
 });
