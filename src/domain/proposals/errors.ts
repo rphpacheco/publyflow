@@ -59,3 +59,54 @@ export class ProposalBlockNotFoundError extends Error {
     this.name = "ProposalBlockNotFoundError";
   }
 }
+
+// Sending an archived proposal: it must be unarchived first.
+export class ProposalArchivedError extends Error {
+  constructor(proposalId: string) {
+    super(`Proposal ${proposalId} is archived`);
+    this.name = "ProposalArchivedError";
+  }
+}
+
+// The public link exists but the proposal is DRAFT or ARCHIVED.
+export class ProposalUnavailableError extends Error {
+  constructor() {
+    super("Esta proposta não está mais disponível.");
+    this.name = "ProposalUnavailableError";
+  }
+}
+
+// Unknown or malformed public token.
+export class PublicProposalNotFoundError extends Error {
+  constructor() {
+    super("Proposta não encontrada.");
+    this.name = "PublicProposalNotFoundError";
+  }
+}
+
+// The client answered a publication that is not the proposal's latest
+// (old, nonexistent or another proposal's).
+export class PublicationSupersededError extends Error {
+  readonly code = "SUPERSEDED";
+  constructor() {
+    super("Esta proposta foi atualizada. Recarregue para ver a versão atual.");
+    this.name = "PublicationSupersededError";
+  }
+}
+
+export class PublicationAlreadyRespondedError extends Error {
+  readonly code = "ALREADY_RESPONDED";
+  constructor() {
+    super("Esta proposta já foi respondida.");
+    this.name = "PublicationAlreadyRespondedError";
+  }
+}
+
+// PATCH may only move to DRAFT from ARCHIVED (unarchive); the commercial
+// statuses change only by sending or by the client's response.
+export class ProposalStatusTransitionError extends Error {
+  constructor(from: string, to: string) {
+    super(`Proposal status cannot change from ${from} to ${to}`);
+    this.name = "ProposalStatusTransitionError";
+  }
+}
