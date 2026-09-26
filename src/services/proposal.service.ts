@@ -8,7 +8,7 @@ import { OpportunitiesRepository } from "@/repositories/opportunities.repository
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
 
-async function assertMember(
+export async function assertMember(
   tx: NodePgDatabase<typeof schema>,
   organizationId: string,
   userId: string,

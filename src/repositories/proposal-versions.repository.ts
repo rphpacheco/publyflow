@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { proposalVersions } from "@/db/schema/proposals";
@@ -45,5 +45,23 @@ export const ProposalVersionsRepository = {
         .from(proposalVersions)
         .where(and(eq(proposalVersions.organizationId, organizationId), eq(proposalVersions.proposalId, proposalId)));
     });
+  },
+
+  async findLatestWithTx(tx: NodePgDatabase<typeof schema>, organizationId: string, proposalId: string): Promise<ProposalVersion | null> {
+    const [version] = await tx
+      .select()
+      .from(proposalVersions)
+      .where(and(eq(proposalVersions.proposalId, proposalId), eq(proposalVersions.organizationId, organizationId)))
+      .orderBy(desc(proposalVersions.versionNumber))
+      .limit(1);
+    return version ?? null;
+  },
+
+  async findByIdWithTx(tx: NodePgDatabase<typeof schema>, organizationId: string, versionId: string): Promise<ProposalVersion | null> {
+    const [version] = await tx
+      .select()
+      .from(proposalVersions)
+      .where(and(eq(proposalVersions.id, versionId), eq(proposalVersions.organizationId, organizationId)));
+    return version ?? null;
   },
 };

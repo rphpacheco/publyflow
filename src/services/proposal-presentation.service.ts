@@ -35,6 +35,17 @@ async function resolveClientName(
   return null;
 }
 
+export async function loadPresentationPartiesWithTx(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  opportunity: { creatorId: string; brandId: string | null; companyId: string | null },
+): Promise<{ creator: { displayName: string; instagramHandle: string | null }; clientName: string | null } | null> {
+  const creator = await CreatorsRepository.findByIdWithTx(tx, organizationId, opportunity.creatorId);
+  if (!creator) return null;
+  const clientName = await resolveClientName(tx, organizationId, opportunity.brandId, opportunity.companyId);
+  return { creator: { displayName: creator.displayName, instagramHandle: creator.instagramHandle }, clientName };
+}
+
 export const ProposalPresentationService = {
   /**
    * Everything the preview page needs, scoped to the session's organization.
@@ -55,17 +66,16 @@ export const ProposalPresentationService = {
       const opportunity = await OpportunitiesRepository.findByIdWithTx(tx, organizationId, proposal.opportunityId);
       if (!opportunity) return null;
 
-      const creator = await CreatorsRepository.findByIdWithTx(tx, organizationId, opportunity.creatorId);
-      if (!creator) return null;
+      const parties = await loadPresentationPartiesWithTx(tx, organizationId, opportunity);
+      if (!parties) return null;
 
-      const clientName = await resolveClientName(tx, organizationId, opportunity.brandId, opportunity.companyId);
       const snapshot = await ProposalVersionService.buildSnapshotWithTx(tx, organizationId, proposalId);
 
       return {
         snapshot,
         status: proposal.status,
-        creator: { displayName: creator.displayName, instagramHandle: creator.instagramHandle },
-        clientName,
+        creator: parties.creator,
+        clientName: parties.clientName,
       };
     });
   },

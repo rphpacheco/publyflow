@@ -144,4 +144,50 @@ export const ProposalsRepository = {
   ): Promise<Proposal[]> {
     return selectProposalsByOpportunity(tx, organizationId, opportunityId);
   },
+
+  /** Row lock: serializes publish/respond on the same proposal. */
+  async lockByIdWithTx(tx: NodePgDatabase<typeof schema>, organizationId: string, proposalId: string): Promise<Proposal | null> {
+    const [proposal] = await tx
+      .select()
+      .from(proposals)
+      .where(and(eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)))
+      .for("update");
+    return proposal ?? null;
+  },
+
+  /** Commercial status change from sending/responding: never creates a version. */
+  async setStatusWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+    status: Proposal["status"],
+  ): Promise<Proposal> {
+    return updateProposal(tx, organizationId, proposalId, { status });
+  },
+
+  async setPublicTokenWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+    token: string,
+  ): Promise<Proposal> {
+    const [proposal] = await tx
+      .update(proposals)
+      .set({ publicToken: token })
+      .where(and(eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)))
+      .returning();
+    if (!proposal) throw new ProposalNotFoundError(proposalId);
+    return proposal;
+  },
+
+  /**
+   * The only lookup without an organization from a session: the public link
+   * derives the organization from the proposal it finds. Today the app
+   * connects as a superuser so RLS does not filter this; the RLS hardening
+   * subproject must give this lookup an explicit privileged path.
+   */
+  async findByPublicToken(db: NodePgDatabase<typeof schema>, token: string): Promise<Proposal | null> {
+    const [proposal] = await db.select().from(proposals).where(eq(proposals.publicToken, token));
+    return proposal ?? null;
+  },
 };
