@@ -5,12 +5,14 @@ import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { ProposalService } from "./proposal.service";
+import { ProposalSendingService } from "./proposal-sending.service";
 import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
 import { ProposalBlocksRepository } from "@/repositories/proposal-blocks.repository";
-import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
+import { UserNotOrganizationMemberError, OpportunityNotFoundError, ProposalStatusTransitionError } from "@/domain/proposals/errors";
 import { users } from "@/db/schema/organizations";
 import { contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
+import { seedProposal } from "@/test/helpers/proposal-fixtures";
 
 describe("ProposalService", () => {
   let cleanup: () => Promise<void>;
@@ -202,5 +204,25 @@ describe("ProposalService", () => {
       "00000000-0000-0000-0000-000000000000",
     );
     expect(missing).toBeNull();
+  });
+});
+
+describe("ProposalService.update status rules", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("allows DRAFT only when unarchiving", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+
+    await expect(
+      ProposalService.update(db, organization.id, proposal.id, { status: "DRAFT", userId: owner.id }),
+    ).rejects.toBeInstanceOf(ProposalStatusTransitionError);
+
+    await ProposalService.update(db, organization.id, proposal.id, { status: "ARCHIVED", userId: owner.id });
+    const unarchived = await ProposalService.update(db, organization.id, proposal.id, { status: "DRAFT", userId: owner.id });
+    expect(unarchived.status).toBe("DRAFT");
   });
 });

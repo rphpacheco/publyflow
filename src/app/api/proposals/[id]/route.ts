@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { ProposalService } from "@/services/proposal.service";
-import { ProposalNotFoundError } from "@/domain/proposals/errors";
+import { ProposalNotFoundError, ProposalStatusTransitionError } from "@/domain/proposals/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 
@@ -44,6 +44,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof ProposalNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof ProposalStatusTransitionError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     throw error;
   }

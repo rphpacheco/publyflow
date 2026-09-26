@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { proposalSendStateQueryKey } from "./proposal-sending-keys";
 
 export interface ProposalItem {
   id: string;
@@ -54,6 +55,7 @@ export function useAddProposalItem(
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
     },
     onError: () => {
       toast.error("Não foi possível adicionar o item. Tente novamente.");
@@ -85,6 +87,7 @@ export function useUpdateProposalItem(
       queryClient.setQueryData<ProposalItem[]>(queryKey, (old) =>
         old?.map((item) => (item.id === data.id ? data : item)) ?? old,
       );
+      queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
     },
     onError: () => {
       toast.error("Não foi possível salvar. Tente novamente.");
@@ -107,6 +110,7 @@ export function useRemoveProposalItem(
       }),
     onSuccess: (_data, itemId) => {
       queryClient.setQueryData<ProposalItem[]>(queryKey, (old) => old?.filter((item) => item.id !== itemId) ?? old);
+      queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
     },
     onError: () => {
       toast.error("Não foi possível remover o item. Tente novamente.");

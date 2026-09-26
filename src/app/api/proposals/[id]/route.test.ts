@@ -4,6 +4,8 @@ import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { ProposalService } from "@/services/proposal.service";
+import { ProposalSendingService } from "@/services/proposal-sending.service";
+import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
 
@@ -142,5 +144,27 @@ describe("PATCH /api/proposals/:id", () => {
       { params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }) },
     );
     expect(response.status).toBe(401);
+  });
+
+  it("returns 409 when trying to move a SENT proposal back to DRAFT", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
+
+    const response = await PATCH(
+      new Request(`http://localhost/api/proposals/${proposal.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "DRAFT" }),
+      }),
+      { params: Promise.resolve({ id: proposal.id }) },
+    );
+    expect(response.status).toBe(409);
   });
 });

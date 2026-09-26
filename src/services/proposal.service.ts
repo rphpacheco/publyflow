@@ -6,7 +6,7 @@ import { ProposalBlocksRepository } from "@/repositories/proposal-blocks.reposit
 import { ProposalVersionService } from "./proposal-version.service";
 import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
-import { UserNotOrganizationMemberError, OpportunityNotFoundError } from "@/domain/proposals/errors";
+import { UserNotOrganizationMemberError, OpportunityNotFoundError, ProposalStatusTransitionError } from "@/domain/proposals/errors";
 
 export async function assertMember(
   tx: NodePgDatabase<typeof schema>,
@@ -74,6 +74,11 @@ export const ProposalService = {
       await assertMember(tx, organizationId, input.userId);
 
       const before = await ProposalsRepository.findByIdWithTx(tx, organizationId, proposalId);
+
+      if (input.status === "DRAFT" && before && before.status !== "ARCHIVED" && before.status !== "DRAFT") {
+        throw new ProposalStatusTransitionError(before.status, "DRAFT");
+      }
+
       const after = await ProposalsRepository.updateWithTx(tx, organizationId, proposalId, {
         title: input.title,
         theme: input.theme,

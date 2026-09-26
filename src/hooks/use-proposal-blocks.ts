@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { proposalSendStateQueryKey } from "./proposal-sending-keys";
 
 export type ProposalBlockType =
   | "COVER"
@@ -68,6 +69,7 @@ export function useUpdateProposalBlock(
       queryClient.setQueryData<ProposalBlock[]>(queryKey, (old) =>
         old?.map((block) => (block.id === data.id ? data : block)) ?? old,
       );
+      queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
     },
     onError: () => {
       toast.error("Não foi possível salvar. Tente novamente.");

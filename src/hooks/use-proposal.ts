@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { Proposal } from "./use-proposals";
 import type { ProposalTheme, ProposalStatus } from "@/lib/proposal-themes";
+import { proposalSendStateQueryKey } from "./proposal-sending-keys";
 
 export function proposalQueryKey(proposalId: string) {
   return ["proposal", proposalId] as const;
@@ -46,6 +47,7 @@ export function useUpdateProposal(
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
+      queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
     },
     onError: () => {
       toast.error("Não foi possível salvar. Tente novamente.");

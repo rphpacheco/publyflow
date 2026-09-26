@@ -1,0 +1,50 @@
+import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { ProposalSendingService } from "@/services/proposal-sending.service";
+import { ProposalArchivedError, ProposalNotFoundError, UserNotOrganizationMemberError } from "@/domain/proposals/errors";
+import { getSession } from "@/lib/auth/session";
+import { unauthorizedResponse } from "@/lib/auth/http";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
+
+  try {
+    const result = await ProposalSendingService.publish(db, session.organizationId, id, session.userId);
+    return NextResponse.json(result, { status: result.created ? 201 : 200 });
+  } catch (error) {
+    if (error instanceof ProposalNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof ProposalArchivedError) {
+      return NextResponse.json({ error: error.message, code: "PROPOSAL_ARCHIVED" }, { status: 409 });
+    }
+    if (error instanceof UserNotOrganizationMemberError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    throw error;
+  }
+}
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return unauthorizedResponse();
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
+
+  const history = await ProposalSendingService.listPublications(db, session.organizationId, id);
+  if (!history) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
+  return NextResponse.json(history, { status: 200 });
+}
