@@ -1,6 +1,6 @@
 # PublyFlow — Camada de Comunicação Omnichannel Design Spec
 
-Status: Draft for review (não aprovada para planejamento)
+Status: Approved for planning — Fase 0 (2026-09-26). Fases 1–4 seguem como direção, cada uma com spec própria.
 Owner: Raphael Pacheco
 Depends on: Spec 2 — Envio e resposta da proposta (`2026-09-25-proposal-sending-design.md`).
 Referência estudada: DeskcommCRM (`github.com/melgarafael/DeskcommCRM`, commit `462bd35`) —
@@ -94,12 +94,13 @@ create index domain_events_entity_idx on domain_events (entity_type, entity_id, 
 create table notifications (
   id              uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
-  recipient_user_id uuid references users(id) on delete cascade,  -- null = toda a org
+  recipient_user_id uuid not null references users(id) on delete cascade,  -- uma linha por membro (lida é individual)
   kind            text not null,                 -- 'proposal.approved', …
   title           text not null,
   body            text,
   link_path       text,                          -- '/proposals/<id>'
-  source_event_id uuid unique references domain_events(id) on delete set null,  -- idempotência
+  source_event_id uuid references domain_events(id) on delete set null,
+  unique (source_event_id, recipient_user_id),   -- idempotência do fan-out
   read_at         timestamptz,
   created_at      timestamptz not null default now()
 );
