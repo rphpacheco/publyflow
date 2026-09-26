@@ -28,5 +28,8 @@ export const premiumTheme: ThemeDefinition = {
     actions: "flex flex-wrap justify-center gap-3 pt-2",
     ctaPrimary: "bg-[#C9A96E] px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#121212] aria-disabled:cursor-default",
     ctaSecondary: "border border-[#6B604E] px-6 py-3 text-[11px] uppercase tracking-[0.2em] text-[#CFC6B8] aria-disabled:cursor-default",
+    resultBox: "flex flex-col items-center gap-2 border-t border-[#3A342A] pt-6 text-center",
+    resultText: "text-xl italic text-[#C9A96E]",
+    resultMessage: "max-w-[60ch] text-base text-[#CFC6B8]",
   },
 };

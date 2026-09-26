@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { ProposalTheme } from "@/lib/proposal-themes";
-import type { PresentationAction, PresentationModel } from "@/lib/presentation/types";
+import type { PresentationAction, PresentationModel, PresentationResponse } from "@/lib/presentation/types";
 import { THEMES } from "./themes";
 import { ActionsSection, CoverSection, ItemsSection, TextSection, TotalSection } from "./sections";
 
@@ -13,6 +13,8 @@ export interface PresentationRendererProps {
   onAction?: (action: PresentationAction) => void;
   /** Merged onto the [data-theme] root, e.g. so the preview can make it grow to fill the viewport. */
   className?: string;
+  /** Recorded client response: replaces the action buttons. */
+  response?: PresentationResponse;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface PresentationRendererProps {
  * Responsive rules are container queries on this root, so a 390px frame
  * renders the phone layout even on a wide screen.
  */
-export function PresentationRenderer({ model, theme, onAction, className }: PresentationRendererProps) {
+export function PresentationRenderer({ model, theme, onAction, className, response }: PresentationRendererProps) {
   const definition = THEMES[theme ?? model.theme];
 
   return (
@@ -39,7 +41,7 @@ export function PresentationRenderer({ model, theme, onAction, className }: Pres
             <TotalSection model={model} theme={definition} />
           </>
         ) : null}
-        <ActionsSection theme={definition} onAction={onAction} />
+        <ActionsSection theme={definition} onAction={onAction} response={response} />
       </article>
     </div>
   );

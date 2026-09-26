@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import type { PresentationAction, PresentationItem, PresentationModel } from "@/lib/presentation/types";
+import type { PresentationAction, PresentationItem, PresentationModel, PresentationResponse } from "@/lib/presentation/types";
 import type { ThemeDefinition } from "./theme-types";
 
 function creatorLine(model: PresentationModel): string {
@@ -216,13 +216,34 @@ const ACTIONS: Array<{ id: PresentationAction; label: string }> = [
   { id: "reject", label: "Recusar" },
 ];
 
+const RESPONSE_SENTENCE: Record<PresentationResponse["action"], (name: string, date: string) => string> = {
+  ACCEPT: (name, date) => `Proposta aceita por ${name} em ${date}.`,
+  REQUEST_CHANGES: (name, date) => `Ajustes solicitados por ${name} em ${date}.`,
+  REJECT: (name, date) => `Proposta recusada por ${name} em ${date}.`,
+};
+
 export function ActionsSection({
   theme,
   onAction,
+  response,
 }: {
   theme: ThemeDefinition;
   onAction?: (action: PresentationAction) => void;
+  response?: PresentationResponse;
 }) {
+  if (response) {
+    return (
+      <div role="status" className={theme.classes.resultBox} style={{ fontFamily: theme.fonts.ui }}>
+        <p className={theme.classes.resultText} style={{ fontFamily: theme.fonts.display }}>
+          {RESPONSE_SENTENCE[response.action](response.respondentName, response.respondedAtLabel)}
+        </p>
+        {response.message ? (
+          <p className={cn("whitespace-pre-line", theme.classes.resultMessage)}>{response.message}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className={theme.classes.actions} style={{ fontFamily: theme.fonts.ui }}>
       {ACTIONS.map((action, index) => (

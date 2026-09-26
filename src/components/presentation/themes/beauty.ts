@@ -29,5 +29,8 @@ export const beautyTheme: ThemeDefinition = {
     actions: "flex flex-wrap justify-center gap-3",
     ctaPrimary: "rounded-full bg-[#D4838F] px-6 py-3 text-sm font-semibold text-white aria-disabled:cursor-default",
     ctaSecondary: "rounded-full bg-white px-6 py-3 text-sm text-[#A4505E] aria-disabled:cursor-default",
+    resultBox: "flex flex-col items-center gap-2 rounded-2xl bg-white px-5 py-4 text-center",
+    resultText: "text-lg text-[#6D3440]",
+    resultMessage: "text-sm text-[#A07A80]",
   },
 };

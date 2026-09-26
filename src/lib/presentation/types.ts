@@ -42,3 +42,12 @@ export interface PresentationModel {
 }
 
 export type PresentationAction = "accept" | "request_changes" | "reject";
+
+export type PresentationResponseAction = "ACCEPT" | "REQUEST_CHANGES" | "REJECT";
+
+export interface PresentationResponse {
+  action: PresentationResponseAction;
+  respondentName: string;
+  respondedAtLabel: string;
+  message: string | null;
+}

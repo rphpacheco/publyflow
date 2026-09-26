@@ -32,5 +32,8 @@ export const editorialTheme: ThemeDefinition = {
     actions: "flex flex-wrap items-center gap-4 pt-2",
     ctaPrimary: "bg-[#B3261E] px-5 py-2.5 text-sm font-medium text-white aria-disabled:cursor-default",
     ctaSecondary: "border-b border-[#1D1A16] py-1 text-sm aria-disabled:cursor-default",
+    resultBox: "flex flex-col gap-2 border-t-2 border-[#1D1A16] pt-4",
+    resultText: "text-xl italic",
+    resultMessage: "text-base text-[#6B5F52]",
   },
 };

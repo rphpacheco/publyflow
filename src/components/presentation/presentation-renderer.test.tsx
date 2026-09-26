@@ -78,3 +78,34 @@ describe("PresentationRenderer", () => {
     expect(document.querySelector('[data-theme="PREMIUM"]')).toHaveClass("flex-1");
   });
 });
+
+describe.each(PROPOSAL_THEMES)("PresentationRenderer with a response — %s", (theme) => {
+  it("shows the recorded result instead of the action buttons", () => {
+    render(
+      <PresentationRenderer
+        model={model}
+        theme={theme}
+        response={{ action: "REQUEST_CHANGES", respondentName: "Maria", respondedAtLabel: "25 de setembro de 2026", message: "Trocar stories" }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Aceitar" })).not.toBeInTheDocument();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Ajustes solicitados por Maria em 25 de setembro de 2026.");
+    expect(status).toHaveTextContent("Trocar stories");
+  });
+});
+
+describe("PresentationRenderer response sentences", () => {
+  it.each([
+    ["ACCEPT", "Proposta aceita por Maria em 25 de setembro de 2026."],
+    ["REJECT", "Proposta recusada por Maria em 25 de setembro de 2026."],
+  ] as const)("%s", (action, sentence) => {
+    render(
+      <PresentationRenderer
+        model={model}
+        response={{ action, respondentName: "Maria", respondedAtLabel: "25 de setembro de 2026", message: null }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(sentence);
+  });
+});

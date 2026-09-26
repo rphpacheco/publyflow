@@ -30,5 +30,8 @@ export const corporateTheme: ThemeDefinition = {
     actions: "flex flex-wrap gap-3 px-6 @xl:px-10",
     ctaPrimary: "rounded-sm bg-[#1F3A5F] px-5 py-2.5 text-sm font-medium text-white aria-disabled:cursor-default",
     ctaSecondary: "rounded-sm border border-[#C5CEDB] px-5 py-2.5 text-sm aria-disabled:cursor-default",
+    resultBox: "mx-6 flex flex-col gap-1 border border-[#C5CEDB] bg-[#EEF2F7] px-4 py-3 @xl:mx-10",
+    resultText: "text-sm font-semibold",
+    resultMessage: "text-sm text-[#3B4557]",
   },
 };

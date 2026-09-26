@@ -28,5 +28,8 @@ export const fashionTheme: ThemeDefinition = {
     actions: "mx-6 flex flex-wrap @xl:mx-12",
     ctaPrimary: "bg-black px-6 py-3 text-[10px] uppercase tracking-[0.3em] text-white aria-disabled:cursor-default",
     ctaSecondary: "-ml-px border border-black px-6 py-3 text-[10px] uppercase tracking-[0.3em] aria-disabled:cursor-default",
+    resultBox: "mx-6 flex flex-col gap-2 border border-black p-4 @xl:mx-12",
+    resultText: "text-lg uppercase",
+    resultMessage: "text-sm",
   },
 };

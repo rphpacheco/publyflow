@@ -37,6 +37,10 @@ export interface ThemeClasses {
   actions: string;
   ctaPrimary: string;
   ctaSecondary: string;
+  /** Container of the recorded client response (replaces the buttons). */
+  resultBox: string;
+  resultText: string;
+  resultMessage: string;
 }
 
 export interface ThemeDefinition {

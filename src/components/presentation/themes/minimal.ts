@@ -28,5 +28,8 @@ export const minimalTheme: ThemeDefinition = {
     actions: "flex flex-wrap items-center gap-4 pt-2",
     ctaPrimary: "rounded-md bg-[#111111] px-5 py-2.5 text-sm font-medium text-white aria-disabled:cursor-default",
     ctaSecondary: "text-sm text-[#555555] underline underline-offset-4 aria-disabled:cursor-default",
+    resultBox: "flex flex-col gap-2 border-t border-[#EEEEEE] pt-4",
+    resultText: "text-base font-medium",
+    resultMessage: "text-sm text-[#555555]",
   },
 };
