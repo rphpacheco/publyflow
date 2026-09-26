@@ -24,6 +24,8 @@ vi.mock("@/hooks/use-proposal-items", () => ({
 vi.mock("@/components/proposals/proposal-items-table", () => ({ ProposalItemsTable: () => null }));
 vi.mock("@/components/proposals/proposal-cover-section", () => ({ ProposalCoverSection: () => null }));
 vi.mock("@/components/proposals/proposal-text-section", () => ({ ProposalTextSection: () => null }));
+vi.mock("@/components/proposals/proposal-send-panel", () => ({ ProposalSendPanel: () => <div>send-panel</div> }));
+vi.mock("@/components/proposals/proposal-send-history", () => ({ ProposalSendHistory: () => <div>send-history</div> }));
 
 import ProposalPage from "./page";
 
@@ -50,5 +52,18 @@ describe("ProposalPage (builder)", () => {
     await userEvent.click(await screen.findByRole("combobox", { name: "Tema" }));
     await userEvent.click(screen.getByRole("option", { name: "Editorial" }));
     expect(mutateMock).toHaveBeenCalledWith({ theme: "EDITORIAL" });
+  });
+
+  it("renders the send panel, send history and the status badge", async () => {
+    await act(async () => {
+      render(
+        <React.Suspense fallback={null}>
+          <ProposalPage params={Promise.resolve({ id: "p1" })} />
+        </React.Suspense>,
+      );
+    });
+    expect(await screen.findByText("send-panel")).toBeInTheDocument();
+    expect(screen.getByText("send-history")).toBeInTheDocument();
+    expect(screen.getByText("Rascunho")).toBeInTheDocument();
   });
 });

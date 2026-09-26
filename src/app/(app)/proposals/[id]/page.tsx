@@ -31,6 +31,9 @@ import { PROPOSAL_THEMES, PROPOSAL_THEME_LABELS, type ProposalTheme } from "@/li
 import { ProposalCoverSection } from "@/components/proposals/proposal-cover-section";
 import { ProposalTextSection } from "@/components/proposals/proposal-text-section";
 import { ProposalItemsTable } from "@/components/proposals/proposal-items-table";
+import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
+import { ProposalSendPanel } from "@/components/proposals/proposal-send-panel";
+import { ProposalSendHistory } from "@/components/proposals/proposal-send-history";
 
 export default function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: proposalId } = React.use(params);
@@ -110,13 +113,16 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <Link
-          href="/pipeline"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Voltar
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/pipeline"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Voltar
+          </Link>
+          <ProposalStatusBadge status={proposal.status} />
+        </div>
 
         {readOnly ? (
           <Button variant="outline" size="sm" onClick={handleArchiveToggle}>
@@ -135,6 +141,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 <AlertDialogDescription>
                   Uma proposta arquivada fica somente leitura. Você pode desarquivar depois para
                   voltar a editar.
+                  <br />
+                  O link público deixará de funcionar.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -185,6 +193,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           </div>
         </div>
       </div>
+
+      <ProposalSendPanel proposalId={proposalId} />
+      <ProposalSendHistory proposalId={proposalId} />
 
       {coverBlock ? (
         <ProposalCoverSection proposalId={proposalId} block={coverBlock} readOnly={readOnly} />

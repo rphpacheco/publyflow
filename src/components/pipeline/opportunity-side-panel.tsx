@@ -26,16 +26,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { relativeTime, formatCurrencyBRL } from "@/lib/format";
 import { STAGES, STAGE_LABELS, type OpportunityStage } from "@/lib/opportunity-stages";
 import { useProposals, useCreateProposal } from "@/hooks/use-proposals";
-import {
-  PROPOSAL_THEMES,
-  PROPOSAL_THEME_LABELS,
-  PROPOSAL_STATUS_LABELS,
-  type ProposalTheme,
-} from "@/lib/proposal-themes";
+import { PROPOSAL_THEMES, PROPOSAL_THEME_LABELS, type ProposalTheme } from "@/lib/proposal-themes";
+import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import type { OpportunityListItem } from "@/hooks/use-opportunities";
 
 export interface OpportunitySidePanelProps {
@@ -198,7 +193,7 @@ export function OpportunitySidePanel({
                   className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted"
                 >
                   <span>{proposal.title}</span>
-                  <Badge>{PROPOSAL_STATUS_LABELS[proposal.status]}</Badge>
+                  <ProposalStatusBadge status={proposal.status} />
                 </button>
               ))}
             </div>
