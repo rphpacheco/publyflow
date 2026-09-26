@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, uuid, text, timestamp, integer, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, uuid, text, timestamp, integer, jsonb, unique, index } from "drizzle-orm/pg-core";
 import { organizations, users } from "./organizations";
 import { opportunities } from "./commercial-flow";
 import { rateCardItems } from "./rate-cards";
@@ -12,7 +12,14 @@ export const proposalThemeEnum = pgEnum("proposal_theme", [
   "CORPORATE",
 ]);
 
-export const proposalStatusEnum = pgEnum("proposal_status", ["DRAFT", "ARCHIVED"]);
+export const proposalStatusEnum = pgEnum("proposal_status", [
+  "DRAFT",
+  "ARCHIVED",
+  "SENT",
+  "CHANGES_REQUESTED",
+  "APPROVED",
+  "REJECTED",
+]);
 
 export const proposals = pgTable("proposals", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -25,6 +32,7 @@ export const proposals = pgTable("proposals", {
   title: text("title").notNull(),
   theme: proposalThemeEnum("theme").notNull(),
   status: proposalStatusEnum("status").notNull().default("DRAFT"),
+  publicToken: text("public_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -91,3 +99,50 @@ export const proposalVersions = pgTable(
   },
   (table) => [unique("proposal_versions_proposal_version_unique").on(table.proposalId, table.versionNumber)],
 );
+
+export const proposalResponseActionEnum = pgEnum("proposal_response_action", ["ACCEPT", "REQUEST_CHANGES", "REJECT"]);
+
+export const proposalPublications = pgTable(
+  "proposal_publications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    proposalId: uuid("proposal_id")
+      .notNull()
+      .references(() => proposals.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… per proposal; defines "latest" (never rely on timestamps). */
+    publicationNumber: integer("publication_number").notNull(),
+    versionId: uuid("version_id")
+      .notNull()
+      .references(() => proposalVersions.id, { onDelete: "restrict" }),
+    versionNumber: integer("version_number").notNull(),
+    /** Frozen at send time: { creator: { displayName, instagramHandle }, clientName, issuedAt (ISO) }. */
+    context: jsonb("context").notNull(),
+    publishedBy: uuid("published_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("proposal_publications_proposal_number_unique").on(table.proposalId, table.publicationNumber),
+    index("proposal_publications_proposal_idx").on(table.proposalId),
+  ],
+);
+
+export const proposalResponses = pgTable("proposal_responses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  publicationId: uuid("publication_id")
+    .notNull()
+    .unique()
+    .references(() => proposalPublications.id, { onDelete: "cascade" }),
+  action: proposalResponseActionEnum("action").notNull(),
+  respondentName: text("respondent_name").notNull(),
+  respondentEmail: text("respondent_email").notNull(),
+  message: text("message"),
+  respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
+});

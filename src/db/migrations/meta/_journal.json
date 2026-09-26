@@ -120,6 +120,13 @@
       "when": 1790361605471,
       "tag": "0016_rename_proposal_template_to_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790380478970,
+      "tag": "0017_add_proposal_publications",
+      "breakpoints": true
     }
   ]
 }
