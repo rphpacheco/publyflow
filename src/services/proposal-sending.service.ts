@@ -14,6 +14,8 @@ import { toPublicationContextJson } from "@/lib/presentation/snapshot-schema";
 import { publicPathFor, SENT_STAGE } from "@/lib/proposal-sharing";
 import { PUBLIC_PROPOSAL_STATUSES, type ProposalStatus } from "@/lib/proposal-themes";
 import { OpportunityNotFoundError, ProposalArchivedError, ProposalNotFoundError } from "@/domain/proposals/errors";
+import { DomainEventsRepository } from "@/repositories/domain-events.repository";
+import { proposalSentEvent } from "@/lib/events/proposal-events";
 
 export function generatePublicToken(): string {
   return randomBytes(32).toString("base64url");
@@ -114,6 +116,19 @@ export const ProposalSendingService = {
         publishedBy: userId,
         publishedAt,
       });
+
+      await DomainEventsRepository.appendWithTx(
+        tx,
+        organizationId,
+        proposalSentEvent({
+          proposalId,
+          proposalTitle: proposal.title,
+          publicationId: publication.id,
+          versionNumber: publication.versionNumber,
+          opportunityId: proposal.opportunityId,
+          userId,
+        }),
+      );
 
       await ProposalsRepository.setStatusWithTx(tx, organizationId, proposalId, "SENT");
       await moveOpportunityIfOpenWithTx(tx, organizationId, proposal.opportunityId, SENT_STAGE);

@@ -13,6 +13,8 @@ import {
   PublicationAlreadyRespondedError,
   PublicationSupersededError,
 } from "@/domain/proposals/errors";
+import { DomainEventsRepository } from "@/repositories/domain-events.repository";
+import { proposalResponseEvent } from "@/lib/events/proposal-events";
 
 export interface RespondInput {
   publicationId: string;
@@ -55,6 +57,20 @@ export const ProposalResponseService = {
           respondentEmail: input.email,
           message: input.message,
         });
+        await DomainEventsRepository.appendWithTx(
+          tx,
+          organizationId,
+          proposalResponseEvent({
+            proposalId: proposal.id,
+            proposalTitle: proposal.title,
+            publicationId: latest.id,
+            versionNumber: latest.versionNumber,
+            opportunityId: proposal.opportunityId,
+            action: input.action,
+            respondentName: input.name,
+            message: input.message,
+          }),
+        );
         await ProposalsRepository.setStatusWithTx(tx, organizationId, proposal.id, RESPONSE_STATUS[input.action]);
         await moveOpportunityIfOpenWithTx(tx, organizationId, proposal.opportunityId, RESPONSE_STAGE[input.action]);
         return response;
