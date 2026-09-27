@@ -25,5 +25,6 @@ export function buildWhatsAppUrl(phone: string | null, message: string): string 
 }
 
 export function buildMailtoUrl(email: string | null, subject: string, body: string): string {
-  return `mailto:${email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const address = email ? encodeURIComponent(email) : "";
+  return `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

@@ -1,25 +1,26 @@
+import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
-import { DomainEventsRepository, type DomainEvent } from "@/repositories/domain-events.repository";
+import { DomainEventsRepository } from "@/repositories/domain-events.repository";
 import { proposalNotificationHandlers, type EventHandler } from "./event-handlers/proposal-notifications";
 
 const DEFAULT_LIMIT = 50;
 
-class HandlerFailure extends Error {
-  constructor(
-    readonly eventId: string,
-    readonly cause: unknown,
-  ) {
-    super(cause instanceof Error ? cause.message : String(cause));
-  }
-}
+type Outcome = "processed" | "failed" | null;
 
 export const EventDrainService = {
   /**
    * Claims pending events one at a time (FOR UPDATE SKIP LOCKED, so parallel
-   * drains never share an event), runs the registered handler inside the same
-   * transaction and marks the event done. A failing handler rolls back its own
-   * work; the failure is then recorded with backoff (or dead) outside it.
+   * drains never share an event) and keeps a single outer transaction per
+   * claimed event for its whole lifecycle. The handler runs inside a nested
+   * transaction (a savepoint): if it throws, only the handler's partial
+   * writes roll back, and the failure is then recorded — still inside the
+   * outer transaction, still holding the row's lock — as one atomic UPDATE,
+   * so a concurrent drain can never re-claim the row mid-bookkeeping.
+   *
+   * Return semantics: `processed` counts events marked done (no handler, or
+   * the handler ran without throwing); `failed` counts events whose handler
+   * threw (recorded with backoff, or marked dead after the 5th attempt).
    */
   async drain(
     db: NodePgDatabase<typeof schema>,
@@ -32,28 +33,31 @@ export const EventDrainService = {
     let failed = 0;
 
     while (processed + failed < limit) {
-      let claimed: DomainEvent | null = null;
-      try {
-        claimed = await db.transaction(async (tx) => {
-          const event = await DomainEventsRepository.claimNextWithTx(tx as unknown as NodePgDatabase<typeof schema>, now());
-          if (!event) return null;
-          const handler = handlers[event.eventType];
+      const outcome: Outcome = await db.transaction(async (tx) => {
+        const txDb = tx as unknown as NodePgDatabase<typeof schema>;
+        const event = await DomainEventsRepository.claimNextWithTx(txDb, now());
+        if (!event) return null;
+
+        // Fan-out and future RLS-enforced reads scope to this event's org.
+        await txDb.execute(sql`select set_config('app.current_org_id', ${event.organizationId}, true)`);
+
+        const handler = handlers[event.eventType];
+        if (handler) {
           try {
-            if (handler) await handler(tx as unknown as NodePgDatabase<typeof schema>, event);
+            await txDb.transaction((sp) => handler(sp as unknown as NodePgDatabase<typeof schema>, event));
           } catch (error) {
-            throw new HandlerFailure(event.id, error);
+            const message = error instanceof Error ? error.message : String(error);
+            await DomainEventsRepository.recordFailureWithTx(txDb, event.id, message, now());
+            return "failed";
           }
-          await DomainEventsRepository.markDoneWithTx(tx as unknown as NodePgDatabase<typeof schema>, event.id, now());
-          return event;
-        });
-      } catch (error) {
-        if (!(error instanceof HandlerFailure)) throw error;
-        await DomainEventsRepository.recordFailure(db, error.eventId, error.message, now());
-        failed += 1;
-        continue;
-      }
-      if (!claimed) break;
-      processed += 1;
+        }
+        await DomainEventsRepository.markDoneWithTx(txDb, event.id, now());
+        return "processed";
+      });
+
+      if (outcome === null) break;
+      if (outcome === "failed") failed += 1;
+      else processed += 1;
     }
 
     return { processed, failed };

@@ -1,9 +1,12 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { ProposalService } from "@/services/proposal.service";
 import { ProposalSendingService } from "@/services/proposal-sending.service";
+
+const scheduleEventDrain = vi.fn();
+vi.mock("@/lib/events/schedule-drain", () => ({ scheduleEventDrain: () => scheduleEventDrain() }));
 
 function request(token: string, body: unknown) {
   return new Request(`http://localhost/api/public/proposals/${token}/responses`, {
@@ -16,7 +19,10 @@ const params = (token: string) => ({ params: Promise.resolve({ token }) });
 
 describe("POST /api/public/proposals/:token/responses (no session)", () => {
   let cleanup: () => Promise<void>;
-  afterEach(async () => cleanup?.());
+  afterEach(async () => {
+    scheduleEventDrain.mockClear();
+    await cleanup?.();
+  });
 
   async function published() {
     const { db, cleanup: c } = await withTestDb();
@@ -41,6 +47,7 @@ describe("POST /api/public/proposals/:token/responses (no session)", () => {
     expect(body.response.organizationId).toBeUndefined();
     expect(body.response.publicationId).toBeUndefined();
     expect(body.response.id).toBeUndefined();
+    expect(scheduleEventDrain).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a message sent alongside ACCEPT and never stores it", async () => {

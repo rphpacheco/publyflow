@@ -75,6 +75,28 @@ describe("domain events emitted with the fact", () => {
     expect(events.map((event) => event.eventType)).toEqual(["proposal.sent"]);
   });
 
+  it("a REQUEST_CHANGES message with an emoji straddling the excerpt cut succeeds and stores the event", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    const message = "a".repeat(138) + "😀" + "b".repeat(10);
+
+    await ProposalResponseService.respond(db, tokenOf(publicPath), {
+      publicationId: publication.id,
+      action: "REQUEST_CHANGES",
+      name: "Maria",
+      email: "maria@bella.test",
+      message,
+    });
+
+    const events = await DomainEventsRepository.listForEntity(db, organization.id, "proposal", proposal.id);
+    expect(events.map((event) => event.eventType)).toEqual(["proposal.sent", "proposal.changes_requested"]);
+    const excerptValue = (events[1].payload as { message_excerpt: string }).message_excerpt;
+    expect(excerptValue).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(Array.from(excerptValue).length).toBeLessThanOrEqual(140);
+  });
+
   it("a rejected response (superseded) emits nothing", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;

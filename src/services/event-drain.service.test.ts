@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
@@ -66,5 +67,48 @@ describe("EventDrainService.drain", () => {
     cleanup = c;
     await answered(db);
     expect(await EventDrainService.drain(db, { limit: 1 })).toEqual({ processed: 1, failed: 0 });
+  });
+
+  it("goes dead after the 5th failed attempt, incrementing attempts under an advancing clock", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, proposal } = await answered(db);
+    let now = new Date("2026-09-26T12:00:00Z");
+    const handlers = {
+      "proposal.approved": async () => {
+        throw new Error("boom");
+      },
+    };
+
+    for (let i = 0; i < 5; i += 1) {
+      const result = await EventDrainService.drain(db, { handlers, now: () => now });
+      expect(result.failed).toBe(1);
+      now = new Date(now.getTime() + 61 * 60_000); // past any possible backoff (max 60 min)
+    }
+
+    const events = await DomainEventsRepository.listForEntity(db, organization.id, "proposal", proposal.id);
+    const approved = events.find((event) => event.eventType === "proposal.approved")!;
+    expect(approved).toMatchObject({ status: "dead", attempts: 5 });
+  });
+
+  it("a handler that throws a DB error still lets the failure be recorded (savepoint keeps the outer tx usable)", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, proposal } = await answered(db);
+
+    const result = await EventDrainService.drain(db, {
+      handlers: {
+        "proposal.approved": async (tx) => {
+          // Deliberately invalid: violates the not-null columns, causing a
+          // real Postgres error mid-handler (not a thrown JS Error).
+          await tx.execute(sql`insert into domain_events (id) values (gen_random_uuid())`);
+        },
+      },
+    });
+    expect(result).toEqual({ processed: 1, failed: 1 });
+
+    const events = await DomainEventsRepository.listForEntity(db, organization.id, "proposal", proposal.id);
+    const approved = events.find((event) => event.eventType === "proposal.approved")!;
+    expect(approved).toMatchObject({ status: "pending", attempts: 1 });
   });
 });

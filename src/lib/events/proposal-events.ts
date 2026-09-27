@@ -20,7 +20,12 @@ const EXCERPT_MAX = 140;
 export function excerpt(text: string | null, max = EXCERPT_MAX): string | null {
   const trimmed = text?.trim();
   if (!trimmed) return null;
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
+  // Truncate by code points, not UTF-16 code units: slicing a raw string can
+  // split a surrogate pair (e.g. an emoji), leaving a lone surrogate that
+  // JSON.stringify writes as an unpaired \uXXXX escape — Postgres jsonb
+  // rejects that, failing the whole transaction that wrote this payload.
+  const chars = Array.from(trimmed);
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : trimmed;
 }
 
 interface ProposalRef {

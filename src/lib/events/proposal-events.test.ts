@@ -34,4 +34,11 @@ describe("proposal event builders", () => {
     expect(excerpt("  curto  ")).toBe("curto");
     expect(excerpt(null)).toBeNull();
   });
+
+  it("truncates by code point, never splitting a surrogate pair", () => {
+    const text = "a".repeat(138) + "😀" + "b".repeat(10);
+    const result = excerpt(text)!;
+    expect(result).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(Array.from(result).length).toBeLessThanOrEqual(140);
+  });
 });

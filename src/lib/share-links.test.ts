@@ -24,8 +24,14 @@ describe("share links", () => {
     expect(buildWhatsAppUrl("5511987654321", "Oi & tchau")).toBe("https://wa.me/5511987654321?text=Oi%20%26%20tchau");
     expect(buildWhatsAppUrl(null, "Oi")).toBe("https://wa.me/?text=Oi");
     expect(buildMailtoUrl("maria@bella.test", "Proposta: X", "Corpo & link")).toBe(
-      "mailto:maria@bella.test?subject=Proposta%3A%20X&body=Corpo%20%26%20link",
+      "mailto:maria%40bella.test?subject=Proposta%3A%20X&body=Corpo%20%26%20link",
     );
     expect(buildMailtoUrl(null, "S", "B")).toBe("mailto:?subject=S&body=B");
+  });
+
+  it("neutralises an address containing extra mailto parameters (no raw ? or & in the address part)", () => {
+    const url = buildMailtoUrl("a@b.com?cc=x@y.com", "S", "B");
+    const addressPart = url.slice("mailto:".length, url.indexOf("?"));
+    expect(addressPart).not.toMatch(/[?&]/);
   });
 });

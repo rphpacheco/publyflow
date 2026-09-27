@@ -15,10 +15,6 @@ export interface AppendEventInput {
   actor: Record<string, unknown>;
 }
 
-function backoffMinutes(attempts: number): number {
-  return Math.min(2 ** attempts, 60);
-}
-
 export const DomainEventsRepository = {
   /** Call inside the transaction that writes the fact. */
   async appendWithTx(tx: NodePgDatabase<typeof schema>, organizationId: string, input: AppendEventInput): Promise<DomainEvent> {
@@ -46,21 +42,30 @@ export const DomainEventsRepository = {
     await tx.update(domainEvents).set({ status: "done", processedAt: now, lastError: null }).where(eq(domainEvents.id, eventId));
   },
 
-  async recordFailure(db: NodePgDatabase<typeof schema>, eventId: string, error: string, now: Date): Promise<DomainEvent> {
-    const [current] = await db.select().from(domainEvents).where(eq(domainEvents.id, eventId));
-    const attempts = current.attempts + 1;
-    const dead = attempts >= MAX_EVENT_ATTEMPTS;
-    const [updated] = await db
+  /**
+   * Atomic single UPDATE: `attempts`, `status` and `next_attempt_at` are all
+   * computed in SQL from the row's current `attempts`, so this is safe to
+   * call while still holding the row's lock from the same claim transaction
+   * (no read-modify-write race with a concurrent claimer). Guarded by
+   * `status = 'pending'`; returns null if the row wasn't found in that state.
+   * Backoff: min(2^attempts, 60) minutes, using the new attempts count; the
+   * event goes dead once that count reaches MAX_EVENT_ATTEMPTS.
+   */
+  async recordFailureWithTx(tx: NodePgDatabase<typeof schema>, eventId: string, error: string, now: Date): Promise<DomainEvent | null> {
+    const [updated] = await tx
       .update(domainEvents)
       .set({
-        attempts,
-        status: dead ? "dead" : "pending",
+        attempts: sql`${domainEvents.attempts} + 1`,
+        status: sql`case when ${domainEvents.attempts} + 1 >= ${MAX_EVENT_ATTEMPTS} then 'dead' else 'pending' end`,
+        nextAttemptAt: sql`case when ${domainEvents.attempts} + 1 >= ${MAX_EVENT_ATTEMPTS}
+          then null
+          else ${now}::timestamptz + (interval '1 minute' * least(power(2, ${domainEvents.attempts} + 1), 60))
+          end`,
         lastError: error.slice(0, 1000),
-        nextAttemptAt: dead ? null : new Date(now.getTime() + backoffMinutes(attempts) * 60_000),
       })
-      .where(eq(domainEvents.id, eventId))
+      .where(and(eq(domainEvents.id, eventId), eq(domainEvents.status, "pending")))
       .returning();
-    return updated;
+    return updated ?? null;
   },
 
   async listForEntity(db: NodePgDatabase<typeof schema>, organizationId: string, entityType: string, entityId: string): Promise<DomainEvent[]> {

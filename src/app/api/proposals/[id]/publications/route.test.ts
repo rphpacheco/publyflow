@@ -1,8 +1,11 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { ProposalService } from "@/services/proposal.service";
+
+const scheduleEventDrain = vi.fn();
+vi.mock("@/lib/events/schedule-drain", () => ({ scheduleEventDrain: () => scheduleEventDrain() }));
 
 const post = (id: string) => new Request(`http://localhost/api/proposals/${id}/publications`, { method: "POST" });
 const get = (id: string) => new Request(`http://localhost/api/proposals/${id}/publications`);
@@ -10,7 +13,10 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe("/api/proposals/:id/publications", () => {
   let cleanup: () => Promise<void>;
-  afterEach(async () => cleanup?.());
+  afterEach(async () => {
+    scheduleEventDrain.mockClear();
+    await cleanup?.();
+  });
 
   it("POST publishes (201), repeats idempotently (200) and GET lists the history", async () => {
     const { db, cleanup: c } = await withTestDb();
@@ -23,10 +29,12 @@ describe("/api/proposals/:id/publications", () => {
     const body = await first.json();
     expect(body.created).toBe(true);
     expect(body.publicPath).toMatch(/^\/p\//);
+    expect(scheduleEventDrain).toHaveBeenCalledTimes(1);
 
     const again = await POST(post(proposal.id), params(proposal.id));
     expect(again.status).toBe(200);
     expect((await again.json()).created).toBe(false);
+    expect(scheduleEventDrain).toHaveBeenCalledTimes(1);
 
     const history = await GET(get(proposal.id), params(proposal.id));
     expect(history.status).toBe(200);

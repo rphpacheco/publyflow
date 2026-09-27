@@ -57,17 +57,34 @@ describe("DomainEventsRepository", () => {
     const event = await db.transaction((tx) => DomainEventsRepository.appendWithTx(tx, organization.id, append(organization.id, proposal.id)));
     const now = new Date("2026-09-26T12:00:00Z");
 
-    const once = await DomainEventsRepository.recordFailure(db, event.id, "boom", now);
+    const once = await db.transaction((tx) => DomainEventsRepository.recordFailureWithTx(tx, event.id, "boom", now));
     expect(once).toMatchObject({ status: "pending", attempts: 1, lastError: "boom" });
-    expect(once.nextAttemptAt?.toISOString()).toBe("2026-09-26T12:02:00.000Z");
+    expect(once!.nextAttemptAt?.toISOString()).toBe("2026-09-26T12:02:00.000Z");
 
     // not claimable before its next attempt
     const early = await db.transaction((tx) => DomainEventsRepository.claimNextWithTx(tx, now));
     expect(early).toBeNull();
 
     let last = once;
-    for (let i = 0; i < 4; i += 1) last = await DomainEventsRepository.recordFailure(db, event.id, "boom", now);
+    for (let i = 0; i < 4; i += 1) {
+      last = await db.transaction((tx) => DomainEventsRepository.recordFailureWithTx(tx, event.id, "boom", now));
+    }
     expect(last).toMatchObject({ status: "dead", attempts: 5 });
+  });
+
+  it("recordFailureWithTx is a no-op (returns null) for an event that is no longer pending", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, proposal } = await seedProposal(db);
+    const event = await db.transaction((tx) => DomainEventsRepository.appendWithTx(tx, organization.id, append(organization.id, proposal.id)));
+    const now = new Date("2026-09-26T12:00:00Z");
+    await db.transaction(async (tx) => {
+      const claimed = await DomainEventsRepository.claimNextWithTx(tx, now);
+      await DomainEventsRepository.markDoneWithTx(tx, claimed!.id, now);
+    });
+
+    const result = await db.transaction((tx) => DomainEventsRepository.recordFailureWithTx(tx, event.id, "boom", now));
+    expect(result).toBeNull();
   });
 
   it("two concurrent claimers never take the same event", async () => {

@@ -24,7 +24,7 @@ describe("ProposalShareActions", () => {
 
     expect(screen.getByRole("link", { name: "E-mail" })).toHaveAttribute(
       "href",
-      `mailto:maria@bella.test?subject=${encodeURIComponent("Proposta: Campanha Verão")}&body=${encodeURIComponent(message)}`,
+      `mailto:${encodeURIComponent("maria@bella.test")}?subject=${encodeURIComponent("Proposta: Campanha Verão")}&body=${encodeURIComponent(message)}`,
     );
     expect(screen.getByRole("button", { name: "Copiar mensagem" })).toBeInTheDocument();
   });
