@@ -11,6 +11,7 @@ vi.mock("@/hooks/use-proposal-sending", () => ({
   usePublishProposal: () => ({ mutate: mutateMock, isPending: false }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/hooks/use-proposal-share-info", () => ({ useProposalShareInfo: () => ({ data: undefined }) }));
 
 import { ProposalSendPanel } from "./proposal-send-panel";
 

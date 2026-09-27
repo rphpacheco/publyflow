@@ -18,6 +18,7 @@ import {
 import { useProposalSendState, usePublishProposal, type SendStateDto } from "@/hooks/use-proposal-sending";
 import { formatDateTime, formatIssuedAt } from "@/lib/presentation/format";
 import { ProposalStatusBadge } from "./proposal-status-badge";
+import { ProposalShareActions } from "./proposal-share-actions";
 
 const DISABLED_HINT: Partial<Record<SendStateDto["status"], string>> = {
   SENT: "Nada mudou desde o envio",
@@ -118,6 +119,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
                 Abrir
               </a>
             </Button>
+            <ProposalShareActions proposalId={proposalId} publicPath={state.publicPath} />
           </>
         ) : null}
       </div>
@@ -168,6 +170,8 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
                   </a>
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">Ou envie direto:</p>
+              <ProposalShareActions proposalId={proposalId} publicPath={sentPath} />
             </div>
           ) : null}
         </DialogContent>
