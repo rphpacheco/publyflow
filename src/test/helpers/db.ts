@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 
 const DOMAIN_TABLES = [
+  "notifications",
+  "domain_events",
   "proposal_responses",
   "proposal_publications",
   "proposal_versions",

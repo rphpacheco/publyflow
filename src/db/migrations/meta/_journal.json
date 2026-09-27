@@ -127,6 +127,13 @@
       "when": 1790380478970,
       "tag": "0017_add_proposal_publications",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790471670343,
+      "tag": "0018_add_domain_events_and_notifications",
+      "breakpoints": true
     }
   ]
 }
