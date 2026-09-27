@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { ProposalResponseService } from "@/services/proposal-response.service";
+import { scheduleEventDrain } from "@/lib/events/schedule-drain";
 import {
   ProposalUnavailableError,
   PublicProposalNotFoundError,
@@ -40,6 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       email: parsed.data.email,
       message: parsed.data.action === "ACCEPT" ? null : parsed.data.message || null,
     });
+    scheduleEventDrain();
     return NextResponse.json(
       { response: { action: response.action, respondedAt: response.respondedAt } },
       { status: 201, headers: NO_STORE },

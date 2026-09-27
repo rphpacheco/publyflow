@@ -4,6 +4,7 @@ import { ProposalSendingService } from "@/services/proposal-sending.service";
 import { ProposalArchivedError, ProposalNotFoundError, UserNotOrganizationMemberError } from "@/domain/proposals/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { scheduleEventDrain } from "@/lib/events/schedule-drain";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -18,6 +19,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   try {
     const result = await ProposalSendingService.publish(db, session.organizationId, id, session.userId);
+    if (result.created) scheduleEventDrain();
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
     if (error instanceof ProposalNotFoundError) {
