@@ -19,12 +19,16 @@ export interface ResponseDialogValues {
   message: string | null;
 }
 
+export type ResponseFieldErrors = Partial<Record<"name" | "email" | "message", string>>;
+
 export function ResponseDialog({
   action,
   versionNumber,
   publishedAtLabel,
   pending,
   serverError,
+  fieldErrors,
+  onFieldEdit,
   onSubmit,
   onReload,
   onOpenChange,
@@ -34,6 +38,8 @@ export function ResponseDialog({
   publishedAtLabel: string;
   pending: boolean;
   serverError: { message: string; reload: boolean } | null;
+  fieldErrors: ResponseFieldErrors;
+  onFieldEdit: (field: keyof ResponseFieldErrors) => void;
   onSubmit: (values: ResponseDialogValues) => void;
   onReload: () => void;
   onOpenChange: (open: boolean) => void;
@@ -72,17 +78,63 @@ export function ResponseDialog({
         <form onSubmit={submit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
             Nome
-            <Input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" />
+            <Input
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                onFieldEdit("name");
+              }}
+              autoComplete="name"
+              aria-invalid={fieldErrors.name ? true : undefined}
+              aria-describedby={fieldErrors.name ? "response-name-error" : undefined}
+            />
           </label>
+          {fieldErrors.name ? (
+            <p id="response-name-error" className="text-xs text-error">
+              {fieldErrors.name}
+            </p>
+          ) : null}
           <label className="flex flex-col gap-1 text-sm">
             E-mail
-            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                onFieldEdit("email");
+              }}
+              autoComplete="email"
+              aria-invalid={fieldErrors.email ? true : undefined}
+              aria-describedby={fieldErrors.email ? "response-email-error" : undefined}
+            />
           </label>
+          {fieldErrors.email ? (
+            <p id="response-email-error" className="text-xs text-error">
+              {fieldErrors.email}
+            </p>
+          ) : null}
           {copy?.messageLabel ? (
-            <label className="flex flex-col gap-1 text-sm">
-              {copy.messageLabel}
-              <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} maxLength={2000} />
-            </label>
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                {copy.messageLabel}
+                <Textarea
+                  value={message}
+                  onChange={(event) => {
+                    setMessage(event.target.value);
+                    onFieldEdit("message");
+                  }}
+                  rows={4}
+                  maxLength={2000}
+                  aria-invalid={fieldErrors.message ? true : undefined}
+                  aria-describedby={fieldErrors.message ? "response-message-error" : undefined}
+                />
+              </label>
+              {fieldErrors.message ? (
+                <p id="response-message-error" className="text-xs text-error">
+                  {fieldErrors.message}
+                </p>
+              ) : null}
+            </>
           ) : null}
           {error ? (
             <p role="alert" className="text-sm text-error">

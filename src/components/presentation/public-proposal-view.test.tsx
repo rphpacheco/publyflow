@@ -133,4 +133,63 @@ describe("PublicProposalView", () => {
     expect(screen.queryByRole("button", { name: "Aceitar" })).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Proposta aceita por Maria em 26 de setembro de 2026.");
   });
+
+  async function acceptWith(name: string, email: string) {
+    await userEvent.click(screen.getByRole("button", { name: "Aceitar" }));
+    await userEvent.type(screen.getByLabelText("Nome"), name);
+    await userEvent.type(screen.getByLabelText("E-mail"), email);
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+  }
+
+  it("400 with a field error shows it under the field, marks it invalid, and hides the general message", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { email: ["E-mail inválido."] } }), { status: 400 }),
+    );
+    renderView();
+    await acceptWith("Maria", "maria@bella");
+
+    expect(await screen.findByText("E-mail inválido.")).toBeInTheDocument();
+    const email = screen.getByLabelText("E-mail");
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    expect(email).toHaveAccessibleDescription("E-mail inválido.");
+    expect(screen.getByLabelText("Nome")).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Confira os dados informados.")).not.toBeInTheDocument();
+  });
+
+  it("editing a field clears only that field's server error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { name: ["Informe seu nome."], email: ["E-mail inválido."] } }), { status: 400 }),
+    );
+    renderView();
+    await acceptWith("M", "maria@bella");
+    await screen.findByText("E-mail inválido.");
+
+    await userEvent.type(screen.getByLabelText("E-mail"), ".test");
+    expect(screen.queryByText("E-mail inválido.")).not.toBeInTheDocument();
+    expect(screen.getByText("Informe seu nome.")).toBeInTheDocument();
+  });
+
+  it("400 without visible-field errors keeps the general message", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { publicationId: ["Invalid UUID"] } }), { status: 400 }),
+    );
+    renderView();
+    await acceptWith("Maria", "maria@bella.test");
+    expect(await screen.findByText("Confira os dados informados.")).toBeInTheDocument();
+  });
+
+  it("a new submit clears previous server errors", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ errors: { email: ["E-mail inválido."] } }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "x" }), { status: 500 }));
+    renderView();
+    await acceptWith("Maria", "maria@bella");
+    await screen.findByText("E-mail inválido.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    expect(await screen.findByText("Não foi possível registrar sua resposta. Tente novamente.")).toBeInTheDocument();
+    expect(screen.queryByText("E-mail inválido.")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
