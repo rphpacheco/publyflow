@@ -10,6 +10,7 @@ import {
 import { RateCardItemNotFoundError } from "@/domain/rate-cards/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 const catalogSchema = z.object({
   rateCardItemId: z.string().uuid(),
@@ -31,6 +32,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
 
   const items = await ProposalItemService.listByProposal(db, session.organizationId, id);
   return NextResponse.json(items, { status: 200 });
@@ -41,6 +45,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
   const payload = bodySchema.parse(await request.json());
 
   try {

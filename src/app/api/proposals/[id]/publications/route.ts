@@ -5,15 +5,14 @@ import { ProposalArchivedError, ProposalNotFoundError, UserNotOrganizationMember
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { scheduleEventDrain } from "@/lib/events/schedule-drain";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from "@/lib/uuid";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
   }
 
@@ -40,7 +39,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
   }
 

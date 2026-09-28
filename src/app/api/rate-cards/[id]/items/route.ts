@@ -10,6 +10,7 @@ import {
 } from "@/domain/rate-cards/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 const bodySchema = z.object({
   serviceId: z.string().uuid(),
@@ -23,6 +24,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new RateCardNotFoundError(id).message }, { status: 404 });
+  }
   const payload = bodySchema.parse(await request.json());
 
   try {

@@ -5,12 +5,16 @@ import { OpportunityService } from "@/services/opportunity.service";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new OpportunityNotFoundError(id).message }, { status: 404 });
+  }
 
   const opportunity = await OpportunityService.findById(db, session.organizationId, id);
   if (!opportunity) {
@@ -44,6 +48,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new OpportunityNotFoundError(id).message }, { status: 404 });
+  }
   const payload = patchSchema.parse(await request.json());
 
   try {

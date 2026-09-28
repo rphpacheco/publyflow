@@ -9,6 +9,7 @@ import {
 } from "@/domain/commercial-flow/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 const bodySchema = z.object({
   contact: z.union([
@@ -28,6 +29,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: new InquiryNotFoundError(id).message }, { status: 404 });
+  }
   const payload = bodySchema.parse(await request.json());
   // companyId/brandId are left as-is (undefined when omitted from the
   // request body, distinct from an explicit `null`) so

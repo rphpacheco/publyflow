@@ -1,0 +1,73 @@
+import { describe, it, expect, afterAll } from "vitest";
+import { withTestDb } from "@/test/helpers/db";
+import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
+import { OpportunityNotFoundError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
+import { ProposalNotFoundError } from "@/domain/proposals/errors";
+import { RateCardNotFoundError, ServiceNotFoundError } from "@/domain/rate-cards/errors";
+
+const BAD = "not-a-uuid";
+const ORG = "00000000-0000-4000-8000-000000000001";
+const USER = "00000000-0000-4000-8000-000000000002";
+
+type Handler = (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+
+const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>; methods: string[]; error: string }> = [
+  { route: "companies/[id]", load: () => import("./companies/[id]/route"), methods: ["GET"], error: `Company ${BAD} not found` },
+  { route: "contacts/[id]", load: () => import("./contacts/[id]/route"), methods: ["GET"], error: `Contact ${BAD} not found` },
+  { route: "leads/[id]", load: () => import("./leads/[id]/route"), methods: ["GET"], error: `Lead ${BAD} not found` },
+  { route: "opportunities/[id]", load: () => import("./opportunities/[id]/route"), methods: ["GET", "PATCH"], error: new OpportunityNotFoundError(BAD).message },
+  { route: "commercial-inquiries/[id]/convert", load: () => import("./commercial-inquiries/[id]/convert/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
+  { route: "commercial-inquiries/[id]/discard", load: () => import("./commercial-inquiries/[id]/discard/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
+  { route: "commercial-inquiries/[id]/mark-false-positive", load: () => import("./commercial-inquiries/[id]/mark-false-positive/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
+  { route: "proposals/[id]", load: () => import("./proposals/[id]/route"), methods: ["GET", "PATCH"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/blocks", load: () => import("./proposals/[id]/blocks/route"), methods: ["GET", "POST"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/items", load: () => import("./proposals/[id]/items/route"), methods: ["GET", "POST"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/versions", load: () => import("./proposals/[id]/versions/route"), methods: ["GET"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/publications", load: () => import("./proposals/[id]/publications/route"), methods: ["POST", "GET"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/send-state", load: () => import("./proposals/[id]/send-state/route"), methods: ["GET"], error: new ProposalNotFoundError(BAD).message },
+  { route: "proposals/[id]/share-info", load: () => import("./proposals/[id]/share-info/route"), methods: ["GET"], error: new ProposalNotFoundError(BAD).message },
+  { route: "notifications/[id]", load: () => import("./notifications/[id]/route"), methods: ["PATCH"], error: "Notificação não encontrada." },
+  { route: "proposal-blocks/[id]", load: () => import("./proposal-blocks/[id]/route"), methods: ["PATCH", "DELETE"], error: "Não encontrado." },
+  { route: "proposal-items/[id]", load: () => import("./proposal-items/[id]/route"), methods: ["PATCH", "DELETE"], error: "Não encontrado." },
+  { route: "rate-card-items/[id]", load: () => import("./rate-card-items/[id]/route"), methods: ["PATCH", "DELETE"], error: "Não encontrado." },
+  { route: "rate-cards/[id]/duplicate", load: () => import("./rate-cards/[id]/duplicate/route"), methods: ["POST"], error: new RateCardNotFoundError(BAD).message },
+  { route: "rate-cards/[id]/items", load: () => import("./rate-cards/[id]/items/route"), methods: ["POST"], error: new RateCardNotFoundError(BAD).message },
+  { route: "services/[id]", load: () => import("./services/[id]/route"), methods: ["PATCH"], error: new ServiceNotFoundError(BAD).message },
+];
+
+describe("malformed [id] returns the route's 404, never a 500", () => {
+  let cleanup: (() => Promise<void>) | undefined;
+  afterAll(async () => cleanup?.());
+
+  for (const { route, load, methods, error } of cases) {
+    for (const method of methods) {
+      it(`${method} /api/${route}`, async () => {
+        const { db, cleanup: c } = await withTestDb();
+        cleanup = c;
+        const handlers = await importRouteWithSession(load, { db, session: ownerSession(ORG, USER) });
+        const handler = handlers[method] as Handler;
+        const init: RequestInit = { method };
+        if (method !== "GET" && method !== "DELETE") {
+          init.headers = { "content-type": "application/json" };
+          init.body = "{}";
+        }
+        const response = await handler(new Request(`http://localhost/api/${route.replace("[id]", BAD)}`, init), {
+          params: Promise.resolve({ id: BAD }),
+        });
+
+        expect(response.status).toBe(404);
+        expect(await response.json()).toEqual({ error });
+      });
+    }
+  }
+
+  it("still answers 401 without a session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { GET } = (await importRouteWithSession(() => import("./proposals/[id]/route"), { db, session: null })) as {
+      GET: Handler;
+    };
+    const response = await GET(new Request(`http://localhost/api/proposals/${BAD}`), { params: Promise.resolve({ id: BAD }) });
+    expect(response.status).toBe(401);
+  });
+});

@@ -9,6 +9,7 @@ import {
 } from "@/domain/rate-cards/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 const updateSchema = z.object({
   rateCardId: z.string().uuid(),
@@ -22,6 +23,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
+  }
   const payload = updateSchema.parse(await request.json());
   const { rateCardId, ...input } = payload;
 
@@ -48,6 +52,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
+  }
   const payload = deleteSchema.parse(await request.json());
 
   try {

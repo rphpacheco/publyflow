@@ -5,6 +5,7 @@ import { ProposalBlockService } from "@/services/proposal-block.service";
 import { ProposalBlockNotFoundError } from "@/domain/proposals/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { isUuid } from "@/lib/uuid";
 
 const updateSchema = z.object({
   proposalId: z.string().uuid(),
@@ -17,6 +18,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
+  }
   const { proposalId, ...input } = updateSchema.parse(await request.json());
 
   try {
@@ -40,6 +44,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
+  }
   const payload = deleteSchema.parse(await request.json());
 
   try {
