@@ -4,6 +4,7 @@ import { importRouteWithSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { ProposalService } from "@/services/proposal.service";
 import { ProposalSendingService } from "@/services/proposal-sending.service";
+import { RateLimitRepository } from "@/repositories/rate-limit.repository";
 
 const scheduleEventDrain = vi.fn();
 vi.mock("@/lib/events/schedule-drain", () => ({ scheduleEventDrain: () => scheduleEventDrain() }));
@@ -103,5 +104,69 @@ describe("POST /api/public/proposals/:token/responses (no session)", () => {
 
     await ProposalService.update(db, organization.id, proposal.id, { status: "ARCHIVED", userId: owner.id });
     expect((await POST(request(token, accept), params(token))).status).toBe(410);
+  });
+
+  it("413 when Content-Length is above 16 KB, without touching the database", async () => {
+    const { POST, token } = await published();
+    const hit = vi.spyOn(RateLimitRepository, "hit");
+    const response = await POST(
+      new Request(`http://localhost/api/public/proposals/${token}/responses`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "20000" },
+        body: "{}",
+      }),
+      params(token),
+    );
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ error: "Requisição muito grande." });
+    expect(hit).not.toHaveBeenCalled();
+    hit.mockRestore();
+  });
+
+  it("413 when the streamed body passes 16 KB without Content-Length", async () => {
+    const { POST, token } = await published();
+    const big = new TextEncoder().encode(JSON.stringify({ message: "x".repeat(20000) }));
+    const response = await POST(
+      new Request(`http://localhost/api/public/proposals/${token}/responses`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(big);
+            controller.close();
+          },
+        }),
+        duplex: "half",
+      } as RequestInit),
+      params(token),
+    );
+    expect(response.status).toBe(413);
+  });
+
+  it("429 with Retry-After on the 11th request from the same IP within 10 minutes", async () => {
+    const { POST, token } = await published();
+    const fromIp = () =>
+      new Request(`http://localhost/api/public/proposals/${token}/responses`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-real-ip": "203.0.113.7" },
+        body: JSON.stringify({}),
+      });
+
+    for (let i = 0; i < 10; i += 1) {
+      expect((await POST(fromIp(), params(token))).status).toBe(400);
+    }
+    const blocked = await POST(fromIp(), params(token));
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+    expect(blocked.headers.get("cache-control")).toBe("no-store");
+    expect(await blocked.json()).toEqual({ error: "Muitas tentativas. Tente novamente em alguns minutos." });
+
+    const otherIp = new Request(`http://localhost/api/public/proposals/${token}/responses`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-real-ip": "203.0.113.8" },
+      body: JSON.stringify({}),
+    });
+    expect((await POST(otherIp, params(token))).status).toBe(400);
   });
 });

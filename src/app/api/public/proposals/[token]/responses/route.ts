@@ -9,8 +9,17 @@ import {
   PublicationAlreadyRespondedError,
   PublicationSupersededError,
 } from "@/domain/proposals/errors";
+import { checkRateLimit, PUBLIC_RESPONSE_LIMIT } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import {
+  MAX_PUBLIC_BODY_BYTES,
+  PayloadTooLargeError,
+  declaredLengthExceeds,
+  readJsonWithLimit,
+} from "@/lib/read-json-with-limit";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+const TOO_LARGE = { error: "Requisição muito grande." };
 
 const bodySchema = z
   .object({
@@ -28,7 +37,28 @@ const bodySchema = z
 // Public: no session. Everything resolves through token → proposal → publication.
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (declaredLengthExceeds(request, MAX_PUBLIC_BODY_BYTES)) {
+    return NextResponse.json(TOO_LARGE, { status: 413, headers: NO_STORE });
+  }
+
+  const limit = await checkRateLimit(db, { ...PUBLIC_RESPONSE_LIMIT, ip: clientIp(request.headers) });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Tente novamente em alguns minutos." },
+      { status: 429, headers: { ...NO_STORE, "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+
+  let raw: unknown;
+  try {
+    raw = await readJsonWithLimit(request, MAX_PUBLIC_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      return NextResponse.json(TOO_LARGE, { status: 413, headers: NO_STORE });
+    }
+    throw error;
+  }
+  const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400, headers: NO_STORE });
   }
