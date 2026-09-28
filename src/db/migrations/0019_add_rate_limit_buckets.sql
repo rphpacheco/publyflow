@@ -6,3 +6,7 @@ CREATE TABLE "rate_limit_buckets" (
 );
 --> statement-breakpoint
 CREATE INDEX "rate_limit_buckets_window_idx" ON "rate_limit_buckets" USING btree ("window_start");
+--> statement-breakpoint
+-- No policies on purpose: deny-all for non-owner roles (anon/authenticated). The app connects as the
+-- table owner, which bypasses RLS, exactly like the other tables (see 0002_rls_core.sql).
+alter table rate_limit_buckets enable row level security;

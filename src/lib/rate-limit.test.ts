@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { withTestDb } from "@/test/helpers/db";
 import { rateLimitBuckets } from "@/db/schema/rate-limit";
 import { RateLimitRepository } from "@/repositories/rate-limit.repository";
-import { checkRateLimit, rateLimitKey } from "./rate-limit";
+import { checkRateLimit, rateLimitKey, RATE_LIMIT_TIMEOUT_MS } from "./rate-limit";
 
 const at = (iso: string) => new Date(iso);
 
@@ -71,5 +71,28 @@ describe("checkRateLimit", () => {
       retryAfterSeconds: 0,
     });
     expect(log).toHaveBeenCalledWith("Rate limit check failed", expect.any(Error));
+  });
+
+  it("fails open when the store hangs past the timeout", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(RateLimitRepository, "hit").mockReturnValueOnce(new Promise(() => {}));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const resultPromise = checkRateLimit({} as never, {
+      scope: "s",
+      ip: "203.0.113.7",
+      limit: 1,
+      windowSeconds: 60,
+    });
+    await vi.advanceTimersByTimeAsync(RATE_LIMIT_TIMEOUT_MS);
+    const result = await resultPromise;
+
+    expect(result).toEqual({ allowed: true, retryAfterSeconds: 0 });
+    expect(log).toHaveBeenCalledWith(
+      "Rate limit check failed",
+      expect.objectContaining({ message: "Rate limit check timed out" }),
+    );
+
+    vi.useRealTimers();
   });
 });

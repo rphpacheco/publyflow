@@ -26,14 +26,16 @@ O que falta proteger:
 retenção dos contadores.
 
 **Fora de escopo:** rotas autenticadas; limite por token; bloqueio permanente de IP; regras no
-firewall da Vercel; CAPTCHA. Ficam para quando houver abuso real observado.
+firewall da Vercel; CAPTCHA; normalizar IPv6 para o prefixo /64. Ficam para quando houver abuso
+real observado.
 
 ## 2. Decisões
 
 - **Contadores no Postgres existente**, não em memória (inútil em serverless) nem num fornecedor
   novo (Upstash) ou no firewall da Vercel. Não há conta, chave ou variável de ambiente nova.
 - **Janela fixa**, por simplicidade e custo: uma única instrução atômica por acesso.
-- **Chave por IP, com o IP em hash** (SHA-256), nunca em texto. Retenção de 24 h.
+- **Chave por IP**, com o IP pseudonimizado (SHA-256), nunca em texto. Retenção entre 24 e 48 h
+  (limpeza diária do que tem mais de 24 h).
 - **Fail-open:** se a checagem falhar (erro de banco), a requisição passa e o erro vai para o log.
   O rate limit nunca é a causa de a página do cliente cair.
 
