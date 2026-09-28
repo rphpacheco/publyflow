@@ -3,6 +3,8 @@ import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { ProposalSendingService } from "@/services/proposal-sending.service";
+import { RateLimitRepository } from "@/repositories/rate-limit.repository";
+import { rateLimitBuckets } from "@/db/schema/rate-limit";
 
 const request = (method: "GET" | "POST", token?: string) =>
   new Request("http://localhost/api/internal/events/drain", {
@@ -46,5 +48,42 @@ describe("/api/internal/events/drain", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ processed: 1, failed: 0 });
     expect(await (await POST(request("POST", "s3cret"))).json()).toEqual({ processed: 0, failed: 0 });
+  });
+
+  it("purges rate-limit windows older than 24 hours", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    vi.stubEnv("CRON_SECRET", "s3cret");
+    await RateLimitRepository.hit(db, "old", new Date(Date.now() - 25 * 3600 * 1000));
+    await RateLimitRepository.hit(db, "recent", new Date(Date.now() - 3600 * 1000));
+    const { GET } = await importRouteWithSession(() => import("./route"), { db, session: null });
+
+    expect((await GET(request("GET", "s3cret"))).status).toBe(200);
+    const rows = await db.select().from(rateLimitBuckets);
+    expect(rows.map((row) => row.key)).toEqual(["recent"]);
+  });
+
+  it("still answers 200 when the purge fails", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    vi.stubEnv("CRON_SECRET", "s3cret");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: null,
+      extraMocks: () => {
+        vi.doMock("@/repositories/rate-limit.repository", () => ({
+          RateLimitRepository: {
+            purgeOlderThan: async () => {
+              throw new Error("db down");
+            },
+          },
+        }));
+      },
+    });
+
+    expect((await GET(request("GET", "s3cret"))).status).toBe(200);
+    expect(log).toHaveBeenCalledWith("Rate limit purge failed", expect.any(Error));
+    log.mockRestore();
   });
 });

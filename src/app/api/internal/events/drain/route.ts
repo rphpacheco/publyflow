@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { EventDrainService } from "@/services/event-drain.service";
+import { RateLimitRepository } from "@/repositories/rate-limit.repository";
+
+const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 // Vercel Cron calls GET with `Authorization: Bearer ${CRON_SECRET}`.
 async function drain(request: Request) {
@@ -12,6 +15,11 @@ async function drain(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const result = await EventDrainService.drain(db);
+  try {
+    await RateLimitRepository.purgeOlderThan(db, new Date(Date.now() - RATE_LIMIT_RETENTION_MS));
+  } catch (error) {
+    console.error("Rate limit purge failed", error);
+  }
   return NextResponse.json(result, { status: 200, headers: { "Cache-Control": "no-store" } });
 }
 

@@ -51,6 +51,8 @@ export function PublicProposalView({ token, model, publicationId, versionNumber,
         setServerError({ message: "Esta proposta foi atualizada. Recarregue para ver a versão atual.", reload: true });
       } else if (result.status === 410 || result.status === 404) {
         setServerError({ message: "Esta proposta não está mais disponível.", reload: true });
+      } else if (result.status === 429) {
+        setServerError({ message: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.", reload: false });
       } else if (result.status === 400) {
         setServerError({ message: "Confira os dados informados.", reload: false });
       } else {

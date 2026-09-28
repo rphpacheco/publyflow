@@ -109,6 +109,25 @@ describe("PublicProposalView", () => {
     await vi.waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 
+  it("429 asks to wait and keeps what was typed", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "x" }), { status: 429, headers: { "Retry-After": "300" } }),
+    );
+    renderView();
+
+    await userEvent.click(screen.getByRole("button", { name: "Aceitar" }));
+    await userEvent.type(screen.getByLabelText("Nome"), "Maria");
+    await userEvent.type(screen.getByLabelText("E-mail"), "maria@bella.test");
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(
+      await screen.findByText("Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Recarregar" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nome")).toHaveValue("Maria");
+    expect(screen.getByRole("button", { name: "Confirmar" })).toBeEnabled();
+  });
+
   it("with a response shows the result and no buttons", () => {
     renderView({ response: { action: "ACCEPT", respondentName: "Maria", respondedAtLabel: "26 de setembro de 2026", message: null } });
     expect(screen.queryByRole("button", { name: "Aceitar" })).not.toBeInTheDocument();
