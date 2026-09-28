@@ -134,6 +134,13 @@
       "when": 1790471670343,
       "tag": "0018_add_domain_events_and_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790623037082,
+      "tag": "0019_add_rate_limit_buckets",
+      "breakpoints": true
     }
   ]
 }

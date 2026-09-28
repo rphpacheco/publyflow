@@ -7,3 +7,4 @@ export * from "./services";
 export * from "./rate-cards";
 export * from "./proposals";
 export * from "./domain-events";
+export * from "./rate-limit";
