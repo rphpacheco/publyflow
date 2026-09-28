@@ -1,34 +1,98 @@
 import OpenAI from "openai";
 import type { ClassifyMessageInput } from "./ai-service";
-import { extractedFieldsSchema, type ExtractedFields } from "./schemas";
+import {
+  extractedFieldsSchema,
+  intentClassificationSchema,
+  messageCategoryEnum,
+  type ExtractedFields,
+  type IntentClassification,
+} from "./schemas";
+
+const MODEL = "gpt-4o-mini";
 
 const EXTRACTION_PROMPT = `Você extrai dados estruturados de mensagens comerciais recebidas
-por uma creator. Retorne APENAS um JSON válido no formato especificado. Nunca invente
-informações que não estão no texto — quando um dado não estiver disponível, use null.`;
+por uma creator. Nunca invente informações que não estão no texto — quando um dado não
+estiver disponível, use null.`;
+
+const CLASSIFICATION_PROMPT = `Você classifica mensagens recebidas por uma creator de conteúdo.
+Escolha a categoria, dê um Commercial Score de 0 a 100 (a probabilidade de a mensagem ser
+de uma marca ou empresa querendo contratá-la) e resuma a intenção em poucas palavras, ou
+null se não houver uma intenção clara.`;
+
+const nullableString = { type: ["string", "null"] };
+
+const EXTRACTION_FIELDS = [
+  "companyName",
+  "brandName",
+  "contactName",
+  "email",
+  "phone",
+  "budget",
+  "deliverables",
+] as const;
+
+// Structured Outputs: the model must return exactly these keys, so the zod
+// parse below validates values rather than guessing at key names.
+const EXTRACTION_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "lead_data",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: Object.fromEntries(EXTRACTION_FIELDS.map((field) => [field, nullableString])),
+      required: [...EXTRACTION_FIELDS],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+const CLASSIFICATION_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "message_classification",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        category: { type: "string", enum: messageCategoryEnum.options },
+        commercialScore: { type: "integer" },
+        intent: nullableString,
+      },
+      required: ["category", "commercialScore", "intent"],
+      additionalProperties: false,
+    },
+  },
+} as const;
 
 export interface OpenAIExtractionService {
   extractLeadData(input: ClassifyMessageInput): Promise<ExtractedFields>;
+  /** Fallback classifier, used when Jev is unavailable. */
+  classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification>;
 }
 
 export function createOpenAIService(apiKey: string): OpenAIExtractionService {
   const client = new OpenAI({ apiKey });
 
+  async function complete(systemPrompt: string, input: ClassifyMessageInput, responseFormat: object): Promise<unknown> {
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      response_format: responseFormat as OpenAI.ChatCompletionCreateParams["response_format"],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Origem: ${input.source}\nMensagem: ${input.body}` },
+      ],
+    });
+    return JSON.parse(response.choices[0]?.message?.content ?? "{}");
+  }
+
   return {
     async extractLeadData(input: ClassifyMessageInput): Promise<ExtractedFields> {
-      const response = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
-          {
-            role: "user",
-            content: `Origem: ${input.source}\nMensagem: ${input.body}`,
-          },
-        ],
-      });
+      return extractedFieldsSchema.parse(await complete(EXTRACTION_PROMPT, input, EXTRACTION_FORMAT));
+    },
 
-      const raw = response.choices[0]?.message?.content ?? "{}";
-      return extractedFieldsSchema.parse(JSON.parse(raw));
+    async classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification> {
+      return intentClassificationSchema.parse(await complete(CLASSIFICATION_PROMPT, input, CLASSIFICATION_FORMAT));
     },
   };
 }

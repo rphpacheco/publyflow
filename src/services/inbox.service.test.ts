@@ -9,6 +9,7 @@ import type { MessageClassification } from "@/lib/ai/schemas";
 import { conversations, messages } from "@/db/schema/conversations-messages";
 import { CommercialInquiriesRepository } from "@/repositories/commercial-inquiries.repository";
 import { CreatorNotFoundError } from "@/domain/creators/errors";
+import { MessageClassificationError } from "@/domain/inbox/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
   return { classifyMessage: async () => classification };
@@ -212,5 +213,38 @@ describe("InboxService.ingestManualMessage", () => {
         receivedAt: new Date(),
       }),
     ).rejects.toThrow(CreatorNotFoundError);
+  });
+
+  it("raises MessageClassificationError and stores nothing when classification fails", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    const creator = await CreatorService.onboardCreator(db, organization.id, {
+      email: "thais@publyflow.test",
+      fullName: "Thais",
+      displayName: "Thais",
+    });
+    const ai: AIService = {
+      classifyMessage: async () => {
+        throw new Error("openai down");
+      },
+    };
+
+    await expect(
+      InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria",
+        body: "Olá, gostaríamos de saber os valores para uma campanha.",
+        receivedAt: new Date(),
+      }),
+    ).rejects.toBeInstanceOf(MessageClassificationError);
+
+    expect(await db.select().from(conversations).where(eq(conversations.creatorId, creator.id))).toHaveLength(0);
   });
 });

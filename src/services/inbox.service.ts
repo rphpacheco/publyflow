@@ -14,6 +14,7 @@ import {
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { CreatorsRepository } from "@/repositories/creators.repository";
 import { CreatorNotFoundError } from "@/domain/creators/errors";
+import { MessageClassificationError } from "@/domain/inbox/errors";
 
 const NON_COMMERCIAL_CATEGORIES = new Set(["FAN", "SPAM"]);
 
@@ -43,10 +44,15 @@ export const InboxService = {
     // transaction open across an external HTTP round trip. It only depends
     // on `body`/`source` from the input, not on the conversation/message
     // rows, so reordering it ahead of the inserts is safe.
-    const classification = await ai.classifyMessage({
-      body: input.body,
-      source: input.source,
-    });
+    let classification: MessageClassification;
+    try {
+      classification = await ai.classifyMessage({
+        body: input.body,
+        source: input.source,
+      });
+    } catch (error) {
+      throw new MessageClassificationError(error);
+    }
 
     // Conversation + message + (conditionally) commercial inquiry must
     // commit or roll back together: a message with no inquiry is fine (FAN/
