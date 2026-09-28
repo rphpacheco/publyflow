@@ -2,8 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
+import { db } from "@/db";
+import { checkRateLimit, PUBLIC_PAGE_LIMIT } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/p/")) {
+    const limit = await checkRateLimit(db, { ...PUBLIC_PAGE_LIMIT, ip: clientIp(request.headers) });
+    if (!limit.allowed) {
+      return new NextResponse("Muitas requisições. Aguarde um minuto e recarregue a página.", {
+        status: 429,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Retry-After": String(limit.retryAfterSeconds),
+        },
+      });
+    }
+  }
+
   let response = NextResponse.next({ request });
   const { url, anonKey } = getSupabaseEnv();
 
