@@ -45,10 +45,12 @@ async function copyLink(publicPath: string) {
 
 /** Renders only what GET /send-state computed; never derives state itself. */
 export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
-  const { data: state } = useProposalSendState(proposalId);
+  const sendStateQuery = useProposalSendState(proposalId);
+  const state = sendStateQuery.data;
   const publish = usePublishProposal(proposalId);
   const [confirming, setConfirming] = React.useState(false);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
+  const [checking, setChecking] = React.useState(false);
 
   if (!state || state.status === "ARCHIVED") return null;
 
@@ -59,11 +61,25 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
     publish.mutate(undefined, { onSuccess: (result) => setSentPath(result.publicPath) });
   }
 
-  function onSendClick() {
-    if (CONFIRM_COPY[state!.status]) {
-      setConfirming(true);
-    } else {
-      send();
+  // Decide on the server's current state, not the one loaded with the page:
+  // the client may have accepted or rejected since.
+  async function onSendClick() {
+    setChecking(true);
+    try {
+      const result = await sendStateQuery.refetch();
+      const fresh = result.data;
+      if (result.isError || !fresh) {
+        toast.error("Não foi possível verificar o estado da proposta. Tente novamente.");
+        return;
+      }
+      if (!fresh.canSend) return;
+      if (CONFIRM_COPY[fresh.status]) {
+        setConfirming(true);
+      } else {
+        send();
+      }
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -106,7 +122,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending}>
+        <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
           {publication ? "Reenviar" : "Enviar proposta"}
         </Button>
         {state.publicPath ? (

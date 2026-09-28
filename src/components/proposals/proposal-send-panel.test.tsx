@@ -5,12 +5,18 @@ import userEvent from "@testing-library/user-event";
 import type { SendStateDto } from "@/hooks/use-proposal-sending";
 
 let sendState: SendStateDto | undefined;
+let freshState: SendStateDto | undefined;
+let refetchFails = false;
 const mutateMock = vi.fn();
+const refetchMock = vi.fn(async () =>
+  refetchFails ? { data: undefined, isError: true } : { data: freshState ?? sendState, isError: false },
+);
 vi.mock("@/hooks/use-proposal-sending", () => ({
-  useProposalSendState: () => ({ data: sendState, isLoading: false }),
+  useProposalSendState: () => ({ data: sendState, isLoading: false, refetch: refetchMock }),
   usePublishProposal: () => ({ mutate: mutateMock, isPending: false }),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toastError = vi.fn();
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: (...args: unknown[]) => toastError(...args) } }));
 vi.mock("@/hooks/use-proposal-share-info", () => ({ useProposalShareInfo: () => ({ data: undefined }) }));
 
 import { ProposalSendPanel } from "./proposal-send-panel";
@@ -32,6 +38,10 @@ function state(overrides: Partial<SendStateDto>): SendStateDto {
 describe("ProposalSendPanel", () => {
   beforeEach(() => {
     mutateMock.mockReset();
+    refetchMock.mockClear();
+    toastError.mockReset();
+    freshState = undefined;
+    refetchFails = false;
   });
 
   it("DRAFT never sent: 'Enviar proposta' and 'Ainda não enviada.'", async () => {
@@ -39,7 +49,7 @@ describe("ProposalSendPanel", () => {
     render(<ProposalSendPanel proposalId="p1" />);
     expect(screen.getByText("Ainda não enviada.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Enviar proposta" }));
-    expect(mutateMock).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalled());
   });
 
   it("SENT without changes: waiting, link actions, Reenviar disabled with hint", () => {
@@ -57,7 +67,7 @@ describe("ProposalSendPanel", () => {
     render(<ProposalSendPanel proposalId="p1" />);
     expect(screen.getByText("Alterações não enviadas — o cliente ainda vê a versão 3.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
-    expect(mutateMock).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalled());
   });
 
   it("CHANGES_REQUESTED: shows who asked and the message; without changes hints to edit", () => {
@@ -73,7 +83,7 @@ describe("ProposalSendPanel", () => {
     sendState = state({ status: "CHANGES_REQUESTED", publicPath: "/p/tok", latestPublication: changes, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
     render(<ProposalSendPanel proposalId="p1" />);
     await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
-    expect(mutateMock).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalled());
     expect(screen.queryByText("Abrir nova rodada?")).not.toBeInTheDocument();
   });
 
@@ -85,10 +95,10 @@ describe("ProposalSendPanel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
     expect(mutateMock).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("alertdialog");
+    const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Esta proposta já foi aceita. Reenviar abre uma nova rodada e o status volta para Enviada.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Reenviar" }));
-    expect(mutateMock).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalled());
   });
 
   it("REJECTED with changes asks for confirmation with the rejected copy", async () => {
@@ -102,7 +112,7 @@ describe("ProposalSendPanel", () => {
     });
     render(<ProposalSendPanel proposalId="p1" />);
     await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
-    expect(screen.getByText("Esta proposta já foi recusada. Reenviar abre uma nova rodada e o status volta para Enviada.")).toBeInTheDocument();
+    expect(await screen.findByText("Esta proposta já foi recusada. Reenviar abre uma nova rodada e o status volta para Enviada.")).toBeInTheDocument();
   });
 
   it("DRAFT after unarchiving: link disabled message and Reenviar", () => {
@@ -117,5 +127,63 @@ describe("ProposalSendPanel", () => {
     sendState = state({ status: "ARCHIVED", canSend: false });
     const { container } = render(<ProposalSendPanel proposalId="p1" />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("re-checks the state before sending and confirms when the client answered meanwhile", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    freshState = state({ status: "APPROVED", publicPath: "/p/tok", latestPublication: accepted, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Abrir nova rodada?")).toBeInTheDocument();
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("sends without confirmation when the fresh state still allows it", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not send when the fresh state can no longer send", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    freshState = { ...sendState, canSend: false };
+    render(<ProposalSendPanel proposalId="p1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+
+    expect(mutateMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Abrir nova rodada?")).not.toBeInTheDocument();
+  });
+
+  it("shows a toast and does not send when the re-check fails", async () => {
+    sendState = state({});
+    refetchFails = true;
+    render(<ProposalSendPanel proposalId="p1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Enviar proposta" }));
+
+    expect(toastError).toHaveBeenCalledWith("Não foi possível verificar o estado da proposta. Tente novamente.");
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("disables the send button while re-checking", async () => {
+    sendState = state({});
+    let release!: () => void;
+    refetchMock.mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve({ data: sendState, isError: false }))),
+    );
+    render(<ProposalSendPanel proposalId="p1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Enviar proposta" }));
+    expect(screen.getByRole("button", { name: "Enviar proposta" })).toBeDisabled();
+    release();
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(1));
   });
 });
