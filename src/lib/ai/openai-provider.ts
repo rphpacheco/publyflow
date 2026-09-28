@@ -56,7 +56,7 @@ const CLASSIFICATION_FORMAT = {
       type: "object",
       properties: {
         category: { type: "string", enum: messageCategoryEnum.options },
-        commercialScore: { type: "integer" },
+        commercialScore: { type: "integer", minimum: 0, maximum: 100 },
         intent: nullableString,
       },
       required: ["category", "commercialScore", "intent"],
@@ -74,10 +74,14 @@ export interface OpenAIExtractionService {
 export function createOpenAIService(apiKey: string): OpenAIExtractionService {
   const client = new OpenAI({ apiKey });
 
-  async function complete(systemPrompt: string, input: ClassifyMessageInput, responseFormat: object): Promise<unknown> {
+  async function complete(
+    systemPrompt: string,
+    input: ClassifyMessageInput,
+    responseFormat: OpenAI.ResponseFormatJSONSchema,
+  ): Promise<unknown> {
     const response = await client.chat.completions.create({
       model: MODEL,
-      response_format: responseFormat as OpenAI.ChatCompletionCreateParams["response_format"],
+      response_format: responseFormat,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Origem: ${input.source}\nMensagem: ${input.body}` },
