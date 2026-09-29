@@ -56,8 +56,9 @@ export function PublicProposalView({ token, model, publicationId, versionNumber,
       } else if (result.status === 429) {
         setServerError({ message: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.", reload: false });
       } else if (result.status === 400) {
+        const visibleFields = action === "request_changes" || action === "reject" ? (["name", "email", "message"] as const) : (["name", "email"] as const);
         const visible: ResponseFieldErrors = {};
-        for (const field of ["name", "email", "message"] as const) {
+        for (const field of visibleFields) {
           const first = body.errors?.[field]?.[0];
           if (first) visible[field] = first;
         }
@@ -96,7 +97,13 @@ export function PublicProposalView({ token, model, publicationId, versionNumber,
         pending={pending}
         serverError={serverError}
         fieldErrors={fieldErrors}
-        onFieldEdit={(field) => setFieldErrors(({ [field]: _removed, ...rest }) => rest)}
+        onFieldEdit={(field) =>
+          setFieldErrors((prev) => {
+            if (!(field in prev)) return prev;
+            const { [field]: _removed, ...rest } = prev;
+            return rest;
+          })
+        }
         onSubmit={submit}
         onReload={() => {
           setAction(null);

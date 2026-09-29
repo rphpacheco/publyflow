@@ -48,7 +48,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const sendStateQuery = useProposalSendState(proposalId);
   const state = sendStateQuery.data;
   const publish = usePublishProposal(proposalId);
-  const [confirming, setConfirming] = React.useState(false);
+  const [confirmStatus, setConfirmStatus] = React.useState<SendStateDto["status"] | null>(null);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
 
@@ -74,7 +74,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
       }
       if (!fresh.canSend) return;
       if (CONFIRM_COPY[fresh.status]) {
-        setConfirming(true);
+        setConfirmStatus(fresh.status);
       } else {
         send();
       }
@@ -123,7 +123,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
-          {publication ? "Reenviar" : "Enviar proposta"}
+          {checking ? "Verificando…" : publication ? "Reenviar" : "Enviar proposta"}
         </Button>
         {state.publicPath ? (
           <>
@@ -143,11 +143,11 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
         <p className="text-xs text-muted-foreground">{DISABLED_HINT[state.status]}</p>
       ) : null}
 
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog open={confirmStatus !== null} onOpenChange={(open) => !open && setConfirmStatus(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Abrir nova rodada?</AlertDialogTitle>
-            <AlertDialogDescription>{CONFIRM_COPY[state.status]}</AlertDialogDescription>
+            <AlertDialogDescription>{confirmStatus ? CONFIRM_COPY[confirmStatus] : null}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel asChild>
@@ -156,7 +156,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
             <AlertDialogAction asChild>
               <Button
                 onClick={() => {
-                  setConfirming(false);
+                  setConfirmStatus(null);
                   send();
                 }}
               >

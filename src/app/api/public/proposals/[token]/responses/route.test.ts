@@ -87,6 +87,22 @@ describe("POST /api/public/proposals/:token/responses (no session)", () => {
     }
   });
 
+  it("400 field errors use the Portuguese messages shown to the client", async () => {
+    const { POST, token, sent } = await published();
+    const base = { publicationId: sent.publication.id, action: "ACCEPT", name: "Maria" };
+
+    const badEmail = await POST(request(token, { ...base, email: "maria@bella" }), params(token));
+    expect(badEmail.status).toBe(400);
+    expect((await badEmail.json()).errors.email).toEqual(["Informe um e-mail válido."]);
+
+    const longName = await POST(
+      request(token, { ...base, name: "a".repeat(121), email: "maria@bella.test" }),
+      params(token),
+    );
+    expect(longName.status).toBe(400);
+    expect((await longName.json()).errors.name).toEqual(["Use no máximo 120 caracteres."]);
+  });
+
   it("404 unknown token, 410 unavailable, 409 SUPERSEDED and 409 ALREADY_RESPONDED", async () => {
     const { db, POST, token, sent, organization, owner, proposal } = await published();
     const accept = { publicationId: sent.publication.id, action: "ACCEPT", name: "Maria", email: "maria@bella.test" };

@@ -49,7 +49,7 @@ describe("malformed [id] returns the route's 404, never a 500", () => {
         const init: RequestInit = { method };
         if (method !== "GET" && method !== "DELETE") {
           init.headers = { "content-type": "application/json" };
-          init.body = "{}";
+          init.body = "not json";
         }
         const response = await handler(new Request(`http://localhost/api/${route.replace("[id]", BAD)}`, init), {
           params: Promise.resolve({ id: BAD }),

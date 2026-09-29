@@ -9,7 +9,7 @@ let freshState: SendStateDto | undefined;
 let refetchFails = false;
 const mutateMock = vi.fn();
 const refetchMock = vi.fn(async () =>
-  refetchFails ? { data: undefined, isError: true } : { data: freshState ?? sendState, isError: false },
+  refetchFails ? { data: sendState, isError: true } : { data: freshState ?? sendState, isError: false },
 );
 vi.mock("@/hooks/use-proposal-sending", () => ({
   useProposalSendState: () => ({ data: sendState, isLoading: false, refetch: refetchMock }),
@@ -138,6 +138,9 @@ describe("ProposalSendPanel", () => {
 
     expect(refetchMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Abrir nova rodada?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Esta proposta já foi aceita. Reenviar abre uma nova rodada e o status volta para Enviada."),
+    ).toBeInTheDocument();
     expect(mutateMock).not.toHaveBeenCalled();
   });
 
@@ -182,7 +185,7 @@ describe("ProposalSendPanel", () => {
     render(<ProposalSendPanel proposalId="p1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "Enviar proposta" }));
-    expect(screen.getByRole("button", { name: "Enviar proposta" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Verificando…" })).toBeDisabled();
     release();
     await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(1));
   });

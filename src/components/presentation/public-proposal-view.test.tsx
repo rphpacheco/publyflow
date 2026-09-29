@@ -156,6 +156,17 @@ describe("PublicProposalView", () => {
     expect(screen.queryByText("Confira os dados informados.")).not.toBeInTheDocument();
   });
 
+  it("400 with a field error moves focus to the first invalid field", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { email: ["E-mail inválido."] } }), { status: 400 }),
+    );
+    renderView();
+    await acceptWith("Maria", "maria@bella");
+
+    await screen.findByText("E-mail inválido.");
+    expect(screen.getByLabelText("E-mail")).toHaveFocus();
+  });
+
   it("editing a field clears only that field's server error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ errors: { name: ["Informe seu nome."], email: ["E-mail inválido."] } }), { status: 400 }),
@@ -176,6 +187,31 @@ describe("PublicProposalView", () => {
     renderView();
     await acceptWith("Maria", "maria@bella.test");
     expect(await screen.findByText("Confira os dados informados.")).toBeInTheDocument();
+  });
+
+  it("ACCEPT + 400 with only a message error falls back to the general message (accept has no message field)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { message: ["x"] } }), { status: 400 }),
+    );
+    renderView();
+    await acceptWith("Maria", "maria@bella.test");
+
+    expect(await screen.findByText("Confira os dados informados.")).toBeInTheDocument();
+  });
+
+  it("request_changes + 400 with a message error shows it under the Mensagem field", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { message: ["Use no máximo 2000 caracteres."] } }), { status: 400 }),
+    );
+    renderView();
+    await userEvent.click(screen.getByRole("button", { name: "Pedir ajustes" }));
+    await userEvent.type(screen.getByLabelText("Nome"), "Maria");
+    await userEvent.type(screen.getByLabelText("E-mail"), "maria@bella.test");
+    await userEvent.type(screen.getByLabelText("Mensagem"), "Trocar horário");
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(await screen.findByText("Use no máximo 2000 caracteres.")).toBeInTheDocument();
+    expect(screen.queryByText("Confira os dados informados.")).not.toBeInTheDocument();
   });
 
   it("a new submit clears previous server errors", async () => {

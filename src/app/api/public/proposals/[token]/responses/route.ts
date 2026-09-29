@@ -25,9 +25,9 @@ const bodySchema = z
   .object({
     publicationId: z.uuid(),
     action: z.enum(["ACCEPT", "REQUEST_CHANGES", "REJECT"]),
-    name: z.string().trim().min(1).max(120),
-    email: z.email().max(254),
-    message: z.string().trim().max(2000).nullish(),
+    name: z.string().trim().min(1, "Informe seu nome.").max(120, "Use no máximo 120 caracteres."),
+    email: z.email({ error: "Informe um e-mail válido." }).max(254, "Use no máximo 254 caracteres."),
+    message: z.string().trim().max(2000, "Use no máximo 2000 caracteres.").nullish(),
   })
   .refine((body) => body.action !== "REQUEST_CHANGES" || !!body.message, {
     path: ["message"],

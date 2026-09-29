@@ -49,6 +49,27 @@ export function ResponseDialog({
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const copy = action ? COPY[action] : null;
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  const emailRef = React.useRef<HTMLInputElement>(null);
+  const messageRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Move focus to the first invalid field so screen readers announce the error via aria-describedby.
+  // Only on the empty → non-empty transition (a fresh server response), so clearing one field's
+  // error while the visitor keeps typing in another field doesn't steal focus mid-keystroke.
+  const wasEmptyRef = React.useRef(true);
+  React.useEffect(() => {
+    const isEmpty = Object.keys(fieldErrors).length === 0;
+    if (!isEmpty && wasEmptyRef.current) {
+      if (fieldErrors.name) {
+        nameRef.current?.focus();
+      } else if (fieldErrors.email) {
+        emailRef.current?.focus();
+      } else if (fieldErrors.message) {
+        messageRef.current?.focus();
+      }
+    }
+    wasEmptyRef.current = isEmpty;
+  }, [fieldErrors]);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,12 +100,14 @@ export function ResponseDialog({
           <label className="flex flex-col gap-1 text-sm">
             Nome
             <Input
+              ref={nameRef}
               value={name}
               onChange={(event) => {
                 setName(event.target.value);
                 onFieldEdit("name");
               }}
               autoComplete="name"
+              maxLength={120}
               aria-invalid={fieldErrors.name ? true : undefined}
               aria-describedby={fieldErrors.name ? "response-name-error" : undefined}
             />
@@ -97,6 +120,7 @@ export function ResponseDialog({
           <label className="flex flex-col gap-1 text-sm">
             E-mail
             <Input
+              ref={emailRef}
               type="email"
               value={email}
               onChange={(event) => {
@@ -104,6 +128,7 @@ export function ResponseDialog({
                 onFieldEdit("email");
               }}
               autoComplete="email"
+              maxLength={254}
               aria-invalid={fieldErrors.email ? true : undefined}
               aria-describedby={fieldErrors.email ? "response-email-error" : undefined}
             />
@@ -118,6 +143,7 @@ export function ResponseDialog({
               <label className="flex flex-col gap-1 text-sm">
                 {copy.messageLabel}
                 <Textarea
+                  ref={messageRef}
                   value={message}
                   onChange={(event) => {
                     setMessage(event.target.value);
