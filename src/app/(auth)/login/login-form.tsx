@@ -3,12 +3,14 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { loginWithGoogle, loginWithPassword, type LoginState } from "./actions";
+import { loginWithGoogle, loginWithPassword, sendMagicLink, type LoginState, type MagicLinkState } from "./actions";
 
 const initialState: LoginState = { error: null };
+const initialMagicState: MagicLinkState = { sent: false, error: null };
 
 export function LoginForm({ oauthError }: { oauthError: boolean }) {
   const [state, formAction, pending] = React.useActionState(loginWithPassword, initialState);
+  const [magic, magicAction, magicPending] = React.useActionState(sendMagicLink, initialMagicState);
   const error = state.error ?? (oauthError ? "Não foi possível entrar com o Google. Tente novamente." : null);
 
   return (
@@ -40,6 +42,29 @@ export function LoginForm({ oauthError }: { oauthError: boolean }) {
           Entrar com Google
         </Button>
       </form>
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <p className="text-sm font-medium">Entrar com link por e-mail</p>
+        {magic.sent ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Se houver acesso para este e-mail, enviamos um link. Confira sua caixa de entrada.
+          </p>
+        ) : (
+          <form action={magicAction} className="flex flex-col gap-2">
+            <label className="sr-only" htmlFor="magic-email">
+              E-mail para o link
+            </label>
+            <Input id="magic-email" name="email" type="email" autoComplete="email" required />
+            {magic.error ? (
+              <p role="alert" className="text-sm text-error">
+                {magic.error}
+              </p>
+            ) : null}
+            <Button type="submit" variant="outline" disabled={magicPending}>
+              Enviar link
+            </Button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

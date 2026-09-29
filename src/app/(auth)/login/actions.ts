@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 
 export interface LoginState {
   error: string | null;
@@ -52,4 +54,33 @@ export async function loginWithGoogle(): Promise<void> {
     redirect("/login?error=oauth");
   }
   redirect(data.url);
+}
+
+export interface MagicLinkState {
+  sent: boolean;
+  error: string | null;
+}
+
+const MAGIC_LINK_WINDOW = { limit: 5, windowSeconds: 600 } as const;
+
+export async function sendMagicLink(_prev: MagicLinkState, formData: FormData): Promise<MagicLinkState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) return { sent: false, error: "Informe seu e-mail." };
+
+  const requestHeaders = await headers();
+  const byIp = await checkRateLimit(db, { scope: "magic-link:ip", ip: clientIp(requestHeaders), ...MAGIC_LINK_WINDOW });
+  const byEmail = await checkRateLimit(db, { scope: "magic-link:email", ip: email, ...MAGIC_LINK_WINDOW });
+  if (!byIp.allowed || !byEmail.allowed) {
+    return { sent: false, error: "Muitas tentativas. Tente novamente em alguns minutos." };
+  }
+
+  const origin = requestHeaders.get("origin") ?? "";
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${origin}/auth/callback`, shouldCreateUser: true },
+  });
+  // Same answer either way: never reveal whether an e-mail has access.
+  if (error) console.error("Magic link request failed", (error as { code?: string }).code ?? "unknown");
+  return { sent: true, error: null };
 }

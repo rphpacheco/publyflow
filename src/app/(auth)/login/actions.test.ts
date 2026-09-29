@@ -6,13 +6,18 @@ class RedirectSignal extends Error {
   }
 }
 
+const signInWithOtpMock = vi.fn(async (): Promise<{ error: { code?: string } | null }> => ({ error: null }));
+const checkRateLimitMock = vi.fn(async () => ({ allowed: true, retryAfterSeconds: 0 }));
+
 async function importActions(options: {
-  signIn: { data: { user: { id: string; email?: string; email_confirmed_at?: string } | null }; error: unknown };
-  session: unknown;
+  signIn?: { data: { user: { id: string; email?: string; email_confirmed_at?: string } | null }; error: unknown };
+  session?: unknown;
 }) {
   const signOut = vi.fn(async () => ({ error: null }));
   const recordLoginMock = vi.fn(async () => undefined);
   vi.resetModules();
+  signInWithOtpMock.mockReset().mockResolvedValue({ error: null });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
   vi.doMock("@/db", () => ({ db: {} }));
   vi.doMock("next/navigation", () => ({
     redirect: (url: string) => {
@@ -24,7 +29,11 @@ async function importActions(options: {
   }));
   vi.doMock("@/lib/supabase/server", () => ({
     createSupabaseServerClient: async () => ({
-      auth: { signInWithPassword: async () => options.signIn, signOut },
+      auth: {
+        signInWithPassword: async () => options.signIn,
+        signOut,
+        signInWithOtp: signInWithOtpMock,
+      },
     }),
   }));
   vi.doMock("@/lib/auth/resolve-session", () => ({
@@ -32,6 +41,9 @@ async function importActions(options: {
   }));
   vi.doMock("@/repositories/organization-members.repository", () => ({
     OrganizationMembersRepository: { recordLogin: recordLoginMock },
+  }));
+  vi.doMock("@/lib/rate-limit", () => ({
+    checkRateLimit: checkRateLimitMock,
   }));
   const actions = await import("./actions");
   return { ...actions, signOut, recordLoginMock };
@@ -93,5 +105,58 @@ describe("loginWithPassword", () => {
     });
     expect(signOut).toHaveBeenCalled();
     expect(recordLoginMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMagicLink", () => {
+  it("sends a magic link to /auth/callback and always answers sent", async () => {
+    const { sendMagicLink } = await importActions({});
+    const form = new FormData();
+    form.set("email", " Thais@Example.com ");
+    expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({ sent: true, error: null });
+    expect(signInWithOtpMock).toHaveBeenCalledWith({
+      email: "thais@example.com",
+      options: { emailRedirectTo: "http://localhost:3000/auth/callback", shouldCreateUser: true },
+    });
+  });
+
+  it("still answers sent when Supabase refuses", async () => {
+    const { sendMagicLink } = await importActions({});
+    signInWithOtpMock.mockResolvedValueOnce({ error: { code: "over_email_send_rate_limit" } });
+    const form = new FormData();
+    form.set("email", "thais@example.com");
+    expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({ sent: true, error: null });
+  });
+
+  it("checks both the IP and the e-mail limits, and refuses when either is exceeded", async () => {
+    const { sendMagicLink } = await importActions({});
+    const form = new FormData();
+    form.set("email", "thais@example.com");
+    await sendMagicLink({ sent: false, error: null }, form);
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ scope: "magic-link:ip", limit: 5, windowSeconds: 600 }),
+    );
+    expect(checkRateLimitMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ scope: "magic-link:email", ip: "thais@example.com", limit: 5, windowSeconds: 600 }),
+    );
+
+    checkRateLimitMock
+      .mockResolvedValueOnce({ allowed: true, retryAfterSeconds: 0 })
+      .mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 60 });
+    expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({
+      sent: false,
+      error: "Muitas tentativas. Tente novamente em alguns minutos.",
+    });
+    expect(signInWithOtpMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an empty e-mail", async () => {
+    const { sendMagicLink } = await importActions({});
+    expect(await sendMagicLink({ sent: false, error: null }, new FormData())).toEqual({
+      sent: false,
+      error: "Informe seu e-mail.",
+    });
   });
 });
