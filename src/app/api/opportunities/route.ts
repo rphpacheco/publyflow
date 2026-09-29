@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { creatorScope } from "@/lib/auth/access";
 
 const stageEnum = z.enum([
   "NOVO_LEAD",
@@ -32,10 +33,14 @@ export async function GET(request: Request) {
     creatorId: url.searchParams.get("creatorId"),
     stage: url.searchParams.get("stage") ?? undefined,
   });
+
+  const scope = creatorScope(session);
+  const effectiveCreatorId = scope ?? payload.creatorId;
+
   const list = await OpportunityService.listByCreator(
     db,
     session.organizationId,
-    payload.creatorId,
+    effectiveCreatorId,
     payload.stage,
   );
   return NextResponse.json(list, { status: 200 });

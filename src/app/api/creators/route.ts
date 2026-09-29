@@ -4,13 +4,21 @@ import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
 import { getSession } from "@/lib/auth/session";
 import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
-import { canManageOrganization } from "@/lib/auth/access";
+import { canManageOrganization, isCreator } from "@/lib/auth/access";
 import { createCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorEmailTakenError } from "@/domain/creators/errors";
 
 export async function GET(_request: Request) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
+
+  if (isCreator(session)) {
+    const list = await CreatorService.listByOrganization(db, session.organizationId);
+    const own = list
+      .filter((creator) => creator.id === session.creatorId)
+      .map((creator) => ({ id: creator.id, displayName: creator.displayName, instagramHandle: creator.instagramHandle }));
+    return NextResponse.json(own, { status: 200 });
+  }
 
   const list = await CreatorService.listWithEmail(db, session.organizationId);
   return NextResponse.json(list, { status: 200 });

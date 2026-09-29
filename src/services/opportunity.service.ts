@@ -115,8 +115,9 @@ export const OpportunityService = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     opportunityId: string,
+    creatorScope: string | null = null,
   ): Promise<Opportunity | null> {
-    return OpportunitiesRepository.findById(db, organizationId, opportunityId);
+    return OpportunitiesRepository.findById(db, organizationId, opportunityId, creatorScope);
   },
 
   async changeStage(

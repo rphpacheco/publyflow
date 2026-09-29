@@ -6,6 +6,7 @@ import { ServiceNotFoundError } from "@/domain/rate-cards/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
+import { denyCreatorWrite } from "@/lib/auth/access";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -22,6 +23,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isUuid(id)) {
     return NextResponse.json({ error: new ServiceNotFoundError(id).message }, { status: 404 });
   }
+
+  const denied = denyCreatorWrite(session);
+  if (denied) return denied;
+
   const payload = updateSchema.parse(await request.json());
   try {
     const service = await ServiceService.update(db, session.organizationId, id, payload);

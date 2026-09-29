@@ -6,6 +6,8 @@ import { ProposalNotFoundError, ProposalStatusTransitionError } from "@/domain/p
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
+import { creatorScope, denyCreatorWrite } from "@/lib/auth/access";
+import { ProposalsRepository } from "@/repositories/proposals.repository";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -13,6 +15,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   if (!isUuid(id)) {
+    return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
+  }
+
+  const scope = creatorScope(session);
+  if (scope !== null && !(await ProposalsRepository.isInCreatorScope(db, session.organizationId, id, scope))) {
     return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
   }
 
@@ -40,6 +47,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isUuid(id)) {
     return NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
   }
+
+  const denied = denyCreatorWrite(session);
+  if (denied) return denied;
+
   const payload = updateSchema.parse(await request.json());
 
   try {

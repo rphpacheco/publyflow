@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { RateCardService } from "@/services/rate-card.service";
 import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { unauthorizedResponse, forbiddenResponse } from "@/lib/auth/http";
+import { canManageOrganization, denyCreatorWrite } from "@/lib/auth/access";
 
 const createSchema = z.object({
   creatorId: z.string().uuid(),
@@ -15,6 +16,9 @@ const createSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
+
+  const denied = denyCreatorWrite(session);
+  if (denied) return denied;
 
   const payload = createSchema.parse(await request.json());
   const rateCard = await RateCardService.create(db, session.organizationId, {
@@ -33,6 +37,8 @@ const listQuerySchema = z.object({
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
+
+  if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
   const payload = listQuerySchema.parse({

@@ -6,6 +6,7 @@ import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
+import { creatorScope, denyCreatorWrite } from "@/lib/auth/access";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -16,7 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: new OpportunityNotFoundError(id).message }, { status: 404 });
   }
 
-  const opportunity = await OpportunityService.findById(db, session.organizationId, id);
+  const opportunity = await OpportunityService.findById(db, session.organizationId, id, creatorScope(session));
   if (!opportunity) {
     return NextResponse.json(
       { error: new OpportunityNotFoundError(id).message },
@@ -51,6 +52,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isUuid(id)) {
     return NextResponse.json({ error: new OpportunityNotFoundError(id).message }, { status: 404 });
   }
+
+  const denied = denyCreatorWrite(session);
+  if (denied) return denied;
+
   const payload = patchSchema.parse(await request.json());
 
   try {

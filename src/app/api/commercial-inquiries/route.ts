@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
+import { creatorScope } from "@/lib/auth/access";
 
 const statusEnum = z.enum(["NEW", "DISCARDED", "FALSE_POSITIVE", "CONVERTED"]);
 
@@ -21,10 +22,13 @@ export async function GET(request: Request) {
     creatorId: url.searchParams.get("creatorId"),
     status: url.searchParams.get("status") ?? undefined,
   });
+  const scope = creatorScope(session);
+  const effectiveCreatorId = scope ?? payload.creatorId;
+
   const list = await CommercialInquiryService.listByCreator(
     db,
     session.organizationId,
-    payload.creatorId,
+    effectiveCreatorId,
     payload.status,
   );
   return NextResponse.json(list, { status: 200 });

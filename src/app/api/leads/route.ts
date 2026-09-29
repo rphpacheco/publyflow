@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { LeadService } from "@/services/lead.service";
 import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { unauthorizedResponse, forbiddenResponse } from "@/lib/auth/http";
+import { canManageOrganization } from "@/lib/auth/access";
 
 const querySchema = z.object({
   creatorId: z.string().uuid(),
@@ -12,6 +13,8 @@ const querySchema = z.object({
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
+
+  if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
   const payload = querySchema.parse({

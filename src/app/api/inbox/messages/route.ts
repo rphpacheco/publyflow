@@ -6,6 +6,7 @@ import { InboxService } from "@/services/inbox.service";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { MessageClassificationError } from "@/domain/inbox/errors";
+import { isCreator } from "@/lib/auth/access";
 
 const bodySchema = z.object({
   creatorId: z.string().uuid(),
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await InboxService.ingestManualMessage(db, ai, session.organizationId, {
-      creatorId: payload.creatorId,
+      creatorId: isCreator(session) ? session.creatorId! : payload.creatorId,
       source: payload.source,
       externalContactLabel: payload.externalContactLabel,
       body: payload.body,
