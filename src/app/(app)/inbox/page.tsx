@@ -4,6 +4,7 @@ import * as React from "react";
 import { Inbox as InboxIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreatorContext } from "@/components/shell/creator-context";
+import { useIsCreator } from "@/components/shell/session-role-context";
 import {
   useCommercialInquiries,
   commercialInquiriesQueryKey,
@@ -26,6 +27,7 @@ const TABS: { value: InquiryStatus; label: string }[] = [
 
 export default function InboxPage() {
   const { selectedCreatorId } = useCreatorContext();
+  const isCreator = useIsCreator();
   const [activeTab, setActiveTab] = React.useState<InquiryStatus>("NEW");
   const [selectedInquiry, setSelectedInquiry] = React.useState<CommercialInquiryListItem | null>(
     null,
@@ -122,6 +124,7 @@ export default function InboxPage() {
         }}
         creatorId={selectedCreatorId}
         status={activeTab}
+        readOnly={isCreator}
         registerActions={(actions) => {
           sidePanelActionsRef.current = actions;
         }}

@@ -34,9 +34,12 @@ import { ProposalItemsTable } from "@/components/proposals/proposal-items-table"
 import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import { ProposalSendPanel } from "@/components/proposals/proposal-send-panel";
 import { ProposalSendHistory } from "@/components/proposals/proposal-send-history";
+import { ProposalReadView } from "@/components/proposals/proposal-read-view";
+import { useIsCreator } from "@/components/shell/session-role-context";
 
 export default function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: proposalId } = React.use(params);
+  const isCreator = useIsCreator();
 
   const { data: proposal, isLoading, isError, refetch } = useProposal(proposalId);
   const { data: opportunity } = useOpportunity(proposal?.opportunityId ?? "", {
@@ -61,6 +64,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   React.useEffect(() => {
     if (proposal) setTitle(proposal.title);
   }, [proposal?.title]);
+
+  if (isCreator) {
+    return <ProposalReadView proposalId={proposalId} />;
+  }
 
   function handleTitleBlur() {
     if (!proposal || !title.trim() || title.trim() === proposal.title) {

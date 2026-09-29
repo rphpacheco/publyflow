@@ -64,4 +64,19 @@ describe("PipelineBoardMobile", () => {
 
     expect(screen.getByText("Maria").closest("[aria-roledescription]")).toBeNull();
   });
+
+  describe("readOnly", () => {
+    it("hides the stage-move control on cards", () => {
+      render(
+        <PipelineBoardMobile
+          opportunities={opportunities}
+          onSelect={() => {}}
+          onMoveToStage={() => {}}
+          readOnly
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Mover para..." })).not.toBeInTheDocument();
+    });
+  });
 });

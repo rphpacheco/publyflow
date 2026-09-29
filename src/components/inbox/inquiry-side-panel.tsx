@@ -25,6 +25,7 @@ export interface InquirySidePanelProps {
     discard: () => void;
     markFalsePositive: () => void;
   }) => void;
+  readOnly?: boolean;
 }
 
 export function InquirySidePanel({
@@ -34,6 +35,7 @@ export function InquirySidePanel({
   creatorId,
   status,
   registerActions,
+  readOnly = false,
 }: InquirySidePanelProps) {
   const convert = useConvertInquiry(creatorId, status);
   const discard = useDiscardInquiry(creatorId, status);
@@ -46,13 +48,14 @@ export function InquirySidePanel({
   }, [inquiry?.id]);
 
   React.useEffect(() => {
+    if (readOnly) return;
     registerActions?.({
       convert: handleConvert,
       discard: handleDiscard,
       markFalsePositive: handleMarkFalsePositive,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inquiry?.id]);
+  }, [inquiry?.id, readOnly]);
 
   if (!inquiry) return null;
 
@@ -151,7 +154,7 @@ export function InquirySidePanel({
           ) : null}
         </div>
 
-        {editMode ? (
+        {readOnly ? null : editMode ? (
           <InquiryEditForm
             initialCompanyName={inquiry.companyGuess}
             initialContactName={inquiry.contactNameGuess}

@@ -163,4 +163,27 @@ describe("InquirySidePanel", () => {
     // Edit mode stays open: the combobox is still on screen, not the default action buttons.
     expect(screen.getByRole("combobox", { name: /empresa/i })).toBeInTheDocument();
   });
+
+  it("hides mutation actions and registers no shortcut actions when readOnly", () => {
+    const queryClient = new QueryClient();
+    const registerActions = vi.fn();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InquirySidePanel
+          inquiry={inquiry}
+          open
+          onOpenChange={() => {}}
+          creatorId="creator1"
+          status="NEW"
+          readOnly
+          registerActions={registerActions}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Converter em Opportunity" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Descartar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Falso Positivo" })).not.toBeInTheDocument();
+    expect(registerActions).not.toHaveBeenCalled();
+  });
 });

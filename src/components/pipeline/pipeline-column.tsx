@@ -12,6 +12,7 @@ export interface PipelineColumnProps {
   onSelect: (opportunity: OpportunityListItem) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
   draggable?: boolean;
+  readOnly?: boolean;
 }
 
 export function PipelineColumn({
@@ -20,6 +21,7 @@ export function PipelineColumn({
   onSelect,
   onMoveToStage,
   draggable = false,
+  readOnly = false,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
 
@@ -43,6 +45,7 @@ export function PipelineColumn({
             onSelect={onSelect}
             onMoveToStage={onMoveToStage}
             draggable={draggable}
+            readOnly={readOnly}
           />
         ))}
       </div>

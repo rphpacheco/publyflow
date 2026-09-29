@@ -38,6 +38,7 @@ export interface OpportunitySidePanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
+  readOnly?: boolean;
 }
 
 export function OpportunitySidePanel({
@@ -45,6 +46,7 @@ export function OpportunitySidePanel({
   open,
   onOpenChange,
   onMoveToStage,
+  readOnly = false,
 }: OpportunitySidePanelProps) {
   const router = useRouter();
   const opportunityId = opportunity?.id ?? "";
@@ -117,6 +119,7 @@ export function OpportunitySidePanel({
           <Select
             value={opportunity.stage}
             onValueChange={(value) => onMoveToStage(opportunity.id, value as OpportunityStage)}
+            disabled={readOnly}
           >
             <SelectTrigger id="opportunity-stage" aria-label="Stage">
               <SelectValue />
@@ -134,54 +137,56 @@ export function OpportunitySidePanel({
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Propostas</span>
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Nova Proposta
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nova Proposta</DialogTitle>
-                  <DialogDescription>Título e tema podem ser ajustados depois.</DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-title">
-                      Título
-                    </label>
-                    <Input
-                      id="new-proposal-title"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      placeholder="Ex: Campanha Verão"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-theme">
-                      Tema
-                    </label>
-                    <Select value={theme} onValueChange={(value) => setTheme(value as ProposalTheme)}>
-                      <SelectTrigger id="new-proposal-theme" aria-label="Tema">
-                        <SelectValue placeholder="Selecionar tema" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROPOSAL_THEMES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {PROPOSAL_THEME_LABELS[item]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button onClick={handleCreate} disabled={!title.trim() || !theme || createProposal.isPending}>
-                    Criar
+            {readOnly ? null : (
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Nova Proposta
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Nova Proposta</DialogTitle>
+                    <DialogDescription>Título e tema podem ser ajustados depois.</DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-title">
+                        Título
+                      </label>
+                      <Input
+                        id="new-proposal-title"
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        placeholder="Ex: Campanha Verão"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground" htmlFor="new-proposal-theme">
+                        Tema
+                      </label>
+                      <Select value={theme} onValueChange={(value) => setTheme(value as ProposalTheme)}>
+                        <SelectTrigger id="new-proposal-theme" aria-label="Tema">
+                          <SelectValue placeholder="Selecionar tema" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROPOSAL_THEMES.map((item) => (
+                            <SelectItem key={item} value={item}>
+                              {PROPOSAL_THEME_LABELS[item]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button onClick={handleCreate} disabled={!title.trim() || !theme || createProposal.isPending}>
+                      Criar
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {proposals && proposals.length > 0 ? (

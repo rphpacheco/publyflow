@@ -46,6 +46,34 @@ describe("PipelineBoardDesktop", () => {
       "draggable",
     );
   });
+
+  describe("readOnly", () => {
+    it("renders cards without dnd-kit's draggable ARIA (no drag sensors)", () => {
+      render(
+        <PipelineBoardDesktop
+          opportunities={[opportunity]}
+          onSelect={() => {}}
+          onMoveToStage={() => {}}
+          readOnly
+        />,
+      );
+
+      expect(screen.getByText("Maria").closest("[aria-roledescription]")).toBeNull();
+    });
+
+    it("hides the stage-move control on cards", () => {
+      render(
+        <PipelineBoardDesktop
+          opportunities={[opportunity]}
+          onSelect={() => {}}
+          onMoveToStage={() => {}}
+          readOnly
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Mover para..." })).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("resolveDragEndStageChange", () => {

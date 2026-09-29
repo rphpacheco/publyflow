@@ -21,6 +21,7 @@ export interface OpportunityCardProps {
   onSelect: (opportunity: OpportunityListItem) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
   draggable?: boolean;
+  readOnly?: boolean;
 }
 
 export function OpportunityCard({
@@ -28,9 +29,11 @@ export function OpportunityCard({
   onSelect,
   onMoveToStage,
   draggable = false,
+  readOnly = false,
 }: OpportunityCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: opportunity.id,
+    disabled: readOnly,
   });
 
   const label = opportunity.brandName ?? opportunity.companyName ?? opportunity.contactName;
@@ -48,8 +51,8 @@ export function OpportunityCard({
       tabIndex={0}
       onClick={() => onSelect(opportunity)}
       onKeyDown={handleKeyDown}
-      {...(draggable ? listeners : undefined)}
-      {...(draggable ? attributes : undefined)}
+      {...(draggable && !readOnly ? listeners : undefined)}
+      {...(draggable && !readOnly ? attributes : undefined)}
     >
       <Card
         className={cn(
@@ -59,30 +62,32 @@ export function OpportunityCard({
       >
         <div className="flex items-start justify-between gap-2">
           <span className="font-medium">{label}</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-11 shrink-0 md:size-8"
-                onClick={(event) => event.stopPropagation()}
-                aria-label="Mover para..."
-              >
-                <MoreVertical className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-              {STAGES.map((stage) => (
-                <DropdownMenuItem
-                  key={stage}
-                  disabled={stage === opportunity.stage}
-                  onSelect={() => onMoveToStage(opportunity.id, stage)}
+          {readOnly ? null : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 shrink-0 md:size-8"
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label="Mover para..."
                 >
-                  {STAGE_LABELS[stage]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <MoreVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+                {STAGES.map((stage) => (
+                  <DropdownMenuItem
+                    key={stage}
+                    disabled={stage === opportunity.stage}
+                    onSelect={() => onMoveToStage(opportunity.id, stage)}
+                  >
+                    {STAGE_LABELS[stage]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         {opportunity.estimatedValueCents !== null ? (
           <span className="text-muted-foreground">

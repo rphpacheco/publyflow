@@ -161,4 +161,21 @@ describe("OpportunitySidePanel", () => {
       expect(screen.queryByRole("dialog", { name: "Nova Proposta" })).not.toBeInTheDocument();
     });
   });
+
+  it("disables the Stage select and hides Nova Proposta when readOnly", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }));
+
+    renderWithClient(
+      <OpportunitySidePanel
+        opportunity={opportunity}
+        open
+        onOpenChange={() => {}}
+        onMoveToStage={() => {}}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Stage" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Nova Proposta" })).not.toBeInTheDocument();
+  });
 });

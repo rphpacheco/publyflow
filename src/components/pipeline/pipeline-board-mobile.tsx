@@ -11,12 +11,14 @@ export interface PipelineBoardMobileProps {
   opportunities: OpportunityListItem[];
   onSelect: (opportunity: OpportunityListItem) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
+  readOnly?: boolean;
 }
 
 export function PipelineBoardMobile({
   opportunities,
   onSelect,
   onMoveToStage,
+  readOnly = false,
 }: PipelineBoardMobileProps) {
   const [index, setIndex] = React.useState(0);
   const stage = STAGES[index]!;
@@ -51,6 +53,7 @@ export function PipelineBoardMobile({
         opportunities={opportunities.filter((item) => item.stage === stage)}
         onSelect={onSelect}
         onMoveToStage={onMoveToStage}
+        readOnly={readOnly}
       />
     </div>
   );

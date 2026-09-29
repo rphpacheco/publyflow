@@ -19,6 +19,7 @@ export interface PipelineBoardDesktopProps {
   opportunities: OpportunityListItem[];
   onSelect: (opportunity: OpportunityListItem) => void;
   onMoveToStage: (opportunityId: string, stage: OpportunityStage) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -44,10 +45,10 @@ export function PipelineBoardDesktop({
   opportunities,
   onSelect,
   onMoveToStage,
+  readOnly = false,
 }: PipelineBoardDesktopProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
+  const sensors = useSensors(...(readOnly ? [] : [pointerSensor]));
 
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
@@ -83,7 +84,8 @@ export function PipelineBoardDesktop({
             opportunities={opportunities.filter((item) => item.stage === stage)}
             onSelect={onSelect}
             onMoveToStage={onMoveToStage}
-            draggable
+            draggable={!readOnly}
+            readOnly={readOnly}
           />
         ))}
       </div>

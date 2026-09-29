@@ -3,6 +3,7 @@
 import * as React from "react";
 import { KanbanSquare } from "lucide-react";
 import { useCreatorContext } from "@/components/shell/creator-context";
+import { useIsCreator } from "@/components/shell/session-role-context";
 import { useOpportunities } from "@/hooks/use-opportunities";
 import { useUpdateOpportunityStage } from "@/hooks/use-update-opportunity-stage";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,6 +16,7 @@ import type { OpportunityStage } from "@/lib/opportunity-stages";
 
 export default function PipelinePage() {
   const { selectedCreatorId } = useCreatorContext();
+  const isCreator = useIsCreator();
   const [selectedOpportunityId, setSelectedOpportunityId] = React.useState<string | null>(null);
 
   const {
@@ -70,6 +72,7 @@ export default function PipelinePage() {
               opportunities={opportunities ?? []}
               onSelect={handleSelect}
               onMoveToStage={handleMoveToStage}
+              readOnly={isCreator}
             />
           </div>
           <div className="md:hidden">
@@ -77,6 +80,7 @@ export default function PipelinePage() {
               opportunities={opportunities ?? []}
               onSelect={handleSelect}
               onMoveToStage={handleMoveToStage}
+              readOnly={isCreator}
             />
           </div>
         </>
@@ -89,6 +93,7 @@ export default function PipelinePage() {
           if (!open) setSelectedOpportunityId(null);
         }}
         onMoveToStage={handleMoveToStage}
+        readOnly={isCreator}
       />
     </div>
   );
