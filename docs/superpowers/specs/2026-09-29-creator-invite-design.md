@@ -21,6 +21,8 @@
 - **Convite sem token:** "convidar" cria na hora o vínculo CREATOR. Só entra quem controla aquele e-mail, e os dois métodos entregam o e-mail verificado.
 - **Revogação imediata:** a sessão é resolvida a cada requisição, então remover o vínculo corta o acesso na próxima requisição.
 - **Um usuário, uma organização (por enquanto):** o convite é recusado se o e-mail já tem vínculo em **outra** organização. Trocar de organização fica fora de escopo.
+  > **Restrição temporária:** esta validação existe só porque hoje a sessão resolve uma única organização por usuário (`findOldestMembershipForUser`). Ela **deve ser removida** quando houver suporte a várias organizações por usuário e seleção de organização na sessão. O mesmo vale para a regra equivalente na correção de e-mail (§5.5).
+- **Fonte de verdade do acesso:** `first_login_at` é a referência oficial de que o creator já entrou no app. O status `active` deriva só de `first_login_at IS NOT NULL`. `users.auth_user_id` indica que a identidade foi vinculada, mas não é usado sozinho para concluir que houve acesso.
 - **E-mail corrigível antes do primeiro acesso.**
 - **Datas de acesso** guardadas no vínculo: `first_login_at` e `last_login_at`.
 - **O app não envia e-mail.** O link mágico é enviado pelo Supabase. A mensagem do convite é copiada ou enviada pela própria assessoria.
@@ -46,7 +48,10 @@ Status de acesso de um creator na organização:
 ### 4.1 Link mágico
 - **Server action `sendMagicLink(formData)`** em `src/app/(auth)/login/actions.ts`:
   1. valida o e-mail;
-  2. aplica o rate limit **5 a cada 600 s por IP** (`scope: "magic-link"`, `checkRateLimit` da spec de rate limit);
+  2. aplica **dois** rate limits, ambos com `checkRateLimit` da spec de rate limit, e os dois precisam permitir:
+     - **5 a cada 600 s por IP** (`scope: "magic-link:ip"`, identificador = `clientIp`);
+     - **5 a cada 600 s por e-mail** (`scope: "magic-link:email"`, identificador = e-mail normalizado em minúsculas, também guardado só como hash);
+     - os dois contadores são incrementados a cada pedido, e basta um estourar para recusar;
   3. chama `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: \`${origin}/auth/callback\`, shouldCreateUser: true } })`.
 - **Resposta:** sempre `{ sent: true }`, exista conta ou não e mesmo se o Supabase recusar, com exceção do limite local. Com o limite estourado: `{ error: "Muitas tentativas. Tente novamente em alguns minutos." }`. Uma falha do Supabase vai para o log, sem PII: só o código do erro.
 - **Tela de login:** novo bloco "Entrar com link por e-mail", com o campo E-mail e o botão "Enviar link". Depois de enviar, a mensagem é "Se houver acesso para este e-mail, enviamos um link. Confira sua caixa de entrada."
@@ -93,7 +98,8 @@ Resposta **200** `{ loginUrl, message }` (seção 5.4). Este endpoint é o **ún
 
   Para CREATOR, a resposta não muda (spec B).
 - **`emailEditable`** é verdadeiro quando, **ao mesmo tempo**:
-  - `users.auth_user_id` é nulo (nunca entrou);
+  - nenhum vínculo do usuário tem `first_login_at` preenchido (nunca entrou, pela fonte de verdade da §2);
+  - `users.auth_user_id` é nulo. A identidade de login ainda não está presa a este e-mail, então trocá-lo não quebra um login existente;
   - o usuário não tem vínculo OWNER ou MANAGER em nenhuma organização;
   - o usuário não é creator em outra organização.
 - **`PATCH /api/creators/[id]`** passa a aceitar `email` (validação e normalização iguais às do cadastro):
@@ -102,10 +108,17 @@ Resposta **200** `{ loginUrl, message }` (seção 5.4). Este endpoint é o **ún
   - se o novo e-mail pertence a **outro** `users`:
     - esse usuário tem vínculo em outra organização: **409** "Este e-mail já tem acesso a outra organização.";
     - já é creator nesta organização: **409** "Já existe um creator com este e-mail.";
-    - caso contrário: o creator passa a apontar para esse `users` (`creators.user_id`). Se havia vínculo CREATOR do usuário antigo, ele é **transferido** para o novo, na mesma transação;
+    - caso contrário: **transferência**, descrita abaixo;
   - senão: atualiza `users.email` do usuário do creator.
 
-  Tudo numa transação, com o `users` envolvido travado (`FOR UPDATE`).
+  Tudo numa transação, com os `users` envolvidos travados (`FOR UPDATE`).
+
+- **Transferência para outro `users`:** uma única transação que:
+  1. atualiza `creators.user_id` para o novo usuário;
+  2. se existia vínculo CREATOR do usuário antigo nesta organização, **move esse mesmo registro** para o novo usuário (`UPDATE organization_members SET user_id = novo WHERE id = vínculo`);
+  3. com isso, o vínculo antigo deixa de existir.
+
+  **Invariante:** em nenhum momento o creator fica associado a dois vínculos CREATOR ao mesmo tempo. Mover o registro existente em vez de inserir um novo e apagar o antigo elimina essa janela. Se qualquer passo falhar, a transação desfaz tudo e o estado original é mantido.
 
 ## 6. Interface — `/creators` (OWNER e MANAGER)
 
@@ -137,12 +150,14 @@ Resposta **200** `{ loginUrl, message }` (seção 5.4). Este endpoint é o **ún
 - **Listagem:** `access`, `lastLoginAt` e `emailEditable` corretos em cada cenário (sem acesso, convidado, ativo, equipe, usuário vinculado a outra organização).
 - **Correção de e-mail:**
   - `users` sem vínculo: redireciona o creator e transfere o vínculo;
+  - **invariante da transferência:** depois de transferir, existe **exatamente um** vínculo CREATOR para o creator nesta organização, no novo usuário, e nenhum no antigo;
+  - uma falha forçada no meio da transferência (por exemplo, o update do vínculo lançando erro) deixa o estado **exatamente** como antes: o mesmo `creators.user_id` e o mesmo vínculo;
   - usuário de outra organização: 409;
   - creator já existente: 409;
   - `emailEditable` falso: 409;
   - e-mail novo: atualiza.
 - **`recordLogin`:** `first_login_at` só na primeira vez e `last_login_at` sempre, chamado pelo login com senha e pelo callback.
-- **Link mágico:** a resposta é sempre `{ sent: true }`; `signInWithOtp` é chamado com `emailRedirectTo` para `/auth/callback` e `shouldCreateUser: true`; o rate limit dá o erro na sexta tentativa.
+- **Link mágico:** a resposta é sempre `{ sent: true }`; `signInWithOtp` é chamado com `emailRedirectTo` para `/auth/callback` e `shouldCreateUser: true`; o limite por IP dá o erro na sexta tentativa; o limite por e-mail dá o erro na sexta tentativa para o mesmo e-mail vinda de IPs diferentes; um e-mail diferente do mesmo IP continua sujeito ao limite por IP.
 - **Interface:** badges e ações por status; a confirmação ao convidar; o diálogo de instruções; o campo E-mail habilitado ou não; o bloco de link mágico no login.
 - **Verificação real no navegador (controller + usuário):**
   1. no ambiente local, cadastrar um creator de teste com um e-mail que o usuário recebe (alias `+creator`);
