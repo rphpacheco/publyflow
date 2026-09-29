@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { seedTwoCreators } from "@/test/helpers/two-creators";
 import { OpportunitiesRepository } from "./opportunities.repository";
@@ -51,6 +52,22 @@ describe("creator scope in repositories", () => {
     expect(await ProposalsRepository.isInCreatorScope(db, organization.id, y.proposal.id, x.creator.id)).toBe(false);
     expect(await ProposalsRepository.isInCreatorScope(db, organization.id, y.proposal.id, null)).toBe(true);
     expect(await ProposalsRepository.isInCreatorScope(db, organization.id, x.proposal.id, x.creator.id)).toBe(true);
+  });
+
+  it("proposals: cross-org opportunity is not trusted even if organizationId matches on the proposal", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, x } = await seedTwoCreators(db);
+    const otherOrgSeed = await seedTwoCreators(db);
+
+    // Simulate a proposal in org A whose opportunity_id was repointed at an
+    // opportunity belonging to org B (e.g. by a bug, or a bypassed check).
+    await db.execute(
+      sql`update proposals set opportunity_id = ${otherOrgSeed.x.opportunity.id} where id = ${x.proposal.id}`,
+    );
+
+    expect(await ProposalsRepository.creatorIdForProposal(db, organization.id, x.proposal.id)).toBeNull();
+    expect(await ProposalsRepository.findById(db, organization.id, x.proposal.id, x.creator.id)).toBeNull();
   });
 
   it("commercial inquiries: scoped findById hides other creators; isInCreatorScope matches", async () => {

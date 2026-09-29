@@ -4,11 +4,15 @@ import { render, screen } from "@testing-library/react";
 import type { Proposal } from "@/hooks/use-proposals";
 import type { SendStateDto } from "@/hooks/use-proposal-sending";
 
-const proposalState: { data: Proposal | undefined } = { data: undefined };
+const proposalState: { data: Proposal | undefined; isLoading: boolean; isError: boolean } = {
+  data: undefined,
+  isLoading: false,
+  isError: false,
+};
 const sendState: { data: SendStateDto | undefined } = { data: undefined };
 
 vi.mock("@/hooks/use-proposal", () => ({
-  useProposal: () => ({ data: proposalState.data }),
+  useProposal: () => ({ data: proposalState.data, isLoading: proposalState.isLoading, isError: proposalState.isError }),
 }));
 vi.mock("@/hooks/use-proposal-sending", () => ({
   useProposalSendState: () => ({ data: sendState.data }),
@@ -40,6 +44,8 @@ const proposal: Proposal = {
 describe("ProposalReadView", () => {
   it("renders the title, status badge, preview iframe and send history", () => {
     proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
     sendState.data = undefined;
 
     render(<ProposalReadView proposalId="p1" />);
@@ -55,6 +61,8 @@ describe("ProposalReadView", () => {
 
   it("renders Copiar link, Abrir and share actions when a publicPath exists", () => {
     proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
     sendState.data = {
       status: "SENT",
       publicPath: "/p/tok",
@@ -73,6 +81,8 @@ describe("ProposalReadView", () => {
 
   it("never renders send/resend controls", () => {
     proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
     sendState.data = undefined;
 
     render(<ProposalReadView proposalId="p1" />);
@@ -81,11 +91,23 @@ describe("ProposalReadView", () => {
     expect(screen.queryByRole("button", { name: "Reenviar" })).not.toBeInTheDocument();
   });
 
-  it("renders nothing when the proposal hasn't loaded", () => {
+  it("shows a loading message while useProposal is loading", () => {
     proposalState.data = undefined;
+    proposalState.isLoading = true;
+    proposalState.isError = false;
     sendState.data = undefined;
 
-    const { container } = render(<ProposalReadView proposalId="p1" />);
-    expect(container).toBeEmptyDOMElement();
+    render(<ProposalReadView proposalId="p1" />);
+    expect(screen.getByText("Carregando...")).toBeInTheDocument();
+  });
+
+  it("shows a not-found message on error", () => {
+    proposalState.data = undefined;
+    proposalState.isLoading = false;
+    proposalState.isError = true;
+    sendState.data = undefined;
+
+    render(<ProposalReadView proposalId="p1" />);
+    expect(screen.getByText("Proposta não encontrada.")).toBeInTheDocument();
   });
 });

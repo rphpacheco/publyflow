@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import type { DomainEvent } from "@/repositories/domain-events.repository";
@@ -35,7 +35,10 @@ const notify: EventHandler = async (tx, event) => {
   const payload = event.payload as { proposal_id: string };
   const creatorId = await ProposalsRepository.creatorIdForProposal(tx, event.organizationId, payload.proposal_id);
   const [owner] = creatorId
-    ? await tx.select({ userId: creators.userId }).from(creators).where(eq(creators.id, creatorId))
+    ? await tx
+        .select({ userId: creators.userId })
+        .from(creators)
+        .where(and(eq(creators.id, creatorId), eq(creators.organizationId, event.organizationId)))
     : [];
   await NotificationsRepository.fanOutWithTx(
     tx,

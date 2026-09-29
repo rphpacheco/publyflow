@@ -6,7 +6,7 @@ import { buildPresentation } from "@/lib/presentation/build-presentation";
 import { parseThemeParam } from "@/lib/presentation/theme-param";
 import { PreviewShell } from "@/components/presentation/preview-shell";
 import { isUuid } from "@/lib/uuid";
-import { ProposalsRepository } from "@/repositories/proposals.repository";
+import { proposalOutOfScope } from "@/lib/auth/proposal-scope";
 
 export default async function ProposalPreviewPage({
   params,
@@ -19,7 +19,7 @@ export default async function ProposalPreviewPage({
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  if (session.role === "CREATOR" && !(await ProposalsRepository.isInCreatorScope(db, session.organizationId, id, session.creatorId))) {
+  if (await proposalOutOfScope(db, session, id)) {
     notFound();
   }
 

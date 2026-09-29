@@ -10,9 +10,16 @@ import { ProposalShareActions } from "@/components/proposals/proposal-share-acti
 
 /** What a CREATOR sees instead of the editor: presentation, status, history, sharing. */
 export function ProposalReadView({ proposalId }: { proposalId: string }) {
-  const { data: proposal } = useProposal(proposalId);
+  const { data: proposal, isLoading, isError } = useProposal(proposalId);
   const { data: state } = useProposalSendState(proposalId);
-  if (!proposal) return null;
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  }
+
+  if (isError || !proposal) {
+    return <p className="text-sm text-muted-foreground">Proposta não encontrada.</p>;
+  }
 
   async function copyLink(publicPath: string) {
     try {

@@ -15,12 +15,15 @@ vi.mock("@/hooks/use-proposal", () => ({
   }),
   useUpdateProposal: () => ({ mutate: mutateMock, isPending: false }),
 }));
-vi.mock("@/hooks/use-opportunity", () => ({ useOpportunity: () => ({ data: { creatorId: "c1" } }) }));
+const useOpportunityMock = vi.fn((..._args: unknown[]) => ({ data: { creatorId: "c1" } }));
+vi.mock("@/hooks/use-opportunity", () => ({ useOpportunity: (...args: unknown[]) => useOpportunityMock(...args) }));
+const useProposalBlocksMock = vi.fn((..._args: unknown[]) => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }));
 vi.mock("@/hooks/use-proposal-blocks", () => ({
-  useProposalBlocks: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useProposalBlocks: (...args: unknown[]) => useProposalBlocksMock(...args),
 }));
+const useProposalItemsMock = vi.fn((..._args: unknown[]) => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }));
 vi.mock("@/hooks/use-proposal-items", () => ({
-  useProposalItems: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useProposalItems: (...args: unknown[]) => useProposalItemsMock(...args),
 }));
 vi.mock("@/components/proposals/proposal-items-table", () => ({ ProposalItemsTable: () => null }));
 vi.mock("@/components/proposals/proposal-cover-section", () => ({ ProposalCoverSection: () => null }));
@@ -91,5 +94,25 @@ describe("ProposalPage (builder)", () => {
     expect(await screen.findByText("read-view:p1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Arquivar" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Título da proposta")).not.toBeInTheDocument();
+  });
+
+  it("disables useOpportunity, useProposalBlocks and useProposalItems for CREATOR", async () => {
+    useOpportunityMock.mockClear();
+    useProposalBlocksMock.mockClear();
+    useProposalItemsMock.mockClear();
+
+    await act(async () => {
+      render(
+        <SessionRoleProvider role="CREATOR">
+          <React.Suspense fallback={null}>
+            <ProposalPage params={Promise.resolve({ id: "p1" })} />
+          </React.Suspense>
+        </SessionRoleProvider>,
+      );
+    });
+
+    expect(useOpportunityMock).toHaveBeenCalledWith("op1", { enabled: false });
+    expect(useProposalBlocksMock).toHaveBeenCalledWith("p1", { enabled: false });
+    expect(useProposalItemsMock).toHaveBeenCalledWith("p1", { enabled: false });
   });
 });

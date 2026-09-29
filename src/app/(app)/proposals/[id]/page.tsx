@@ -43,20 +43,20 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
   const { data: proposal, isLoading, isError, refetch } = useProposal(proposalId);
   const { data: opportunity } = useOpportunity(proposal?.opportunityId ?? "", {
-    enabled: proposal !== undefined,
+    enabled: proposal !== undefined && !isCreator,
   });
   const {
     data: blocks,
     isLoading: blocksLoading,
     isError: blocksError,
     refetch: refetchBlocks,
-  } = useProposalBlocks(proposalId);
+  } = useProposalBlocks(proposalId, { enabled: !isCreator });
   const {
     data: items,
     isLoading: itemsLoading,
     isError: itemsError,
     refetch: refetchItems,
-  } = useProposalItems(proposalId);
+  } = useProposalItems(proposalId, { enabled: !isCreator });
 
   const updateProposal = useUpdateProposal(proposalId);
 

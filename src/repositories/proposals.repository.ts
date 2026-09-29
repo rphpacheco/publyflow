@@ -50,7 +50,13 @@ async function selectProposalById(
         tx
           .select({ one: sql`1` })
           .from(opportunities)
-          .where(and(eq(opportunities.id, proposals.opportunityId), eq(opportunities.creatorId, creatorScope))),
+          .where(
+            and(
+              eq(opportunities.id, proposals.opportunityId),
+              eq(opportunities.organizationId, organizationId),
+              eq(opportunities.creatorId, creatorScope),
+            ),
+          ),
       ),
     );
   }
@@ -66,7 +72,10 @@ async function selectCreatorIdForProposal(
   const [row] = await tx
     .select({ creatorId: opportunities.creatorId })
     .from(proposals)
-    .innerJoin(opportunities, eq(opportunities.id, proposals.opportunityId))
+    .innerJoin(
+      opportunities,
+      and(eq(opportunities.id, proposals.opportunityId), eq(opportunities.organizationId, organizationId)),
+    )
     .where(and(eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)));
   return row?.creatorId ?? null;
 }
