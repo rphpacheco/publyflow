@@ -4,6 +4,8 @@ import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { CreatorsRepository } from "@/repositories/creators.repository";
+import { UsersRepository } from "@/repositories/users.repository";
+import { CreatorEmailTakenError } from "@/domain/creators/errors";
 import { users } from "@/db/schema/organizations";
 
 describe("CreatorService.onboardCreator", () => {
@@ -76,5 +78,84 @@ describe("CreatorService.onboardCreator", () => {
       displayName: "Orphan Check",
     });
     expect(creator.displayName).toBe("Orphan Check");
+  });
+});
+
+describe("CreatorService.register / update", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await cleanup?.();
+  });
+
+  async function org(db: Awaited<ReturnType<typeof withTestDb>>["db"], name = "Org") {
+    return OrganizationService.createWithOwner(db, {
+      organizationName: name,
+      ownerEmail: `owner-${name}@publyflow.test`,
+      ownerFullName: "Owner",
+    });
+  }
+  const input = { fullName: "Thais Rocha", displayName: "Thais", email: "thais@publyflow.test", instagramHandle: "@thais" };
+
+  it("creates a user and a creator", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await org(db);
+    const creator = await CreatorService.register(db, organization.id, input);
+    expect(creator).toMatchObject({ organizationId: organization.id, displayName: "Thais", instagramHandle: "@thais" });
+    const [user] = await db.select().from(users).where(eq(users.id, creator.userId));
+    expect(user).toMatchObject({ email: "thais@publyflow.test", fullName: "Thais Rocha" });
+  });
+
+  it("reuses an existing user by e-mail without changing it", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await org(db);
+    const creator = await CreatorService.register(db, organization.id, { ...input, email: owner.email, fullName: "Outro Nome" });
+    expect(creator.userId).toBe(owner.id);
+    const [user] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(user.fullName).toBe("Owner");
+  });
+
+  it("rejects an e-mail that already has a creator in the organization", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await org(db);
+    await CreatorService.register(db, organization.id, input);
+    await expect(CreatorService.register(db, organization.id, input)).rejects.toBeInstanceOf(CreatorEmailTakenError);
+  });
+
+  it("maps a concurrent insert of the same e-mail (unique violation) to CreatorEmailTakenError", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await org(db);
+    await db.insert(users).values({ email: input.email, fullName: "Racer" });
+    vi.spyOn(UsersRepository, "findByEmail").mockResolvedValueOnce(null);
+    await expect(CreatorService.register(db, organization.id, input)).rejects.toBeInstanceOf(CreatorEmailTakenError);
+  });
+
+  it("updates only display fields and never another organization's creator", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await org(db, "A");
+    const other = await org(db, "B");
+    const creator = await CreatorService.register(db, organization.id, input);
+
+    const updated = await CreatorService.update(db, organization.id, creator.id, { displayName: "Thais R.", instagramHandle: null });
+    expect(updated).toMatchObject({ id: creator.id, displayName: "Thais R.", instagramHandle: null, userId: creator.userId });
+    expect(await CreatorService.update(db, other.organization.id, creator.id, { displayName: "x", instagramHandle: null })).toBeNull();
+  });
+
+  it("lists with e-mail, sorted by display name", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await org(db);
+    await CreatorService.register(db, organization.id, { ...input, displayName: "Zoe", email: "zoe@publyflow.test" });
+    await CreatorService.register(db, organization.id, { ...input, displayName: "Ana", email: "ana@publyflow.test" });
+    const list = await CreatorService.listWithEmail(db, organization.id);
+    expect(list.map((c) => [c.displayName, c.email])).toEqual([
+      ["Ana", "ana@publyflow.test"],
+      ["Zoe", "zoe@publyflow.test"],
+    ]);
   });
 });

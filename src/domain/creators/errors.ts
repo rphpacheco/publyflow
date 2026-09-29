@@ -11,3 +11,10 @@ export class CreatorNotFoundError extends Error {
     this.name = "CreatorNotFoundError";
   }
 }
+
+export class CreatorEmailTakenError extends Error {
+  constructor() {
+    super("Já existe um creator com este e-mail.");
+    this.name = "CreatorEmailTakenError";
+  }
+}

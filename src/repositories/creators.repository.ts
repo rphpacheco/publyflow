@@ -2,9 +2,11 @@ import { eq, and, asc } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
+import { users } from "@/db/schema/organizations";
 import { runInTenantContext } from "./tenant-context";
 
 export type Creator = typeof creators.$inferSelect;
+export type CreatorWithEmail = Creator & { email: string };
 
 export interface CreateCreatorInput {
   userId: string;
@@ -104,5 +106,46 @@ export const CreatorsRepository = {
       .from(creators)
       .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)));
     return row ?? null;
+  },
+
+  async findByUserIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    userId: string,
+  ): Promise<Creator | null> {
+    const [row] = await tx
+      .select()
+      .from(creators)
+      .where(and(eq(creators.userId, userId), eq(creators.organizationId, organizationId)));
+    return row ?? null;
+  },
+
+  async updateWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    creatorId: string,
+    input: { displayName: string; instagramHandle: string | null },
+  ): Promise<Creator | null> {
+    const [row] = await tx
+      .update(creators)
+      .set({ displayName: input.displayName, instagramHandle: input.instagramHandle })
+      .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)))
+      .returning();
+    return row ?? null;
+  },
+
+  async listWithEmailByOrganization(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+  ): Promise<CreatorWithEmail[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const rows = await tx
+        .select({ creator: creators, email: users.email })
+        .from(creators)
+        .innerJoin(users, eq(users.id, creators.userId))
+        .where(eq(creators.organizationId, organizationId))
+        .orderBy(asc(creators.displayName));
+      return rows.map((row) => ({ ...row.creator, email: row.email }));
+    });
   },
 };

@@ -4,6 +4,7 @@ import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OpportunityNotFoundError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 import { RateCardNotFoundError, ServiceNotFoundError } from "@/domain/rate-cards/errors";
+import { CreatorNotFoundError } from "@/domain/creators/errors";
 
 const BAD = "not-a-uuid";
 const ORG = "00000000-0000-4000-8000-000000000001";
@@ -33,6 +34,7 @@ const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>
   { route: "rate-cards/[id]/duplicate", load: () => import("./rate-cards/[id]/duplicate/route"), methods: ["POST"], error: new RateCardNotFoundError(BAD).message },
   { route: "rate-cards/[id]/items", load: () => import("./rate-cards/[id]/items/route"), methods: ["POST"], error: new RateCardNotFoundError(BAD).message },
   { route: "services/[id]", load: () => import("./services/[id]/route"), methods: ["PATCH"], error: new ServiceNotFoundError(BAD).message },
+  { route: "creators/[id]", load: () => import("./creators/[id]/route"), methods: ["PATCH"], error: new CreatorNotFoundError(BAD).message },
 ];
 
 describe("malformed [id] returns the route's 404, never a 500", () => {
