@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
+import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 
 export interface LoginState {
   error: string | null;
@@ -32,6 +33,7 @@ export async function loginWithPassword(_prev: LoginState, formData: FormData): 
     await supabase.auth.signOut();
     redirect("/sem-acesso");
   }
+  await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
   redirect("/pipeline");
 }
 

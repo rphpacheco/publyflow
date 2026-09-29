@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
+import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -26,5 +27,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/sem-acesso", url.origin));
   }
 
+  await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
   return NextResponse.redirect(new URL("/pipeline", url.origin));
 }

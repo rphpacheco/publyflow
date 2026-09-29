@@ -11,6 +11,7 @@ async function importActions(options: {
   session: unknown;
 }) {
   const signOut = vi.fn(async () => ({ error: null }));
+  const recordLoginMock = vi.fn(async () => undefined);
   vi.resetModules();
   vi.doMock("@/db", () => ({ db: {} }));
   vi.doMock("next/navigation", () => ({
@@ -29,8 +30,11 @@ async function importActions(options: {
   vi.doMock("@/lib/auth/resolve-session", () => ({
     resolveSessionForAuthUser: async () => options.session,
   }));
+  vi.doMock("@/repositories/organization-members.repository", () => ({
+    OrganizationMembersRepository: { recordLogin: recordLoginMock },
+  }));
   const actions = await import("./actions");
-  return { ...actions, signOut };
+  return { ...actions, signOut, recordLoginMock };
 }
 
 function form(email: string, password: string): FormData {
@@ -57,20 +61,27 @@ describe("loginWithPassword", () => {
   });
 
   it("redirects to /pipeline for a provisioned user", async () => {
-    const { loginWithPassword } = await importActions({
+    const session = { userId: "u", organizationId: "o", role: "OWNER" };
+    const { loginWithPassword, recordLoginMock } = await importActions({
       signIn: {
         data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
         error: null,
       },
-      session: { userId: "u", organizationId: "o", role: "OWNER" },
+      session,
     });
     await expect(loginWithPassword({ error: null }, form("a@x.test", "secret"))).rejects.toMatchObject({
       url: "/pipeline",
     });
+    expect(recordLoginMock).toHaveBeenCalledWith(
+      expect.anything(),
+      session.organizationId,
+      session.userId,
+      expect.any(Date),
+    );
   });
 
   it("signs out and redirects to /sem-acesso for an unprovisioned user", async () => {
-    const { loginWithPassword, signOut } = await importActions({
+    const { loginWithPassword, signOut, recordLoginMock } = await importActions({
       signIn: {
         data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
         error: null,
@@ -81,5 +92,6 @@ describe("loginWithPassword", () => {
       url: "/sem-acesso",
     });
     expect(signOut).toHaveBeenCalled();
+    expect(recordLoginMock).not.toHaveBeenCalled();
   });
 });

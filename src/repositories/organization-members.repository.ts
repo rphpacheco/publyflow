@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { organizationMembers } from "@/db/schema/organizations";
@@ -52,5 +52,22 @@ export const OrganizationMembersRepository = {
       .orderBy(asc(organizationMembers.createdAt), asc(organizationMembers.id))
       .limit(1);
     return row ?? null;
+  },
+
+  // Runs outside runInTenantContext on purpose: this is called only at login
+  // time (password action and OAuth/magic-link callback), before any tenant
+  // context has been established for the request. Today the app connects as
+  // a superuser, so RLS does not filter this.
+  /** Called only at login time (password action and OAuth/magic-link callback), never per request. */
+  async recordLogin(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    userId: string,
+    now: Date,
+  ): Promise<void> {
+    await db
+      .update(organizationMembers)
+      .set({ firstLoginAt: sql`coalesce(${organizationMembers.firstLoginAt}, ${now})`, lastLoginAt: now })
+      .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, userId)));
   },
 };
