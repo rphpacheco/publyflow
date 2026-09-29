@@ -34,6 +34,7 @@ export function CreatorAccessActions({
   const remind = useRemindCreatorAccess();
   const revoke = useRevokeCreatorAccess();
   const [confirm, setConfirm] = React.useState<"invite" | "revoke" | null>(null);
+  const busy = invite.isPending || remind.isPending || revoke.isPending;
 
   async function doInvite() {
     setConfirm(null);
@@ -70,15 +71,15 @@ export function CreatorAccessActions({
   return (
     <div className="flex items-center gap-2">
       {creator.access === "none" ? (
-        <Button type="button" variant="outline" size="sm" onClick={() => setConfirm("invite")}>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setConfirm("invite")}>
           Convidar
         </Button>
       ) : (
         <>
-          <Button type="button" variant="outline" size="sm" onClick={doRemind}>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={doRemind}>
             Reenviar instruções
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setConfirm("revoke")}>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setConfirm("revoke")}>
             Revogar acesso
           </Button>
         </>
@@ -99,7 +100,11 @@ export function CreatorAccessActions({
               <Button variant="outline">Cancelar</Button>
             </AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Button onClick={confirm === "invite" ? doInvite : doRevoke}>
+              <Button
+                variant={confirm === "revoke" ? "destructive" : "default"}
+                disabled={busy}
+                onClick={confirm === "invite" ? doInvite : doRevoke}
+              >
                 {confirm === "invite" ? "Convidar" : "Revogar acesso"}
               </Button>
             </AlertDialogAction>

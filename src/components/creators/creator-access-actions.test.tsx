@@ -9,10 +9,11 @@ const remindMock = vi.fn();
 const revokeMock = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const pending = { remind: false };
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
 vi.mock("@/hooks/use-creators", () => ({
   useInviteCreator: () => ({ mutateAsync: inviteMock, isPending: false }),
-  useRemindCreatorAccess: () => ({ mutateAsync: remindMock, isPending: false }),
+  useRemindCreatorAccess: () => ({ mutateAsync: remindMock, isPending: pending.remind }),
   useRevokeCreatorAccess: () => ({ mutateAsync: revokeMock, isPending: false }),
 }));
 
@@ -27,6 +28,14 @@ describe("CreatorAccessActions", () => {
     revokeMock.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
+    pending.remind = false;
+  });
+
+  it("disables the access buttons while a mutation is pending", () => {
+    pending.remind = true;
+    render(<CreatorAccessActions creator={{ ...thais, access: "invited" }} onInstructions={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Reenviar instruções" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Revogar acesso" })).toBeDisabled();
   });
 
   it("none: Convidar opens a confirmation, and confirming invites, toasts, and calls onInstructions", async () => {
