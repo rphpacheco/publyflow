@@ -16,7 +16,7 @@ const dateLabel = (iso: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle:
 export default function CreatorsPage() {
   const router = useRouter();
   const { selectedCreatorId, selectCreator } = useCreatorContext();
-  const { data: creators, isLoading } = useCreators();
+  const { data: creators, isLoading, isError, refetch } = useCreators();
   const [dialog, setDialog] = React.useState<{ open: boolean; creator: CreatorDto | null; key: number }>({
     open: false,
     creator: null,
@@ -43,10 +43,17 @@ export default function CreatorsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">Creators</h1>
-        {creators && creators.length > 0 ? newButton : null}
+        {!isError && creators && creators.length > 0 ? newButton : null}
       </div>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando...</p>
+      ) : isError ? (
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground">Não foi possível carregar os creators.</p>
+          <Button type="button" variant="outline" onClick={() => refetch()}>
+            Tentar novamente
+          </Button>
+        </div>
       ) : !creators || creators.length === 0 ? (
         <EmptyState icon={Users} title="Nenhum creator cadastrado" action={newButton} />
       ) : (

@@ -8,12 +8,16 @@ const refreshMock = vi.fn();
 const selectCreator = vi.fn();
 let selectedCreatorId: string | null = null;
 const toastSuccess = vi.fn();
+let isError = false;
+const refetchMock = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: vi.fn() } }));
 vi.mock("@/components/shell/creator-context", () => ({
   useCreatorContext: () => ({ creators: [], selectedCreatorId, selectCreator }),
 }));
-vi.mock("@/hooks/use-creators", () => ({ useCreators: () => ({ data: list, isLoading: false }) }));
+vi.mock("@/hooks/use-creators", () => ({
+  useCreators: () => ({ data: list, isLoading: false, isError, refetch: refetchMock }),
+}));
 let savedCreator: unknown;
 vi.mock("@/components/creators/creator-form-dialog", () => ({
   CreatorFormDialog: ({ open, creator, onSaved }: { open: boolean; creator: unknown; onSaved: (c: unknown, m: string) => void }) =>
@@ -33,7 +37,9 @@ describe("CreatorsPage", () => {
     refreshMock.mockReset();
     selectCreator.mockReset();
     toastSuccess.mockReset();
+    refetchMock.mockReset();
     selectedCreatorId = null;
+    isError = false;
   });
 
   it("empty state offers Novo creator", () => {
@@ -75,5 +81,16 @@ describe("CreatorsPage", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Creator atualizado.");
     expect(refreshMock).toHaveBeenCalled();
     expect(selectCreator).not.toHaveBeenCalled();
+  });
+
+  it("shows an error message instead of the empty state when loading fails, and retries on click", async () => {
+    list = undefined;
+    isError = true;
+    render(<CreatorsPage />);
+    expect(screen.getByText("Não foi possível carregar os creators.")).toBeInTheDocument();
+    expect(screen.queryByText("Nenhum creator cadastrado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Novo creator" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(refetchMock).toHaveBeenCalled();
   });
 });
