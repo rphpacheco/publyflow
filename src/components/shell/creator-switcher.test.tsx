@@ -61,13 +61,15 @@ describe("CreatorSwitcher", () => {
     expect(await screen.findByText("Thais Miranda")).toBeInTheDocument();
   });
 
-  it("shows a fallback message when the organization has no creators", () => {
+  it("offers a link to register a creator when the organization has none", () => {
     render(
       <CreatorProvider organizationId="org1" creators={[]}>
         <CreatorSwitcher />
       </CreatorProvider>,
     );
 
-    expect(screen.getByText("Nenhum creator cadastrado")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Cadastrar creator" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/creators");
   });
 });

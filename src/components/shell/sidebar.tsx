@@ -11,6 +11,7 @@ import {
   KanbanSquare,
   LayoutDashboard,
   Menu,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export interface SidebarNavItem {
 export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: "Inbox", href: "/inbox", icon: Inbox },
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare },
+  { label: "Creators", href: "/creators", icon: Users },
   { label: "Proposals", href: "/proposals", icon: FileText },
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Contacts", href: "/contacts", icon: Contact },

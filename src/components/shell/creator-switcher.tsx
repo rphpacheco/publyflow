@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,11 @@ export function CreatorSwitcher() {
   const selected = creators.find((creator) => creator.id === selectedCreatorId);
 
   if (creators.length === 0) {
-    return <span className="text-sm text-muted-foreground">Nenhum creator cadastrado</span>;
+    return (
+      <Link href="/creators" className="text-sm text-primary underline-offset-4 hover:underline">
+        Cadastrar creator
+      </Link>
+    );
   }
 
   return (
