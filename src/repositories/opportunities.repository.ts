@@ -64,11 +64,13 @@ async function selectOpportunityById(
   tx: NodePgDatabase<typeof schema>,
   organizationId: string,
   opportunityId: string,
+  creatorScope: string | null = null,
 ): Promise<Opportunity | null> {
-  const [opportunity] = await tx
-    .select()
-    .from(opportunities)
-    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)));
+  const conditions = [eq(opportunities.id, opportunityId), eq(opportunities.organizationId, organizationId)];
+  if (creatorScope !== null) {
+    conditions.push(eq(opportunities.creatorId, creatorScope));
+  }
+  const [opportunity] = await tx.select().from(opportunities).where(and(...conditions));
   return opportunity ?? null;
 }
 
@@ -159,9 +161,10 @@ export const OpportunitiesRepository = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     opportunityId: string,
+    creatorScope: string | null = null,
   ): Promise<Opportunity | null> {
     return runInTenantContext(db, organizationId, (tx) =>
-      selectOpportunityById(tx, organizationId, opportunityId),
+      selectOpportunityById(tx, organizationId, opportunityId, creatorScope),
     );
   },
 

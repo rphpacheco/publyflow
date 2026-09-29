@@ -94,15 +94,31 @@ export const CommercialInquiriesRepository = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     inquiryId: string,
+    creatorScope: string | null = null,
   ): Promise<CommercialInquiry | null> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(commercialInquiries)
-        .where(
-          and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)),
-        );
+      const conditions = [eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)];
+      if (creatorScope !== null) {
+        conditions.push(eq(commercialInquiries.creatorId, creatorScope));
+      }
+      const [row] = await tx.select().from(commercialInquiries).where(and(...conditions));
       return row ?? null;
+    });
+  },
+
+  async isInCreatorScope(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+    creatorScope: string | null,
+  ): Promise<boolean> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const [row] = await tx
+        .select({ creatorId: commercialInquiries.creatorId })
+        .from(commercialInquiries)
+        .where(and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)));
+      if (!row) return false;
+      return creatorScope === null || row.creatorId === creatorScope;
     });
   },
 

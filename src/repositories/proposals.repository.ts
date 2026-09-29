@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, exists, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { proposals } from "@/db/schema/proposals";
+import { opportunities } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "./tenant-context";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 
@@ -40,12 +41,34 @@ async function selectProposalById(
   tx: NodePgDatabase<typeof schema>,
   organizationId: string,
   proposalId: string,
+  creatorScope: string | null = null,
 ): Promise<Proposal | null> {
-  const [proposal] = await tx
-    .select()
-    .from(proposals)
-    .where(and(eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)));
+  const conditions = [eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)];
+  if (creatorScope !== null) {
+    conditions.push(
+      exists(
+        tx
+          .select({ one: sql`1` })
+          .from(opportunities)
+          .where(and(eq(opportunities.id, proposals.opportunityId), eq(opportunities.creatorId, creatorScope))),
+      ),
+    );
+  }
+  const [proposal] = await tx.select().from(proposals).where(and(...conditions));
   return proposal ?? null;
+}
+
+async function selectCreatorIdForProposal(
+  tx: NodePgDatabase<typeof schema>,
+  organizationId: string,
+  proposalId: string,
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ creatorId: opportunities.creatorId })
+    .from(proposals)
+    .innerJoin(opportunities, eq(opportunities.id, proposals.opportunityId))
+    .where(and(eq(proposals.id, proposalId), eq(proposals.organizationId, organizationId)));
+  return row?.creatorId ?? null;
 }
 
 async function updateProposal(
@@ -97,8 +120,32 @@ export const ProposalsRepository = {
     db: NodePgDatabase<typeof schema>,
     organizationId: string,
     proposalId: string,
+    creatorScope: string | null = null,
   ): Promise<Proposal | null> {
-    return runInTenantContext(db, organizationId, (tx) => selectProposalById(tx, organizationId, proposalId));
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectProposalById(tx, organizationId, proposalId, creatorScope),
+    );
+  },
+
+  async creatorIdForProposal(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+  ): Promise<string | null> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      selectCreatorIdForProposal(tx, organizationId, proposalId),
+    );
+  },
+
+  async isInCreatorScope(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+    creatorScope: string | null,
+  ): Promise<boolean> {
+    const owner = await ProposalsRepository.creatorIdForProposal(db, organizationId, proposalId);
+    if (owner === null) return false;
+    return creatorScope === null || owner === creatorScope;
   },
 
   async findByIdWithTx(
