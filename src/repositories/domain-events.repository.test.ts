@@ -123,8 +123,8 @@ describe("NotificationsRepository", () => {
     const event = await db.transaction((tx) => DomainEventsRepository.appendWithTx(tx, organization.id, append(organization.id, proposal.id)));
 
     const input = { sourceEventId: event.id, kind: "proposal.approved", title: "Proposta aceita", body: 'Maria aceitou "Campanha Verão".', linkPath: `/proposals/${proposal.id}` };
-    expect(await db.transaction((tx) => NotificationsRepository.fanOutWithTx(tx, organization.id, input))).toBe(2);
-    expect(await db.transaction((tx) => NotificationsRepository.fanOutWithTx(tx, organization.id, input))).toBe(0);
+    expect(await db.transaction((tx) => NotificationsRepository.fanOutWithTx(tx, organization.id, input, { creatorUserId: null }))).toBe(2);
+    expect(await db.transaction((tx) => NotificationsRepository.fanOutWithTx(tx, organization.id, input, { creatorUserId: null }))).toBe(0);
 
     const forOwner = await NotificationsRepository.listForUser(db, organization.id, owner.id, 20);
     expect(forOwner.unreadCount).toBe(1);

@@ -1,7 +1,10 @@
+import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import type { DomainEvent } from "@/repositories/domain-events.repository";
 import { NotificationsRepository } from "@/repositories/notifications.repository";
+import { ProposalsRepository } from "@/repositories/proposals.repository";
+import { creators } from "@/db/schema/creators";
 import { PROPOSAL_EVENT } from "@/lib/events/proposal-events";
 
 export type EventHandler = (tx: NodePgDatabase<typeof schema>, event: DomainEvent) => Promise<void>;
@@ -29,7 +32,17 @@ export function notificationCopy(
 const notify: EventHandler = async (tx, event) => {
   const copy = notificationCopy(event);
   if (!copy) return;
-  await NotificationsRepository.fanOutWithTx(tx, event.organizationId, { sourceEventId: event.id, ...copy });
+  const payload = event.payload as { proposal_id: string };
+  const creatorId = await ProposalsRepository.creatorIdForProposal(tx, event.organizationId, payload.proposal_id);
+  const [owner] = creatorId
+    ? await tx.select({ userId: creators.userId }).from(creators).where(eq(creators.id, creatorId))
+    : [];
+  await NotificationsRepository.fanOutWithTx(
+    tx,
+    event.organizationId,
+    { sourceEventId: event.id, ...copy },
+    { creatorUserId: owner?.userId ?? null },
+  );
 };
 
 export const proposalNotificationHandlers: Record<string, EventHandler> = {

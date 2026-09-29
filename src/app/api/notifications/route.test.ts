@@ -17,13 +17,18 @@ async function seedNotification(db: Awaited<ReturnType<typeof withTestDb>>["db"]
     }),
   );
   await db.transaction((tx) =>
-    NotificationsRepository.fanOutWithTx(tx, seeded.organization.id, {
-      sourceEventId: event.id,
-      kind: "proposal.approved",
-      title: "Proposta aceita",
-      body: 'Maria aceitou "Campanha Verão".',
-      linkPath: `/proposals/${seeded.proposal.id}`,
-    }),
+    NotificationsRepository.fanOutWithTx(
+      tx,
+      seeded.organization.id,
+      {
+        sourceEventId: event.id,
+        kind: "proposal.approved",
+        title: "Proposta aceita",
+        body: 'Maria aceitou "Campanha Verão".',
+        linkPath: `/proposals/${seeded.proposal.id}`,
+      },
+      { creatorUserId: null },
+    ),
   );
   return seeded;
 }

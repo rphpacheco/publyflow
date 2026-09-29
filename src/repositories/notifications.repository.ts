@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { notifications } from "@/db/schema/domain-events";
@@ -14,13 +14,32 @@ export interface FanOutInput {
   linkPath: string | null;
 }
 
+export interface FanOutAudience {
+  creatorUserId: string | null;
+}
+
 export const NotificationsRepository = {
-  /** One row per organization member; replays insert nothing. */
-  async fanOutWithTx(tx: NodePgDatabase<typeof schema>, organizationId: string, input: FanOutInput): Promise<number> {
+  /**
+   * One row per audience member; replays insert nothing.
+   * Audience: OWNER/MANAGER members always; a CREATOR member only when its
+   * user is the owning creator (audience.creatorUserId).
+   */
+  async fanOutWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    input: FanOutInput,
+    audience: FanOutAudience,
+  ): Promise<number> {
+    const roleCondition = audience.creatorUserId
+      ? or(
+          inArray(organizationMembers.role, ["OWNER", "MANAGER"]),
+          and(eq(organizationMembers.role, "CREATOR"), eq(organizationMembers.userId, audience.creatorUserId)),
+        )
+      : inArray(organizationMembers.role, ["OWNER", "MANAGER"]);
     const members = await tx
       .select({ userId: organizationMembers.userId })
       .from(organizationMembers)
-      .where(eq(organizationMembers.organizationId, organizationId));
+      .where(and(eq(organizationMembers.organizationId, organizationId), roleCondition));
     if (members.length === 0) return 0;
     const inserted = await tx
       .insert(notifications)

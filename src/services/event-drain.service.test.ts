@@ -2,11 +2,14 @@ import { sql } from "drizzle-orm";
 import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
+import { seedTwoCreators } from "@/test/helpers/two-creators";
 import { ProposalSendingService } from "./proposal-sending.service";
 import { ProposalResponseService } from "./proposal-response.service";
 import { EventDrainService } from "./event-drain.service";
 import { DomainEventsRepository } from "@/repositories/domain-events.repository";
 import { NotificationsRepository } from "@/repositories/notifications.repository";
+import { organizationMembers } from "@/db/schema/organizations";
+import { notifications } from "@/db/schema/domain-events";
 
 const tokenOf = (publicPath: string) => publicPath.replace("/p/", "");
 
@@ -60,6 +63,29 @@ describe("EventDrainService.drain", () => {
     const approved = events.find((event) => event.eventType === "proposal.approved")!;
     expect(approved).toMatchObject({ status: "pending", attempts: 1, lastError: "temporário" });
     expect(approved.nextAttemptAt).not.toBeNull();
+  });
+
+  it("a response notifies OWNER/MANAGER and only the owning CREATOR", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, x, y } = await seedTwoCreators(db);
+    await db.insert(organizationMembers).values([
+      { organizationId: organization.id, userId: x.user.id, role: "CREATOR" },
+      { organizationId: organization.id, userId: y.user.id, role: "CREATOR" },
+    ]);
+    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, y.proposal.id, owner.id);
+    await ProposalResponseService.respond(db, publicPath.replace("/p/", ""), {
+      publicationId: publication.id,
+      action: "ACCEPT",
+      name: "Maria",
+      email: "maria@bella.test",
+      message: null,
+    });
+
+    await EventDrainService.drain(db);
+
+    const recipients = (await db.select().from(notifications)).map((n) => n.recipientUserId).sort();
+    expect(recipients).toEqual([owner.id, y.user.id].sort());
   });
 
   it("respects the limit", async () => {
