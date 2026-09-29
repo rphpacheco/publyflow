@@ -12,10 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCreatorContext } from "./creator-context";
+import { useIsCreator } from "./session-role-context";
 
 export function CreatorSwitcher() {
   const { creators, selectedCreatorId, selectCreator } = useCreatorContext();
+  const isCreator = useIsCreator();
   const selected = creators.find((creator) => creator.id === selectedCreatorId);
+
+  if (isCreator) {
+    return <span className="text-sm font-medium">{creators[0]?.displayName ?? ""}</span>;
+  }
 
   if (creators.length === 0) {
     return (

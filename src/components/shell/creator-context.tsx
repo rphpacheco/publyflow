@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { Creator } from "@/repositories/creators.repository";
+
+type SwitcherCreator = { id: string; displayName: string };
 
 // Namespaced by organizationId -- the id comes from the session's single
 // organization (v1 has exactly one organization per session, no
@@ -12,7 +13,7 @@ function storageKey(organizationId: string): string {
 }
 
 interface CreatorContextValue {
-  creators: Creator[];
+  creators: SwitcherCreator[];
   selectedCreatorId: string | null;
   selectCreator: (creatorId: string) => void;
 }
@@ -25,7 +26,7 @@ export function CreatorProvider({
   children,
 }: {
   organizationId: string;
-  creators: Creator[];
+  creators: SwitcherCreator[];
   children: React.ReactNode;
 }) {
   const [selectedCreatorId, setSelectedCreatorId] = React.useState<string | null>(null);

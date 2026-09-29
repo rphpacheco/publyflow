@@ -5,15 +5,20 @@ import userEvent from "@testing-library/user-event";
 
 let list: unknown[] | undefined;
 const refreshMock = vi.fn();
+const replaceMock = vi.fn();
 const selectCreator = vi.fn();
 let selectedCreatorId: string | null = null;
 const toastSuccess = vi.fn();
 let isError = false;
 const refetchMock = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
+let isCreator = false;
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock, replace: replaceMock }) }));
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: vi.fn() } }));
 vi.mock("@/components/shell/creator-context", () => ({
   useCreatorContext: () => ({ creators: [], selectedCreatorId, selectCreator }),
+}));
+vi.mock("@/components/shell/session-role-context", () => ({
+  useIsCreator: () => isCreator,
 }));
 vi.mock("@/hooks/use-creators", () => ({
   useCreators: () => ({ data: list, isLoading: false, isError, refetch: refetchMock }),
@@ -35,11 +40,13 @@ const thais = { id: "c1", displayName: "Thais", instagramHandle: "@thais", email
 describe("CreatorsPage", () => {
   beforeEach(() => {
     refreshMock.mockReset();
+    replaceMock.mockReset();
     selectCreator.mockReset();
     toastSuccess.mockReset();
     refetchMock.mockReset();
     selectedCreatorId = null;
     isError = false;
+    isCreator = false;
   });
 
   it("empty state offers Novo creator", () => {
@@ -92,5 +99,13 @@ describe("CreatorsPage", () => {
     expect(screen.queryByRole("button", { name: "Novo creator" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
     expect(refetchMock).toHaveBeenCalled();
+  });
+
+  it("under CREATOR, redirects to /pipeline and renders nothing", () => {
+    isCreator = true;
+    list = [thais];
+    const { container } = render(<CreatorsPage />);
+    expect(replaceMock).toHaveBeenCalledWith("/pipeline");
+    expect(container).toBeEmptyDOMElement();
   });
 });

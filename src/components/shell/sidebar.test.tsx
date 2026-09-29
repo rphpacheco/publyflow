@@ -7,11 +7,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/inbox",
 }));
 
+import { SessionRoleProvider } from "./session-role-context";
 import { SidebarDesktop, SidebarMobile, SIDEBAR_NAV_ITEMS } from "./sidebar";
 
 describe("SidebarDesktop", () => {
   it("renders every top-level nav item and marks the current route as active", () => {
-    render(<SidebarDesktop />);
+    render(
+      <SessionRoleProvider role="OWNER">
+        <SidebarDesktop />
+      </SessionRoleProvider>,
+    );
 
     for (const item of SIDEBAR_NAV_ITEMS) {
       expect(screen.getByRole("link", { name: new RegExp(item.label) })).toBeInTheDocument();
@@ -25,9 +30,26 @@ describe("SidebarDesktop", () => {
 describe("SidebarMobile", () => {
   it("opens the navigation drawer when the menu trigger is tapped", async () => {
     const user = userEvent.setup();
-    render(<SidebarMobile />);
+    render(
+      <SessionRoleProvider role="OWNER">
+        <SidebarMobile />
+      </SessionRoleProvider>,
+    );
 
     await user.click(screen.getByRole("button", { name: "Abrir menu" }));
     expect(await screen.findByRole("link", { name: /Pipeline/ })).toBeInTheDocument();
+  });
+});
+
+describe("SidebarDesktop under CREATOR", () => {
+  it("shows only Inbox, Pipeline and Proposals", () => {
+    render(
+      <SessionRoleProvider role="CREATOR">
+        <SidebarDesktop />
+      </SessionRoleProvider>,
+    );
+
+    const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(links).toEqual(["/inbox", "/pipeline", "/proposals"]);
   });
 });

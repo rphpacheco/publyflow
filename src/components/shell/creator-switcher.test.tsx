@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Creator } from "@/repositories/creators.repository";
 import { CreatorProvider } from "./creator-context";
+import { SessionRoleProvider } from "./session-role-context";
 import { CreatorSwitcher } from "./creator-switcher";
 
 const creators: Creator[] = [
@@ -33,9 +34,11 @@ describe("CreatorSwitcher", () => {
   it("defaults to the first creator and switches selection on click, persisting it under an organization-namespaced key", async () => {
     const user = userEvent.setup();
     render(
-      <CreatorProvider organizationId="org1" creators={creators}>
-        <CreatorSwitcher />
-      </CreatorProvider>,
+      <SessionRoleProvider role="OWNER">
+        <CreatorProvider organizationId="org1" creators={creators}>
+          <CreatorSwitcher />
+        </CreatorProvider>
+      </SessionRoleProvider>,
     );
 
     expect(await screen.findByText("Thais Miranda")).toBeInTheDocument();
@@ -51,9 +54,11 @@ describe("CreatorSwitcher", () => {
     window.localStorage.setItem("publyflow:org1:selected-creator-id", "c2");
 
     render(
-      <CreatorProvider organizationId="org2" creators={creators}>
-        <CreatorSwitcher />
-      </CreatorProvider>,
+      <SessionRoleProvider role="OWNER">
+        <CreatorProvider organizationId="org2" creators={creators}>
+          <CreatorSwitcher />
+        </CreatorProvider>
+      </SessionRoleProvider>,
     );
 
     // org2 has no stored selection under its own key, so it must fall back
@@ -63,13 +68,28 @@ describe("CreatorSwitcher", () => {
 
   it("offers a link to register a creator when the organization has none", () => {
     render(
-      <CreatorProvider organizationId="org1" creators={[]}>
-        <CreatorSwitcher />
-      </CreatorProvider>,
+      <SessionRoleProvider role="OWNER">
+        <CreatorProvider organizationId="org1" creators={[]}>
+          <CreatorSwitcher />
+        </CreatorProvider>
+      </SessionRoleProvider>,
     );
 
     const link = screen.getByRole("link", { name: "Cadastrar creator" });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/creators");
+  });
+
+  it("under CREATOR, renders the creator's name as plain text with no button or menu", () => {
+    render(
+      <SessionRoleProvider role="CREATOR">
+        <CreatorProvider organizationId="org1" creators={[{ id: "c1", displayName: "Thais" }]}>
+          <CreatorSwitcher />
+        </CreatorProvider>
+      </SessionRoleProvider>,
+    );
+
+    expect(screen.getByText("Thais")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

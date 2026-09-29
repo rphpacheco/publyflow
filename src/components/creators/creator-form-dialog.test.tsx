@@ -65,6 +65,17 @@ describe("CreatorFormDialog", () => {
     expect(screen.getByLabelText("@Instagram")).toHaveAccessibleDescription("Use só letras, números, ponto e sublinhado (até 30).");
   });
 
+  it("shows a form-level error for a 403 with no errors body, leaving E-mail untouched", async () => {
+    createMock.mockRejectedValueOnce(new ApiError(403, "Sem permissão.", { error: "Sem permissão." }));
+    render(<CreatorFormDialog open creator={null} onOpenChange={() => {}} onSaved={() => {}} />);
+    await userEvent.type(screen.getByLabelText("Nome completo"), "Thais");
+    await userEvent.type(screen.getByLabelText("E-mail"), "thais@x.com");
+    await userEvent.click(screen.getByRole("button", { name: "Cadastrar" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sem permissão.");
+    expect(screen.getByLabelText("E-mail").getAttribute("aria-invalid")).not.toBe("true");
+  });
+
   it("edit: e-mail disabled, only display fields sent", async () => {
     const onSaved = vi.fn();
     updateMock.mockResolvedValue({ ...existing, displayName: "Thais R." });

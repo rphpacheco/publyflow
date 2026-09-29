@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCreatorContext } from "@/components/shell/creator-context";
+import { useIsCreator } from "@/components/shell/session-role-context";
 import { CreatorFormDialog } from "@/components/creators/creator-form-dialog";
 import { useCreators, type CreatorDto } from "@/hooks/use-creators";
 
@@ -15,6 +16,7 @@ const dateLabel = (iso: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle:
 
 export default function CreatorsPage() {
   const router = useRouter();
+  const isCreator = useIsCreator();
   const { selectedCreatorId, selectCreator } = useCreatorContext();
   const { data: creators, isLoading, isError, refetch } = useCreators();
   const [dialog, setDialog] = React.useState<{ open: boolean; creator: CreatorDto | null; key: number }>({
@@ -22,6 +24,12 @@ export default function CreatorsPage() {
     creator: null,
     key: 0,
   });
+
+  React.useEffect(() => {
+    if (isCreator) router.replace("/pipeline");
+  }, [isCreator, router]);
+
+  if (isCreator) return null;
 
   const openDialog = (creator: CreatorDto | null) =>
     setDialog((prev) => ({ open: true, creator, key: prev.key + 1 }));

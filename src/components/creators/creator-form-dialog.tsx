@@ -10,16 +10,26 @@ import { useCreateCreator, useUpdateCreator, type CreatorDto } from "@/hooks/use
 type Field = "fullName" | "displayName" | "instagramHandle" | "email";
 type FieldErrors = Partial<Record<Field, string>>;
 
-function toFieldErrors(error: unknown): FieldErrors {
-  if (!(error instanceof ApiError)) return { email: "Não foi possível salvar. Tente novamente." };
-  if (error.status === 409) return { email: error.message };
+interface SubmitError {
+  fieldErrors: FieldErrors;
+  formError: string | null;
+}
+
+function toFieldErrors(error: unknown): SubmitError {
+  if (!(error instanceof ApiError)) {
+    return { fieldErrors: {}, formError: "Não foi possível salvar. Tente novamente." };
+  }
+  if (error.status === 409) {
+    return { fieldErrors: { email: error.message }, formError: null };
+  }
   const errors = (error.body as { errors?: Partial<Record<Field, string[]>> } | null)?.errors ?? {};
   const result: FieldErrors = {};
   for (const field of ["fullName", "displayName", "instagramHandle", "email"] as const) {
     const first = errors[field]?.[0];
     if (first) result[field] = first;
   }
-  return Object.keys(result).length > 0 ? result : { email: "Não foi possível salvar. Tente novamente." };
+  if (Object.keys(result).length > 0) return { fieldErrors: result, formError: null };
+  return { fieldErrors: {}, formError: error.message };
 }
 
 export function CreatorFormDialog({
@@ -42,6 +52,7 @@ export function CreatorFormDialog({
   const [instagramHandle, setInstagramHandle] = React.useState(creator?.instagramHandle ?? "");
   const [email, setEmail] = React.useState(creator?.email ?? "");
   const [errors, setErrors] = React.useState<FieldErrors>({});
+  const [formError, setFormError] = React.useState<string | null>(null);
   const pending = create.isPending || update.isPending;
 
   function field(
@@ -79,13 +90,16 @@ export function CreatorFormDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setErrors({});
+    setFormError(null);
     try {
       const saved = editing
         ? await update.mutateAsync({ displayName, instagramHandle })
         : await create.mutateAsync({ fullName, displayName, instagramHandle, email });
       onSaved(saved, editing ? "edit" : "create");
     } catch (error) {
-      setErrors(toFieldErrors(error));
+      const { fieldErrors, formError: nextFormError } = toFieldErrors(error);
+      setErrors(fieldErrors);
+      setFormError(nextFormError);
     }
   }
 
@@ -120,6 +134,11 @@ export function CreatorFormDialog({
           )}
           {field("instagramHandle", "@Instagram", instagramHandle, setInstagramHandle, { maxLength: 31 })}
           {field("email", "E-mail", email, setEmail, { type: "email", maxLength: 254, disabled: editing })}
+          {formError ? (
+            <p role="alert" className="text-sm text-error">
+              {formError}
+            </p>
+          ) : null}
           <Button type="submit" disabled={pending}>
             {editing ? "Salvar" : "Cadastrar"}
           </Button>

@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useIsCreator } from "@/components/shell/session-role-context";
 
 export interface SidebarNavItem {
   label: string;
@@ -35,11 +36,17 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 ];
 
+const CREATOR_ALLOWED_HREFS = new Set(["/inbox", "/pipeline", "/proposals"]);
+
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const isCreator = useIsCreator();
+  const items = isCreator
+    ? SIDEBAR_NAV_ITEMS.filter((item) => CREATOR_ALLOWED_HREFS.has(item.href))
+    : SIDEBAR_NAV_ITEMS;
   return (
     <nav className="flex flex-col gap-1 p-3">
-      {SIDEBAR_NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
         return (
