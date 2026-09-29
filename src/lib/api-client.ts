@@ -1,10 +1,12 @@
 export class ApiError extends Error {
   status: number;
+  readonly body: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -13,15 +15,16 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = response.statusText;
+    let body: unknown = null;
     try {
-      const body = await response.json();
-      if (body && typeof body.error === "string") {
-        message = body.error;
+      body = await response.json();
+      if (body && typeof (body as { error?: unknown }).error === "string") {
+        message = (body as { error: string }).error;
       }
     } catch {
       // Response body wasn't JSON -- keep the statusText fallback.
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, body);
   }
 
   if (response.status === 204) {

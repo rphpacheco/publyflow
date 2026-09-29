@@ -66,4 +66,14 @@ describe("apiFetch", () => {
       message: "Internal Server Error",
     });
   });
+
+  it("keeps the parsed error body on ApiError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: { email: ["Informe um e-mail válido."] } }), { status: 400 }),
+    );
+    const error = (await apiFetch("/x").catch((e: unknown) => e)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(400);
+    expect(error.body).toEqual({ errors: { email: ["Informe um e-mail válido."] } });
+  });
 });
