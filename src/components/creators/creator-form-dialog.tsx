@@ -92,8 +92,9 @@ export function CreatorFormDialog({
     setErrors({});
     setFormError(null);
     try {
+      const emailChanged = editing && email.trim().toLowerCase() !== (creator?.email ?? "").trim().toLowerCase();
       const saved = editing
-        ? await update.mutateAsync({ displayName, instagramHandle })
+        ? await update.mutateAsync({ displayName, instagramHandle, ...(emailChanged ? { email } : {}) })
         : await create.mutateAsync({ fullName, displayName, instagramHandle, email });
       onSaved(saved, editing ? "edit" : "create");
     } catch (error) {
@@ -133,7 +134,11 @@ export function CreatorFormDialog({
             { maxLength: 80 },
           )}
           {field("instagramHandle", "@Instagram", instagramHandle, setInstagramHandle, { maxLength: 31 })}
-          {field("email", "E-mail", email, setEmail, { type: "email", maxLength: 254, disabled: editing })}
+          {field("email", "E-mail", email, setEmail, {
+            type: "email",
+            maxLength: 254,
+            disabled: editing && creator?.emailEditable === false,
+          })}
           {formError ? (
             <p role="alert" className="text-sm text-error">
               {formError}
