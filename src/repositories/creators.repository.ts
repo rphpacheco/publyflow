@@ -120,6 +120,16 @@ export const CreatorsRepository = {
     return row ?? null;
   },
 
+  async findByUserId(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    userId: string,
+  ): Promise<Creator | null> {
+    return runInTenantContext(db, organizationId, (tx) =>
+      CreatorsRepository.findByUserIdWithTx(tx, organizationId, userId),
+    );
+  },
+
   async updateWithTx(
     tx: NodePgDatabase<typeof schema>,
     organizationId: string,

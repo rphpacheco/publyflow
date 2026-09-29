@@ -6,6 +6,8 @@ import { CreatorService } from "@/services/creator.service";
 import { organizations, organizationMembers, users } from "@/db/schema/organizations";
 import { resolveSessionForAuthUser } from "./resolve-session";
 
+const CREATOR_AUTH_ID = "55555555-5555-4555-8555-555555555555";
+
 const AUTH_ID = "33333333-3333-4333-8333-333333333333";
 const OTHER_AUTH_ID = "44444444-4444-4444-8444-444444444444";
 
@@ -25,7 +27,7 @@ describe("resolveSessionForAuthUser", () => {
 
     const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "whatever@x.test", emailVerified: true });
 
-    expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER" });
+    expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER", creatorId: null });
   });
 
   it("links an unlinked user by e-mail (case-insensitive) on first login", async () => {
@@ -39,7 +41,7 @@ describe("resolveSessionForAuthUser", () => {
 
     const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "owner@publyflow.test", emailVerified: true });
 
-    expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER" });
+    expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER", creatorId: null });
     const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
     expect(reloaded.authUserId).toBe(AUTH_ID);
   });
@@ -160,5 +162,110 @@ describe("resolveSessionForAuthUser", () => {
 
     const [reloaded] = await db.select().from(users).where(eq(users.id, owner.id));
     expect([AUTH_ID, OTHER_AUTH_ID]).toContain(reloaded.authUserId);
+  });
+
+  it("OWNER and MANAGER get creatorId null", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    await db.update(users).set({ authUserId: AUTH_ID }).where(eq(users.id, owner.id));
+
+    const session = await resolveSessionForAuthUser(db, { id: AUTH_ID, email: "whatever@x.test", emailVerified: true });
+
+    expect(session).toEqual({ userId: owner.id, organizationId: organization.id, role: "OWNER", creatorId: null });
+
+    const [manager] = await db
+      .insert(users)
+      .values({ email: "manager@publyflow.test", fullName: "Manager", authUserId: OTHER_AUTH_ID })
+      .returning();
+    await db.insert(organizationMembers).values({
+      organizationId: organization.id,
+      userId: manager.id,
+      role: "MANAGER",
+    });
+
+    const managerSession = await resolveSessionForAuthUser(db, {
+      id: OTHER_AUTH_ID,
+      email: "whatever@x.test",
+      emailVerified: true,
+    });
+
+    expect(managerSession).toEqual({
+      userId: manager.id,
+      organizationId: organization.id,
+      role: "MANAGER",
+      creatorId: null,
+    });
+  });
+
+  it("a CREATOR member with a creator row gets its creatorId", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const [creatorUser] = await db
+      .insert(users)
+      .values({ email: "creator@publyflow.test", fullName: "Creator", authUserId: CREATOR_AUTH_ID })
+      .returning();
+    await db.insert(organizationMembers).values({
+      organizationId: organization.id,
+      userId: creatorUser.id,
+      role: "CREATOR",
+    });
+    const creator = await CreatorService.register(db, organization.id, {
+      fullName: "Creator",
+      displayName: "Creator",
+      email: "creator@publyflow.test",
+      instagramHandle: null,
+    });
+
+    const session = await resolveSessionForAuthUser(db, {
+      id: CREATOR_AUTH_ID,
+      email: "whatever@x.test",
+      emailVerified: true,
+    });
+
+    expect(session).toEqual({
+      userId: creatorUser.id,
+      organizationId: organization.id,
+      role: "CREATOR",
+      creatorId: creator.id,
+    });
+  });
+
+  it("a CREATOR member without a creator row gets no session", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+
+    const [creatorUser] = await db
+      .insert(users)
+      .values({ email: "creator@publyflow.test", fullName: "Creator", authUserId: CREATOR_AUTH_ID })
+      .returning();
+    await db.insert(organizationMembers).values({
+      organizationId: organization.id,
+      userId: creatorUser.id,
+      role: "CREATOR",
+    });
+
+    const session = await resolveSessionForAuthUser(db, {
+      id: CREATOR_AUTH_ID,
+      email: "whatever@x.test",
+      emailVerified: true,
+    });
+
+    expect(session).toBeNull();
   });
 });

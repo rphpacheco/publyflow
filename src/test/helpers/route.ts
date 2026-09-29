@@ -21,5 +21,9 @@ export async function importRouteWithSession<T>(
 }
 
 export function ownerSession(organizationId: string, userId: string): Session {
-  return { organizationId, userId, role: "OWNER" };
+  return { organizationId, userId, role: "OWNER", creatorId: null };
+}
+
+export function creatorSession(organizationId: string, userId: string, creatorId: string): Session {
+  return { organizationId, userId, role: "CREATOR", creatorId };
 }

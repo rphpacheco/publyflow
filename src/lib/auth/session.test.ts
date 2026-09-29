@@ -43,7 +43,7 @@ describe("getSession / requireSession", () => {
       },
     });
 
-    const expected = { userId: owner.id, organizationId: organization.id, role: "OWNER" };
+    const expected = { userId: owner.id, organizationId: organization.id, role: "OWNER", creatorId: null };
     expect(await getSession()).toEqual(expected);
     expect(await requireSession()).toEqual(expected);
   });

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
 import { getSession } from "@/lib/auth/session";
-import { canManageCreators, forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { canManageOrganization } from "@/lib/auth/access";
 import { createCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorEmailTakenError } from "@/domain/creators/errors";
 
@@ -18,7 +19,7 @@ export async function GET(_request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
-  if (!canManageCreators(session.role)) return forbiddenResponse();
+  if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const parsed = createCreatorSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

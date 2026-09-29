@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
 import { getSession } from "@/lib/auth/session";
-import { canManageCreators, forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { canManageOrganization } from "@/lib/auth/access";
 import { updateCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorNotFoundError } from "@/domain/creators/errors";
 import { isUuid } from "@/lib/uuid";
@@ -15,7 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const notFound = () => NextResponse.json({ error: new CreatorNotFoundError(id).message }, { status: 404 });
   if (!isUuid(id)) return notFound();
-  if (!canManageCreators(session.role)) return forbiddenResponse();
+  if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const parsed = updateCreatorSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
