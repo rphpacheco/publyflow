@@ -89,4 +89,32 @@ export const OrganizationMembersRepository = {
       .set({ firstLoginAt: sql`coalesce(${organizationMembers.firstLoginAt}, ${now})`, lastLoginAt: now })
       .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, userId)));
   },
+
+  // Returns the CREATOR membership row for a user in an organization, or
+  // null. Used by CreatorService.changeEmail to find the membership row
+  // that must move to the new user, rather than being deleted and recreated.
+  async findCreatorMembershipWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    userId: string,
+  ): Promise<{ id: string } | null> {
+    const [row] = await tx
+      .select({ id: organizationMembers.id })
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, organizationId),
+          eq(organizationMembers.userId, userId),
+          eq(organizationMembers.role, "CREATOR"),
+        ),
+      );
+    return row ?? null;
+  },
+
+  // Moves an existing membership row to a new user, preserving its id (and
+  // therefore firstLoginAt/lastLoginAt/createdAt) instead of deleting and
+  // recreating it. Used by CreatorService.changeEmail's atomic transfer.
+  async moveMembershipWithTx(tx: NodePgDatabase<typeof schema>, membershipId: string, newUserId: string): Promise<void> {
+    await tx.update(organizationMembers).set({ userId: newUserId }).where(eq(organizationMembers.id, membershipId));
+  },
 };

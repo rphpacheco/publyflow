@@ -39,10 +39,22 @@ describe("creator input", () => {
     });
   });
 
-  it("update ignores e-mail", () => {
-    expect(updateCreatorSchema.parse({ displayName: "T", instagramHandle: "thais", email: "x@y.z" })).toEqual({
+  it("update parses an optional e-mail with the same normalisation", () => {
+    expect(updateCreatorSchema.parse({ displayName: "T", instagramHandle: "thais", email: " Thais@Example.COM " })).toEqual({
       displayName: "T",
       instagramHandle: "@thais",
+      email: "thais@example.com",
     });
+    expect(updateCreatorSchema.parse({ displayName: "T", instagramHandle: "thais" })).toEqual({
+      displayName: "T",
+      instagramHandle: "@thais",
+      email: undefined,
+    });
+  });
+
+  it("update rejects an invalid e-mail with the same message", () => {
+    const result = updateCreatorSchema.safeParse({ displayName: "T", instagramHandle: "thais", email: "x@y" });
+    expect(result.success).toBe(false);
+    expect(fieldErrors(result).email).toEqual(["Informe um e-mail válido."]);
   });
 });
