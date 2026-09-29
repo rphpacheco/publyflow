@@ -1,12 +1,17 @@
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
-import { users } from "@/db/schema/organizations";
+import { users, organizationMembers } from "@/db/schema/organizations";
 import { runInTenantContext } from "./tenant-context";
 
 export type Creator = typeof creators.$inferSelect;
 export type CreatorWithEmail = Creator & { email: string };
+export type CreatorWithAccess = CreatorWithEmail & {
+  access: "none" | "invited" | "active" | "team";
+  lastLoginAt: Date | null;
+  emailEditable: boolean;
+};
 
 export interface CreateCreatorInput {
   userId: string;
@@ -156,6 +161,57 @@ export const CreatorsRepository = {
         .where(eq(creators.organizationId, organizationId))
         .orderBy(asc(creators.displayName));
       return rows.map((row) => ({ ...row.creator, email: row.email }));
+    });
+  },
+
+  async listWithAccessByOrganization(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+  ): Promise<CreatorWithAccess[]> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const everLoggedIn = sql<boolean>`exists(select 1 from ${organizationMembers} x where x.user_id = ${users.id} and x.first_login_at is not null)`;
+      const isTeamAnywhere = sql<boolean>`exists(select 1 from ${organizationMembers} x where x.user_id = ${users.id} and x.role in ('OWNER','MANAGER'))`;
+      const creatorElsewhere = sql<boolean>`exists(select 1 from ${creators} c2 where c2.user_id = ${users.id} and c2.organization_id <> ${organizationId})`;
+
+      const rows = await tx
+        .select({
+          creator: creators,
+          email: users.email,
+          authUserId: users.authUserId,
+          role: organizationMembers.role,
+          firstLoginAt: organizationMembers.firstLoginAt,
+          lastLoginAt: organizationMembers.lastLoginAt,
+          everLoggedIn,
+          isTeamAnywhere,
+          creatorElsewhere,
+        })
+        .from(creators)
+        .innerJoin(users, eq(users.id, creators.userId))
+        .leftJoin(
+          organizationMembers,
+          and(eq(organizationMembers.userId, creators.userId), eq(organizationMembers.organizationId, organizationId)),
+        )
+        .where(eq(creators.organizationId, organizationId))
+        .orderBy(asc(creators.displayName));
+
+      return rows.map((row) => {
+        const access: CreatorWithAccess["access"] = !row.role
+          ? "none"
+          : row.role !== "CREATOR"
+            ? "team"
+            : row.firstLoginAt
+              ? "active"
+              : "invited";
+        const emailEditable =
+          !row.everLoggedIn && row.authUserId === null && !row.isTeamAnywhere && !row.creatorElsewhere;
+        return {
+          ...row.creator,
+          email: row.email,
+          access,
+          lastLoginAt: row.lastLoginAt,
+          emailEditable,
+        };
+      });
     });
   },
 };

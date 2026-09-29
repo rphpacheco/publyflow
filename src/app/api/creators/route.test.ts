@@ -78,6 +78,14 @@ describe("/api/creators", () => {
     ]);
   });
 
+  it("GET items include access, lastLoginAt and emailEditable for OWNER", async () => {
+    const { db, organization, route } = await setup();
+    await CreatorService.register(db, organization.id, { ...valid, displayName: "Zoe", email: "zoe@publyflow.test", instagramHandle: null });
+    const list = await (await route.GET(new Request("http://localhost/api/creators"))).json();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ access: "none", lastLoginAt: null, emailEditable: true });
+  });
+
   it("does not return creators from another organization", async () => {
     const { db, route } = await setup();
     const other = await OrganizationService.createWithOwner(db, {

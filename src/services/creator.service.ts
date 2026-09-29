@@ -1,7 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { users } from "@/db/schema/organizations";
-import { CreatorsRepository, type Creator, type CreatorWithEmail } from "@/repositories/creators.repository";
+import { CreatorsRepository, type Creator, type CreatorWithEmail, type CreatorWithAccess } from "@/repositories/creators.repository";
 import { UsersRepository } from "@/repositories/users.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { CreatorEmailTakenError } from "@/domain/creators/errors";
@@ -104,5 +104,9 @@ export const CreatorService = {
 
   async listWithEmail(db: NodePgDatabase<typeof schema>, organizationId: string): Promise<CreatorWithEmail[]> {
     return CreatorsRepository.listWithEmailByOrganization(db, organizationId);
+  },
+
+  async listWithAccess(db: NodePgDatabase<typeof schema>, organizationId: string): Promise<CreatorWithAccess[]> {
+    return CreatorsRepository.listWithAccessByOrganization(db, organizationId);
   },
 };

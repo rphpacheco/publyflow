@@ -20,7 +20,7 @@ export async function GET(_request: Request) {
     return NextResponse.json(own, { status: 200 });
   }
 
-  const list = await CreatorService.listWithEmail(db, session.organizationId);
+  const list = await CreatorService.listWithAccess(db, session.organizationId);
   return NextResponse.json(list, { status: 200 });
 }
 

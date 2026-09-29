@@ -18,3 +18,16 @@ export class CreatorEmailTakenError extends Error {
     this.name = "CreatorEmailTakenError";
   }
 }
+
+export const ACCESS_ERRORS = {
+  otherOrganization: "Este e-mail já tem acesso a outra organização.",
+  team: "Esta pessoa já faz parte da equipe.",
+  notInvited: "Este creator ainda não foi convidado.",
+} as const;
+
+export class CreatorAccessConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CreatorAccessConflictError";
+  }
+}
