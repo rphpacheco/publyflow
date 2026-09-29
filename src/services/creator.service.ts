@@ -64,6 +64,15 @@ export const CreatorService = {
         const existing = await UsersRepository.findByEmail(tx, input.email);
         let userId: string;
         if (existing) {
+          // Lock the existing user's row before re-checking for a duplicate
+          // creator. Without this, two concurrent registrations for the
+          // same existing user + organization (double-click, two staff
+          // members) could both read "no creator yet" and each insert one,
+          // since there's no DB unique constraint backing this check. Under
+          // READ COMMITTED, the second transaction blocks here until the
+          // first commits, then its own findByUserIdWithTx (a fresh
+          // statement) sees the first transaction's committed creator row.
+          await UsersRepository.lockByIdWithTx(tx, existing.id);
           if (await CreatorsRepository.findByUserIdWithTx(tx, organizationId, existing.id)) {
             throw new CreatorEmailTakenError();
           }

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
@@ -7,6 +7,7 @@ import { CreatorsRepository } from "@/repositories/creators.repository";
 import { UsersRepository } from "@/repositories/users.repository";
 import { CreatorEmailTakenError } from "@/domain/creators/errors";
 import { users } from "@/db/schema/organizations";
+import { creators } from "@/db/schema/creators";
 
 describe("CreatorService.onboardCreator", () => {
   let cleanup: () => Promise<void>;
@@ -105,6 +106,54 @@ describe("CreatorService.register / update", () => {
     expect(creator).toMatchObject({ organizationId: organization.id, displayName: "Thais", instagramHandle: "@thais" });
     const [user] = await db.select().from(users).where(eq(users.id, creator.userId));
     expect(user).toMatchObject({ email: "thais@publyflow.test", fullName: "Thais Rocha" });
+  });
+
+  it("serializes two concurrent registrations for the same existing user (race)", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await org(db);
+
+    // Hold a row lock on the owner's `users` row in a separate, long-running
+    // transaction to simulate a second concurrent request that gets there
+    // first. `register` must block on this same lock before it re-checks
+    // for an existing creator, or both requests could pass the check and
+    // each insert a creator.
+    let signalLockAcquired: () => void = () => {};
+    const lockAcquired = new Promise<void>((resolve) => {
+      signalLockAcquired = resolve;
+    });
+    let releaseHeldTx: () => void = () => {};
+    const releaseSignal = new Promise<void>((resolve) => {
+      releaseHeldTx = resolve;
+    });
+
+    const holdingTx = db.transaction(async (tx) => {
+      await tx.execute(sql`select id from ${users} where id = ${owner.id} for update`);
+      signalLockAcquired();
+      await releaseSignal;
+      // Insert the creator that the pending register() call must see once
+      // it acquires the lock, so its duplicate check finds it.
+      await tx.insert(creators).values({ organizationId: organization.id, userId: owner.id, displayName: "Racer" });
+    });
+
+    await lockAcquired;
+
+    const registerPromise = CreatorService.register(db, organization.id, { ...input, email: owner.email });
+
+    // Give register() time to reach (and block on) the lock before we
+    // release it -- otherwise the assertion below would be racing register
+    // itself instead of proving it waited.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseHeldTx();
+    await holdingTx;
+
+    await expect(registerPromise).rejects.toBeInstanceOf(CreatorEmailTakenError);
+
+    const rows = await db
+      .select()
+      .from(creators)
+      .where(and(eq(creators.userId, owner.id), eq(creators.organizationId, organization.id)));
+    expect(rows).toHaveLength(1);
   });
 
   it("reuses an existing user by e-mail without changing it", async () => {

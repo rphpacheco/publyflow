@@ -21,6 +21,19 @@ export const UsersRepository = {
     return user ?? null;
   },
 
+  /**
+   * Row lock: serializes concurrent `CreatorService.register` calls that
+   * reuse the same existing `users` row across organizations. There is no
+   * DB unique constraint on creators(organization_id, user_id) (no
+   * migration allowed here), so without this lock two concurrent requests
+   * for the same existing user + org could both pass the plain-SELECT
+   * duplicate check and each insert a creator.
+   */
+  async lockByIdWithTx(tx: NodePgDatabase<typeof schema>, userId: string): Promise<User | null> {
+    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+    return user ?? null;
+  },
+
   // Returns true when the row was actually linked (it was unlinked at the
   // time of the write). Returns false when another auth user won the race
   // and linked this row first — callers must treat that as a failed link,
