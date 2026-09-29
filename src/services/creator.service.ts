@@ -4,7 +4,7 @@ import type * as schema from "@/db/schema";
 import { users } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
 import { CreatorsRepository, type Creator, type CreatorWithEmail, type CreatorWithAccess } from "@/repositories/creators.repository";
-import { UsersRepository } from "@/repositories/users.repository";
+import { UsersRepository, type User } from "@/repositories/users.repository";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { ACCESS_ERRORS, CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
@@ -145,18 +145,38 @@ export const CreatorService = {
       const creator = await CreatorsRepository.findByIdWithTx(tx, organizationId, creatorId);
       if (!creator) throw new CreatorNotFoundError(creatorId);
 
-      const current = await UsersRepository.lockByIdWithTx(tx, creator.userId);
-      if (!current) throw new CreatorNotFoundError(creatorId);
+      // Plain lookup (no lock yet): we need to know, before taking any row
+      // lock, whether a distinct target user is involved, so both users'
+      // rows can be locked in a canonical (ascending id) order below.
+      // Locking in call order instead (current, then target) would deadlock
+      // against a concurrent changeEmail transferring the opposite pair of
+      // users (current <-> target swapped).
+      const targetLookup = await UsersRepository.findByEmail(tx, newEmail);
+      const targetId = targetLookup && targetLookup.id !== creator.userId ? targetLookup.id : null;
 
-      if (current.email.toLowerCase() === newEmail.toLowerCase()) return;
+      let current: User | null;
+      let target: User | null = null;
+      if (targetId) {
+        const [firstId, secondId] = [creator.userId, targetId].sort();
+        const first = await UsersRepository.lockByIdWithTx(tx, firstId);
+        const second = await UsersRepository.lockByIdWithTx(tx, secondId);
+        current = firstId === creator.userId ? first : second;
+        target = firstId === creator.userId ? second : first;
+      } else {
+        current = await UsersRepository.lockByIdWithTx(tx, creator.userId);
+      }
+      if (!current) throw new CreatorNotFoundError(creatorId);
 
       if (!(await isEmailEditable(tx, organizationId, current.id, current.authUserId))) {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.emailLocked);
       }
 
-      const target = await UsersRepository.findByEmail(tx, newEmail);
+      if (current.email.toLowerCase() === newEmail.toLowerCase()) return;
 
-      if (!target) {
+      // Re-validate against the freshly locked row: the plain lookup above
+      // could be stale by the time both locks are held (the target user's
+      // e-mail may have moved on while we waited).
+      if (!target || target.email.toLowerCase() !== newEmail.toLowerCase()) {
         try {
           await tx.update(users).set({ email: newEmail }).where(eq(users.id, current.id));
         } catch (error) {
@@ -166,18 +186,21 @@ export const CreatorService = {
         return;
       }
 
-      await UsersRepository.lockByIdWithTx(tx, target.id);
       const targetMemberships = await OrganizationMembersRepository.listForUser(tx, target.id);
 
       // Temporary: remove when multi-organization sessions exist.
       if (targetMemberships.some((membership) => membership.organizationId !== organizationId)) {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.otherOrganization);
       }
-      if (targetMemberships.some((membership) => membership.organizationId === organizationId)) {
-        throw new CreatorAccessConflictError(ACCESS_ERRORS.team);
-      }
       if (await CreatorsRepository.findByUserIdWithTx(tx, organizationId, target.id)) {
         throw new CreatorEmailTakenError();
+      }
+      if (
+        targetMemberships.some(
+          (membership) => membership.organizationId === organizationId && (membership.role === "OWNER" || membership.role === "MANAGER"),
+        )
+      ) {
+        throw new CreatorAccessConflictError(ACCESS_ERRORS.team);
       }
 
       await tx

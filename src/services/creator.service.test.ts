@@ -280,6 +280,16 @@ describe("CreatorService.changeEmail", () => {
     );
   });
 
+  it("throws emailLocked even when the new e-mail equals the current one, once locked", async () => {
+    const { db, organization, creator } = await setup();
+    await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+    await OrganizationMembersRepository.recordLogin(db, organization.id, creator.userId, new Date());
+
+    await expect(CreatorService.changeEmail(db, organization.id, creator.id, "THAIS@publyflow.test")).rejects.toThrow(
+      ACCESS_ERRORS.emailLocked,
+    );
+  });
+
   it("throws otherOrganization when the target e-mail belongs to a user with a membership in another org", async () => {
     const { db, organization, creator } = await setup();
     const other = await org(db, "Other");
@@ -304,6 +314,32 @@ describe("CreatorService.changeEmail", () => {
     await expect(CreatorService.changeEmail(db, organization.id, creator.id, "other@publyflow.test")).rejects.toBeInstanceOf(
       CreatorEmailTakenError,
     );
+  });
+
+  it("throws CreatorEmailTakenError (not team) when the target is an invited creator here, before the team check", async () => {
+    const { db, organization, creator } = await setup();
+    const targetCreator = await CreatorService.register(db, organization.id, {
+      fullName: "Other Creator",
+      displayName: "Other Creator",
+      email: "other@publyflow.test",
+      instagramHandle: null,
+    });
+    await CreatorAccessService.invite(db, organization.id, targetCreator.id, "http://localhost");
+
+    await expect(CreatorService.changeEmail(db, organization.id, creator.id, "other@publyflow.test")).rejects.toBeInstanceOf(
+      CreatorEmailTakenError,
+    );
+
+    // Nothing changed: the source creator still points at its own user, and
+    // the target's CREATOR membership is untouched.
+    const [reloadedCreator] = await db.select().from(creators).where(eq(creators.id, creator.id));
+    expect(reloadedCreator.userId).toBe(creator.userId);
+    const [targetMembership] = await db
+      .select()
+      .from(organizationMembers)
+      .where(and(eq(organizationMembers.organizationId, organization.id), eq(organizationMembers.userId, targetCreator.userId)));
+    expect(targetMembership).toBeTruthy();
+    expect(targetMembership.role).toBe("CREATOR");
   });
 
   it("throws team when the target is OWNER in this org", async () => {
@@ -375,5 +411,22 @@ describe("CreatorService.changeEmail", () => {
       .where(and(eq(organizationMembers.organizationId, organization.id), eq(organizationMembers.userId, creator.userId)));
     expect(membershipAfter).toBeTruthy();
     expect(membershipAfter.id).toBe(membershipBefore.id);
+  });
+
+  it("locks both users' rows in ascending id order to avoid a lock-order deadlock", async () => {
+    const { db, organization, creator } = await setup();
+    const [targetUser] = await db.insert(users).values({ email: "target@publyflow.test", fullName: "Target" }).returning();
+
+    const calls: string[] = [];
+    const original = UsersRepository.lockByIdWithTx.bind(UsersRepository);
+    vi.spyOn(UsersRepository, "lockByIdWithTx").mockImplementation(async (tx, userId) => {
+      calls.push(userId);
+      return original(tx, userId);
+    });
+
+    await CreatorService.changeEmail(db, organization.id, creator.id, "target@publyflow.test");
+
+    const [firstId, secondId] = [creator.userId, targetUser.id].sort();
+    expect(calls).toEqual([firstId, secondId]);
   });
 });

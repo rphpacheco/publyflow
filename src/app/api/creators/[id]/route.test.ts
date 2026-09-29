@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
@@ -68,6 +68,27 @@ describe("PATCH /api/creators/[id]", () => {
     );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Não é possível alterar o e-mail de quem já acessou o app." });
+  });
+
+  it("409 with a retry message when changeEmail hits a Postgres deadlock (40P01)", async () => {
+    const { db, a, creator } = await setup();
+    const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(a.organization.id, a.owner.id),
+      extraMocks: () => {
+        vi.doMock("@/services/creator.service", () => ({
+          CreatorService: { changeEmail: vi.fn().mockRejectedValue(deadlock), update: vi.fn() },
+        }));
+      },
+    });
+
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "novo@x.com" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
   });
 
   it("404 for another organization's creator", async () => {
