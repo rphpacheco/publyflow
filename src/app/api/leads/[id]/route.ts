@@ -10,12 +10,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const session = await getSession();
   if (!session) return unauthorizedResponse();
 
-  if (!canManageOrganization(session.role)) return forbiddenResponse();
-
   const { id } = await params;
   if (!isUuid(id)) {
     return NextResponse.json({ error: `Lead ${id} not found` }, { status: 404 });
   }
+
+  if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const lead = await LeadService.findById(db, session.organizationId, id);
   if (!lead) {
