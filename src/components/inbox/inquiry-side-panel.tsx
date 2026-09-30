@@ -43,6 +43,7 @@ export function InquirySidePanel({
   const discard = useDiscardInquiry(creatorId, status);
   const markFalsePositive = useMarkFalsePositiveInquiry(creatorId, status);
   const updateGuesses = useUpdateInquiryGuesses(creatorId, status);
+  const dadosHeadingId = React.useId();
 
   const [editMode, setEditMode] = React.useState(false);
   const [editingData, setEditingData] = React.useState(false);
@@ -57,12 +58,24 @@ export function InquirySidePanel({
     setOverrides(null);
   }, [inquiry?.id]);
 
+  // F1: the effect below registers the shortcut actions once per
+  // inquiry (deps: [inquiry?.id, readOnly]), so the closures it captures
+  // on that render must stay live for the whole time this inquiry is
+  // selected -- including after "Editar dados" applies an override. A
+  // ref updated on every render, read from inside thin wrapper
+  // functions, gives the registered actions access to the latest
+  // handlers without re-registering (and re-running) on every render.
+  const handlersRef = React.useRef({ handleConvert, handleDiscard, handleMarkFalsePositive });
+  React.useEffect(() => {
+    handlersRef.current = { handleConvert, handleDiscard, handleMarkFalsePositive };
+  });
+
   React.useEffect(() => {
     if (readOnly) return;
     registerActions?.({
-      convert: handleConvert,
-      discard: handleDiscard,
-      markFalsePositive: handleMarkFalsePositive,
+      convert: () => handlersRef.current.handleConvert(),
+      discard: () => handlersRef.current.handleDiscard(),
+      markFalsePositive: () => handlersRef.current.handleMarkFalsePositive(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inquiry?.id, readOnly]);
@@ -86,11 +99,17 @@ export function InquirySidePanel({
           const code = error instanceof ApiError ? (error.body as { code?: string } | null)?.code : undefined;
           if (code === "PARTY_REQUIRED") {
             toast.error(error.message);
+            // F7: only one edit UI on screen at a time -- opening the
+            // Dados inputs must close the select-existing form if it was
+            // somehow left open.
+            setEditMode(false);
             setEditingData(true);
             return;
           }
           if (code === "AMBIGUOUS_PARTY") {
             toast.error(error.message);
+            // F7: same guarantee in the other direction.
+            setEditingData(false);
             setEditMode(true);
             return;
           }
@@ -113,8 +132,19 @@ export function InquirySidePanel({
           setEditMode(false);
           onOpenChange(false);
         },
-        onError: () => {
-          toast.error("Ainda não foi possível resolver — revise a seleção de empresa e marca abaixo.");
+        onError: (error) => {
+          // F5: AMBIGUOUS_PARTY keeps the actionable fixed copy below
+          // (the user is already looking at the company/brand fields
+          // that caused it); any other failure (e.g. a 409 because the
+          // inquiry was resolved concurrently) must surface its own
+          // message instead of the generic one, which would otherwise
+          // hide the real reason (e.g. "Esta mensagem já foi resolvida.").
+          const code = error instanceof ApiError ? (error.body as { code?: string } | null)?.code : undefined;
+          if (code === "AMBIGUOUS_PARTY") {
+            toast.error("Ainda não foi possível resolver — revise a seleção de empresa e marca abaixo.");
+            return;
+          }
+          toast.error(error.message);
         },
       },
     );
@@ -140,7 +170,10 @@ export function InquirySidePanel({
     });
   }
 
-  const showDados = !readOnly && current.status === "NEW";
+  // F7: the select-existing form (editMode) and the Dados block are two
+  // separate ways to fix up the same company/brand/contact data -- having
+  // both on screen at once is confusing and lets them drift out of sync.
+  const showDados = !readOnly && current.status === "NEW" && !editMode;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -178,8 +211,10 @@ export function InquirySidePanel({
         </div>
 
         {showDados ? (
-          <section aria-label="Dados" className="mt-4 flex flex-col gap-2 text-sm">
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Dados</h3>
+          <section aria-labelledby={dadosHeadingId} className="mt-4 flex flex-col gap-2 text-sm">
+            <h3 id={dadosHeadingId} className="text-xs font-semibold uppercase text-muted-foreground">
+              Dados
+            </h3>
             {editingData ? (
               <InquiryDataForm
                 initial={current}

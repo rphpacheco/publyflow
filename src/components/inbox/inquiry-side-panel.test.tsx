@@ -255,6 +255,16 @@ describe("InquirySidePanel", () => {
   });
 
   describe("Dados block", () => {
+    it("F9: labels the Dados section via aria-labelledby pointing at the heading", () => {
+      vi.stubGlobal("fetch", vi.fn());
+      renderPanel();
+
+      const heading = screen.getByRole("heading", { name: "Dados" });
+      const section = heading.closest("section")!;
+      expect(section).toHaveAttribute("aria-labelledby", heading.id);
+      expect(heading.id).toBeTruthy();
+    });
+
     it("shows placeholders and an edit button when all guesses are null", () => {
       vi.stubGlobal("fetch", vi.fn());
       renderPanel({
@@ -340,6 +350,225 @@ describe("InquirySidePanel", () => {
 
       expect(screen.queryByRole("heading", { name: "Dados" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Editar dados" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("F1: the registered convert shortcut action uses the latest data after 'Editar dados' overrides the contact, not a stale closure", async () => {
+    const user = userEvent.setup();
+    const registerActions = vi.fn();
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ ...inquiry, contactNameGuess: "Rodolfo Barbosa" }),
+        });
+      }
+      if (url.includes("/convert")) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ inquiry: {}, lead: {}, opportunity: {} }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InquirySidePanel
+          inquiry={inquiry}
+          open
+          onOpenChange={() => {}}
+          creatorId="creator1"
+          status="NEW"
+          registerActions={registerActions}
+        />
+        <Toaster />
+      </QueryClientProvider>,
+    );
+
+    expect(registerActions).toHaveBeenCalledTimes(1);
+    const { convert: registeredConvert } = registerActions.mock.calls[0]![0] as { convert: () => void };
+
+    await user.click(screen.getByRole("button", { name: "Editar dados" }));
+    const contactInput = screen.getByLabelText("Contato");
+    await user.clear(contactInput);
+    await user.type(contactInput, "Rodolfo Barbosa");
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    await screen.findByText("Dados atualizados.");
+
+    // registerActions must not have been re-invoked (the wrapper closure
+    // is stable across re-renders) -- it's the wrapper reading a ref that
+    // picks up the latest handler.
+    expect(registerActions).toHaveBeenCalledTimes(1);
+
+    registeredConvert();
+
+    await vi.waitFor(() => {
+      const call = fetchMock.mock.calls.find(([callUrl]) => (callUrl as string).includes("/convert"));
+      expect(call).toBeDefined();
+    });
+    const [, convertInit] = fetchMock.mock.calls.find(([callUrl]) => (callUrl as string).includes("/convert"))!;
+    const body = JSON.parse((convertInit as RequestInit).body as string);
+    expect(body.contact).toEqual({ fullName: "Rodolfo Barbosa" });
+  });
+
+  it("F5: a non-AMBIGUOUS_PARTY error on the retried convert surfaces its own message, not the generic one", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/convert") && init) {
+        const body = JSON.parse(init.body as string);
+        if (body.companyId === "c1") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            statusText: "Conflict",
+            json: async () => ({ error: "Esta mensagem já foi resolvida." }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          statusText: "Unprocessable Entity",
+          json: async () => ({
+            error: "Mais de uma empresa ou marca com esse nome — selecione a correta.",
+            code: "AMBIGUOUS_PARTY",
+          }),
+        });
+      }
+      if (url.includes("/api/companies")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => [{ id: "c1", organizationId: "org1", name: "Bella Cosméticos Ltda", createdAt: "2026-01-01" }],
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Converter em Opportunity" }));
+    expect(
+      await screen.findByText("Mais de uma empresa ou marca com esse nome — selecione a correta."),
+    ).toBeInTheDocument();
+
+    const companyCombobox = await screen.findByRole("combobox", { name: /empresa/i });
+    await user.click(companyCombobox);
+    await user.click(await screen.findByText("Bella Cosméticos Ltda"));
+    await user.click(screen.getByRole("button", { name: "Sem marca" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(await screen.findByText("Esta mensagem já foi resolvida.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Ainda não foi possível resolver/),
+    ).not.toBeInTheDocument();
+  });
+
+  describe("F7: only one edit UI at a time", () => {
+    it("hides the Dados block while the select-existing form (editMode) is open", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 422,
+          statusText: "Unprocessable Entity",
+          json: async () => ({
+            error: "Mais de uma empresa ou marca com esse nome — selecione a correta.",
+            code: "AMBIGUOUS_PARTY",
+          }),
+        }),
+      );
+      renderPanel();
+
+      expect(screen.getByRole("heading", { name: "Dados" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Converter em Opportunity" }));
+      await screen.findByRole("combobox", { name: /empresa/i });
+
+      expect(screen.queryByRole("heading", { name: "Dados" })).not.toBeInTheDocument();
+    });
+
+    it("closes editMode (select-existing form) when a later convert (e.g. via keyboard shortcut) returns PARTY_REQUIRED", async () => {
+      const user = userEvent.setup();
+      const registerActions = vi.fn();
+      let callCount = 0;
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/convert")) {
+          callCount += 1;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: false,
+              status: 422,
+              statusText: "Unprocessable Entity",
+              json: async () => ({
+                error: "Mais de uma empresa ou marca com esse nome — selecione a correta.",
+                code: "AMBIGUOUS_PARTY",
+              }),
+            });
+          }
+          return Promise.resolve({
+            ok: false,
+            status: 422,
+            statusText: "Unprocessable Entity",
+            json: async () => ({
+              error: "Informe a empresa ou a marca antes de converter.",
+              code: "PARTY_REQUIRED",
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const queryClient = new QueryClient();
+      render(
+        <QueryClientProvider client={queryClient}>
+          <InquirySidePanel
+            inquiry={inquiry}
+            open
+            onOpenChange={() => {}}
+            creatorId="creator1"
+            status="NEW"
+            registerActions={registerActions}
+          />
+          <Toaster />
+        </QueryClientProvider>,
+      );
+
+      const { convert: registeredConvert } = registerActions.mock.calls[0]![0] as { convert: () => void };
+
+      registeredConvert();
+      await screen.findByRole("combobox", { name: /empresa/i });
+
+      registeredConvert();
+      await screen.findByText("Informe a empresa ou a marca antes de converter.");
+      expect(screen.queryByRole("combobox", { name: /empresa/i })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Empresa")).toBeInTheDocument();
+    });
+
+    it("closes Dados editing when AMBIGUOUS_PARTY opens editMode", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 422,
+          statusText: "Unprocessable Entity",
+          json: async () => ({
+            error: "Mais de uma empresa ou marca com esse nome — selecione a correta.",
+            code: "AMBIGUOUS_PARTY",
+          }),
+        }),
+      );
+      renderPanel();
+
+      await user.click(screen.getByRole("button", { name: "Editar dados" }));
+      expect(screen.getByLabelText("Empresa")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Converter em Opportunity" }));
+
+      await screen.findByRole("combobox", { name: /empresa/i });
+      expect(screen.queryByRole("heading", { name: "Dados" })).not.toBeInTheDocument();
     });
   });
 
