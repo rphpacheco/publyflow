@@ -19,7 +19,7 @@ export function deriveQueueSituation(input: {
   hasPublication: boolean;
 }): QueueSituation {
   if (input.status === "ARCHIVED") return "archived";
-  if (input.approvalState === "changes_requested") return "changes_requested";
+  if (input.approvalState === "changes_requested" && input.canSend) return "changes_requested";
   if (input.status === "CHANGES_REQUESTED" && !input.hasUnsentChanges) return "changes_requested";
   if (input.canSend) {
     if (input.approvalState === "approved") return "ready_to_send";

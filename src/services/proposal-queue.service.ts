@@ -122,7 +122,7 @@ export const ProposalQueueService = {
         const totals = await tx
           .select({
             proposalId: proposalItems.proposalId,
-            total: sql<string>`coalesce(sum(${proposalItems.quantity} * ${proposalItems.unitPrice}), 0)`,
+            total: sql<string>`coalesce(sum(${proposalItems.quantity}::bigint * ${proposalItems.unitPrice}), 0)`,
           })
           .from(proposalItems)
           .where(and(eq(proposalItems.organizationId, organizationId), inArray(proposalItems.proposalId, ids)))

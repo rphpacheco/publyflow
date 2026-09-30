@@ -138,13 +138,74 @@ describe("ProposalQueueService.list", () => {
 
     // Edit after a pending request marks it stale, and no new request was made
     // so we simulate: request again then edit before deciding
-    const { approval: approval3 } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
     await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha Verão 3", userId: owner.id });
     result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
     item = result.items.find((i) => i.id === proposal.id)!;
     expect(item.situation).toBe("draft");
     expect(item.approvalStale).toBe(true);
-    void approval3;
+  });
+
+  it("F1(a): creator requestChanges then agency publishes without editing → awaiting_client → closed", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, creator, proposal } = await seedProposal(db);
+    await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
+
+    const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, approval.id, "Ajustar preço");
+
+    let result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    let item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("changes_requested");
+
+    // Agency publishes without editing (bypassing the creator's request).
+    const publication = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("awaiting_client");
+
+    await ProposalResponseService.respond(db, tokenOf(publication.publicPath), {
+      publicationId: publication.publication.id,
+      action: "ACCEPT",
+      ...maria,
+      message: null,
+    });
+    result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("closed");
+  });
+
+  it("F1(b): creator requestChanges then agency edits (stale approval) → draft, then publishes without approval → awaiting_client → closed", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, creator, proposal } = await seedProposal(db);
+    await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
+
+    const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, approval.id, "Ajustar preço");
+
+    // Agency edits, creating a new version — the CHANGES_REQUESTED approval becomes stale.
+    await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha Verão Ajustada", userId: owner.id });
+    let result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    let item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("draft");
+    expect(item.approvalStale).toBe(true);
+
+    const publication = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("awaiting_client");
+
+    await ProposalResponseService.respond(db, tokenOf(publication.publicPath), {
+      publicationId: publication.publication.id,
+      action: "ACCEPT",
+      ...maria,
+      message: null,
+    });
+    result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.situation).toBe("closed");
   });
 
   it("computes totals from proposal items", async () => {
@@ -181,6 +242,24 @@ describe("ProposalQueueService.list", () => {
     const result2 = await ProposalQueueService.list(db, org2.id, { creatorScope: null, includeArchived: false });
     const item2 = result2.items.find((i) => i.id === noItems.id)!;
     expect(item2.totalCents).toBe(0);
+  });
+
+  it("F2: item total does not overflow int4 (quantity 100 × R$ 3.000.000,00)", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+
+    await ProposalItemService.addItem(db, organization.id, {
+      proposalId: proposal.id,
+      description: "Big item",
+      unitPrice: 300000000,
+      quantity: 100,
+      userId: owner.id,
+    });
+
+    const result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
+    const item = result.items.find((i) => i.id === proposal.id)!;
+    expect(item.totalCents).toBe(30000000000);
   });
 
   it("scopes by creator", async () => {
@@ -239,17 +318,14 @@ describe("ProposalQueueService.list", () => {
       cleanup = c;
       const { organization, owner, opportunity, proposal: first } = await seedProposal(db);
 
-      let lastId = first.id;
       for (let i = 0; i < 200; i++) {
-        const p = await ProposalService.create(db, organization.id, {
+        await ProposalService.create(db, organization.id, {
           opportunityId: opportunity.id,
           title: `P${i}`,
           theme: "PREMIUM",
           userId: owner.id,
         });
-        lastId = p.id;
       }
-      void lastId;
 
       const result = await ProposalQueueService.list(db, organization.id, { creatorScope: null, includeArchived: false });
       expect(result.items).toHaveLength(QUEUE_LIMIT);

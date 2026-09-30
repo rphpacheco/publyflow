@@ -4,6 +4,8 @@ import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { importRouteWithSession, ownerSession, creatorSession } from "@/test/helpers/route";
 import { CreatorService } from "@/services/creator.service";
 import { ProposalService } from "@/services/proposal.service";
+import { companies, contacts } from "@/db/schema/companies-brands-contacts";
+import { leads, opportunities } from "@/db/schema/commercial-flow";
 
 describe("/api/proposals/queue", () => {
   let cleanup: () => Promise<void>;
@@ -59,8 +61,32 @@ describe("/api/proposals/queue", () => {
     const { db } = await setup();
     const { organization, owner, creator, proposal: proposalCreator1 } = await seedProposal(db);
 
-    // Create a second organization with a different creator and proposal
-    const { organization: org2, proposal: proposalCreator2 } = await seedProposal(db);
+    // Create a second creator in the SAME org, with their own proposal, to prove creator scoping
+    // (not just tenant isolation).
+    const creatorB = await CreatorService.onboardCreator(db, organization.id, {
+      email: `creatorb-${Date.now()}@publyflow.test`,
+      fullName: "Bia",
+      displayName: "Bia",
+    });
+    const [company] = await db.insert(companies).values({ organizationId: organization.id, name: "Outra Empresa" }).returning();
+    const [contact] = await db
+      .insert(contacts)
+      .values({ organizationId: organization.id, companyId: company.id, fullName: "Contato B" })
+      .returning();
+    const [lead] = await db
+      .insert(leads)
+      .values({ organizationId: organization.id, creatorId: creatorB.id, contactId: contact.id, companyId: company.id })
+      .returning();
+    const [opportunityB] = await db
+      .insert(opportunities)
+      .values({ organizationId: organization.id, creatorId: creatorB.id, leadId: lead.id, companyId: company.id, brandId: null })
+      .returning();
+    const proposalCreator2 = await ProposalService.create(db, organization.id, {
+      opportunityId: opportunityB.id,
+      title: "B",
+      theme: "PREMIUM",
+      userId: owner.id,
+    });
 
     const { GET } = await importRouteWithSession(() => import("./route"), {
       db,
@@ -73,7 +99,7 @@ describe("/api/proposals/queue", () => {
     const json = await response.json();
     const ids = json.items.map((item: any) => item.id);
     expect(ids).toContain(proposalCreator1.id);
-    // proposalCreator2 is in a different org, so should not appear
+    // proposalCreator2 belongs to a different creator in the same org, so should not appear
     expect(ids).not.toContain(proposalCreator2.id);
   });
 
