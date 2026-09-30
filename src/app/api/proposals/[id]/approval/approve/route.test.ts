@@ -18,11 +18,13 @@ const post = (id: string, body?: unknown) =>
   });
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
+const DUMMY_APPROVAL_ID = "00000000-0000-0000-0000-000000000000";
+
 async function setupWithRequest(db: Awaited<ReturnType<typeof withTestDb>>["db"]) {
   const { organization, owner, creator, proposal } = await seedProposal(db);
   await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
-  await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-  return { organization, owner, creator, proposal };
+  const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+  return { organization, owner, creator, proposal, approval };
 }
 
 describe("/api/proposals/:id/approval/approve", () => {
@@ -35,13 +37,13 @@ describe("/api/proposals/:id/approval/approve", () => {
   it("200 approves for the owning creator", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-    const { organization, creator, proposal } = await setupWithRequest(db);
+    const { organization, creator, proposal, approval } = await setupWithRequest(db);
     const { POST } = await importRouteWithSession(() => import("./route"), {
       db,
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id), params(proposal.id));
+    const response = await POST(post(proposal.id, { approvalId: approval.id }), params(proposal.id));
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.approval.decision).toBe("APPROVED");
@@ -90,7 +92,7 @@ describe("/api/proposals/:id/approval/approve", () => {
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id), params(proposal.id));
+    const response = await POST(post(proposal.id, { approvalId: DUMMY_APPROVAL_ID }), params(proposal.id));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Não há pedido de aprovação pendente." });
   });
@@ -98,19 +100,35 @@ describe("/api/proposals/:id/approval/approve", () => {
   it("409 when the proposal changed after the request", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-    const { organization, owner, creator, proposal } = await setupWithRequest(db);
+    const { organization, owner, creator, proposal, approval } = await setupWithRequest(db);
     await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha Verão 2", userId: owner.id });
     const { POST } = await importRouteWithSession(() => import("./route"), {
       db,
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id), params(proposal.id));
+    const response = await POST(post(proposal.id, { approvalId: approval.id }), params(proposal.id));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "A proposta mudou depois do pedido de aprovação." });
   });
 
-  it("400 when the message is too long", async () => {
+  it("409 when approvalId no longer names the latest request", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, creator, proposal, approval } = await setupWithRequest(db);
+    await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha Verão 2", userId: owner.id });
+    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: creatorSession(organization.id, creator.userId, creator.id),
+    });
+
+    const response = await POST(post(proposal.id, { approvalId: approval.id }), params(proposal.id));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "A proposta mudou depois do pedido de aprovação." });
+  });
+
+  it("400 when approvalId is missing or not a uuid", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
     const { organization, creator, proposal } = await setupWithRequest(db);
@@ -119,14 +137,27 @@ describe("/api/proposals/:id/approval/approve", () => {
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id, { message: "a".repeat(2001) }), params(proposal.id));
+    expect((await POST(post(proposal.id), params(proposal.id))).status).toBe(400);
+    expect((await POST(post(proposal.id, { approvalId: "not-a-uuid" }), params(proposal.id))).status).toBe(400);
+  });
+
+  it("400 when the message is too long", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator, proposal, approval } = await setupWithRequest(db);
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: creatorSession(organization.id, creator.userId, creator.id),
+    });
+
+    const response = await POST(post(proposal.id, { approvalId: approval.id, message: "a".repeat(2001) }), params(proposal.id));
     expect(response.status).toBe(400);
   });
 
   it("409 with a retry message on a Postgres deadlock (40P01)", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-    const { organization, creator, proposal } = await setupWithRequest(db);
+    const { organization, creator, proposal, approval } = await setupWithRequest(db);
     const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
     const { POST } = await importRouteWithSession(() => import("./route"), {
       db,
@@ -138,7 +169,7 @@ describe("/api/proposals/:id/approval/approve", () => {
       },
     });
 
-    const response = await POST(post(proposal.id), params(proposal.id));
+    const response = await POST(post(proposal.id, { approvalId: approval.id }), params(proposal.id));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
   });

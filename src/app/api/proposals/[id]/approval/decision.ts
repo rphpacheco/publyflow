@@ -17,8 +17,11 @@ import { isUuid } from "@/lib/uuid";
 import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 const TOO_LONG = "Use no máximo 2000 caracteres.";
-export const approveSchema = z.object({ message: z.string().trim().max(2000, TOO_LONG).optional() });
-export const requestChangesSchema = z.object({ message: z.string().trim().min(1, "Descreva os ajustes.").max(2000, TOO_LONG) });
+export const approveSchema = z.object({ approvalId: z.uuid(), message: z.string().trim().max(2000, TOO_LONG).optional() });
+export const requestChangesSchema = z.object({
+  approvalId: z.uuid(),
+  message: z.string().trim().min(1, "Descreva os ajustes.").max(2000, TOO_LONG),
+});
 
 /**
  * Creator-only write (spec D §4.4) — exempt from denyCreatorWrite on purpose;
@@ -28,7 +31,7 @@ export async function handleCreatorDecision(
   request: Request,
   params: Promise<{ id: string }>,
   schema: typeof approveSchema | typeof requestChangesSchema,
-  run: (organizationId: string, proposalId: string, userId: string, message: string | null) => Promise<ProposalApproval>,
+  run: (organizationId: string, proposalId: string, userId: string, approvalId: string, message: string | null) => Promise<ProposalApproval>,
 ): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return unauthorizedResponse();
@@ -45,7 +48,7 @@ export async function handleCreatorDecision(
   }
 
   try {
-    const approval = await run(session.organizationId, id, session.userId, parsed.data.message ?? null);
+    const approval = await run(session.organizationId, id, session.userId, parsed.data.approvalId, parsed.data.message ?? null);
     scheduleEventDrain();
     return NextResponse.json({ approval }, { status: 200 });
   } catch (error) {

@@ -25,7 +25,7 @@ vi.mock("@/hooks/use-proposal-share-info", () => ({ useProposalShareInfo: () => 
 
 import { ProposalSendPanel } from "./proposal-send-panel";
 
-const published = { id: "pub1", versionNumber: 3, publishedAt: "2026-09-25T17:32:00.000Z", response: null };
+const published = { id: "pub1", versionNumber: 3, publishedAt: "2026-09-25T17:32:00.000Z", response: null, sentWithoutApproval: false };
 const accepted = {
   ...published,
   response: { action: "ACCEPT" as const, respondentName: "Maria", respondentEmail: "maria@bella.test", message: null, respondedAt: "2026-09-26T12:00:00.000Z" },
@@ -304,7 +304,7 @@ describe("ProposalSendPanel", () => {
       expect(screen.getByRole("button", { name: "Enviar sem aprovação" })).toBeInTheDocument();
     });
 
-    it("clicking Enviar sem aprovação opens the confirm dialog and confirming publishes withoutApproval:true", async () => {
+    it("clicking Enviar sem aprovação opens the confirm dialog; when the fresh state still allows it, publishes withoutApproval:true directly", async () => {
       sendState = state({ approval: { state: "none", required: true, creatorName: "Thais", current: null } });
       render(<ProposalSendPanel proposalId="p1" />);
 
@@ -316,7 +316,69 @@ describe("ProposalSendPanel", () => {
       ).toBeInTheDocument();
 
       await userEvent.click(within(dialog).getByRole("button", { name: "Enviar sem aprovação" }));
-      expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true }, expect.any(Object));
+      expect(refetchMock).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true }, expect.any(Object)));
+    });
+
+    it("Enviar sem aprovação on a fresh APPROVED/REJECTED state opens 'Abrir nova rodada?' and only its Reenviar publishes withoutApproval:true", async () => {
+      sendState = state({ status: "SENT", approval: { state: "none", required: true, creatorName: "Thais", current: null } });
+      freshState = state({
+        status: "APPROVED",
+        publicPath: "/p/tok",
+        latestPublication: accepted,
+        latestVersionNumber: 4,
+        hasUnsentChanges: true,
+        canSend: true,
+        approval: { state: "none", required: true, creatorName: "Thais", current: null },
+      });
+      render(<ProposalSendPanel proposalId="p1" />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Enviar sem aprovação" }));
+      const confirmDialog = await screen.findByRole("alertdialog");
+      await userEvent.click(within(confirmDialog).getByRole("button", { name: "Enviar sem aprovação" }));
+
+      const reopenDialog = await screen.findByRole("alertdialog");
+      expect(within(reopenDialog).getByText("Abrir nova rodada?")).toBeInTheDocument();
+      expect(mutateMock).not.toHaveBeenCalled();
+
+      await userEvent.click(within(reopenDialog).getByRole("button", { name: "Reenviar" }));
+      await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true }, expect.any(Object)));
+    });
+
+    it("Enviar sem aprovação on a fresh DRAFT/SENT state publishes withoutApproval:true directly (no second dialog)", async () => {
+      sendState = state({ status: "SENT", approval: { state: "none", required: true, creatorName: "Thais", current: null } });
+      freshState = state({
+        status: "SENT",
+        publicPath: "/p/tok",
+        latestPublication: published,
+        latestVersionNumber: 4,
+        hasUnsentChanges: true,
+        canSend: true,
+        approval: { state: "none", required: true, creatorName: "Thais", current: null },
+      });
+      render(<ProposalSendPanel proposalId="p1" />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Enviar sem aprovação" }));
+      const dialog = await screen.findByRole("alertdialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Enviar sem aprovação" }));
+
+      await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true }, expect.any(Object)));
+      expect(screen.queryByText("Abrir nova rodada?")).not.toBeInTheDocument();
+    });
+
+    it("Enviar sem aprovação: refetch error shows a toast and does not publish", async () => {
+      sendState = state({ approval: { state: "none", required: true, creatorName: "Thais", current: null } });
+      refetchFails = true;
+      render(<ProposalSendPanel proposalId="p1" />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Enviar sem aprovação" }));
+      const dialog = await screen.findByRole("alertdialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Enviar sem aprovação" }));
+
+      await vi.waitFor(() =>
+        expect(toastError).toHaveBeenCalledWith("Não foi possível verificar o estado da proposta. Tente novamente."),
+      );
+      expect(mutateMock).not.toHaveBeenCalled();
     });
 
     it("clicking Pedir aprovação calls the request-approval mutation", async () => {

@@ -56,7 +56,7 @@ describe("/api/proposals/:id/publications", () => {
 
     const response = await POST(post(proposal.id), params(proposal.id));
     expect(response.status).toBe(409);
-    expect((await response.json()).code).toBe("PROPOSAL_ARCHIVED");
+    expect(await response.json()).toEqual({ error: "Esta proposta está arquivada.", code: "PROPOSAL_ARCHIVED" });
   });
 
   it("404 for another organization's proposal and 401 without a session", async () => {

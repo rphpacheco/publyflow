@@ -32,7 +32,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof ProposalNotFoundError) return notFound();
     if (error instanceof ProposalArchivedError) {
-      return NextResponse.json({ error: error.message, code: "PROPOSAL_ARCHIVED" }, { status: 409 });
+      return NextResponse.json({ error: "Esta proposta está arquivada.", code: "PROPOSAL_ARCHIVED" }, { status: 409 });
     }
     if (error instanceof ApprovalNotRequiredError) return NextResponse.json({ error: error.message }, { status: 409 });
     if (error instanceof UserNotOrganizationMemberError) return NextResponse.json({ error: error.message }, { status: 403 });

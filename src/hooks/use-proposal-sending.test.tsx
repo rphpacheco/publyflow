@@ -130,12 +130,12 @@ describe("proposal sending hooks", () => {
     const client = new QueryClient();
     const { result } = renderHook(() => useApproveProposal("p1"), { wrapper: wrapperWith(client) });
 
-    result.current.mutate({ message: "Ótimo" });
+    result.current.mutate({ approvalId: "a1", message: "Ótimo" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchMock).toHaveBeenCalledWith("/api/proposals/p1/approval/approve", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: "Ótimo" }),
+      body: JSON.stringify({ approvalId: "a1", message: "Ótimo" }),
     });
     expect(toastMod.toast.success).toHaveBeenCalledWith("Proposta aprovada.");
   });
@@ -146,12 +146,12 @@ describe("proposal sending hooks", () => {
     const client = new QueryClient();
     const { result } = renderHook(() => useRequestProposalChanges("p1"), { wrapper: wrapperWith(client) });
 
-    result.current.mutate({ message: "Trocar a capa" });
+    result.current.mutate({ approvalId: "a1", message: "Trocar a capa" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchMock).toHaveBeenCalledWith("/api/proposals/p1/approval/request-changes", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: "Trocar a capa" }),
+      body: JSON.stringify({ approvalId: "a1", message: "Trocar a capa" }),
     });
     expect(toastMod.toast.success).toHaveBeenCalledWith("Pedido de ajustes enviado.");
   });
@@ -164,7 +164,7 @@ describe("proposal sending hooks", () => {
     const client = new QueryClient();
     const { result } = renderHook(() => useRequestProposalChanges("p1"), { wrapper: wrapperWith(client) });
 
-    result.current.mutate({ message: "" });
+    result.current.mutate({ approvalId: "a1", message: "" });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(toastMod.toast.error).toHaveBeenCalledWith("Descreva os ajustes.");
   });

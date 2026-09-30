@@ -35,7 +35,9 @@ export interface SendStateApprovalDto {
 export interface SendStateDto {
   status: ProposalStatus;
   publicPath: string | null;
-  latestPublication: { id: string; versionNumber: number; publishedAt: string; response: SendStateResponseDto | null } | null;
+  latestPublication:
+    | { id: string; versionNumber: number; publishedAt: string; response: SendStateResponseDto | null; sentWithoutApproval: boolean }
+    | null;
   latestVersionNumber: number;
   hasUnsentChanges: boolean;
   canSend: boolean;
@@ -131,6 +133,6 @@ function useApprovalMutation<V>(proposalId: string, path: string, successToast: 
 
 export const useRequestApproval = (proposalId: string) => useApprovalMutation<void>(proposalId, "approval", "Pedido de aprovação enviado.");
 export const useApproveProposal = (proposalId: string) =>
-  useApprovalMutation<{ message?: string }>(proposalId, "approval/approve", "Proposta aprovada.");
+  useApprovalMutation<{ approvalId: string; message?: string }>(proposalId, "approval/approve", "Proposta aprovada.");
 export const useRequestProposalChanges = (proposalId: string) =>
-  useApprovalMutation<{ message: string }>(proposalId, "approval/request-changes", "Pedido de ajustes enviado.");
+  useApprovalMutation<{ approvalId: string; message: string }>(proposalId, "approval/request-changes", "Pedido de ajustes enviado.");

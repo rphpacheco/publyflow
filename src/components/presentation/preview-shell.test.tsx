@@ -122,4 +122,11 @@ describe("PreviewShell", () => {
     renderShell();
     expect(screen.getByRole("link", { name: "Voltar ao editor" })).toHaveAttribute("href", "/proposals/p1");
   });
+
+  it("CREATOR session: hides the editor link, the theme switcher and the inert client action row", () => {
+    renderShell({ isCreator: true });
+    expect(screen.queryByRole("link", { name: "Voltar ao editor" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Tema" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aceitar" })).not.toBeInTheDocument();
+  });
 });

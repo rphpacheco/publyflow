@@ -3,6 +3,7 @@ import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession, creatorSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { organizationMembers } from "@/db/schema/organizations";
+import { ProposalService } from "@/services/proposal.service";
 
 const scheduleEventDrain = vi.fn();
 vi.mock("@/lib/events/schedule-drain", () => ({ scheduleEventDrain: () => scheduleEventDrain() }));
@@ -59,6 +60,19 @@ describe("/api/proposals/:id/approval", () => {
     const response = await POST(post(proposal.id), params(proposal.id));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Este creator não tem acesso ao PublyFlow; envie direto." });
+  });
+
+  it("POST 409 PROPOSAL_ARCHIVED with the Portuguese message for an archived proposal", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, creator, proposal } = await seedProposal(db);
+    await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
+    await ProposalService.update(db, organization.id, proposal.id, { status: "ARCHIVED", userId: owner.id });
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: ownerSession(organization.id, owner.id) });
+
+    const response = await POST(post(proposal.id), params(proposal.id));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Esta proposta está arquivada.", code: "PROPOSAL_ARCHIVED" });
   });
 
   it("POST 404 for a malformed id", async () => {

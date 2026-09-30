@@ -37,7 +37,16 @@ export function ProposalReadView({ proposalId }: { proposalId: string }) {
         <h1 className="text-lg font-semibold">{proposal.title}</h1>
         <ProposalStatusBadge status={proposal.status} />
       </div>
-      {state?.approval?.required ? <ProposalApprovalBlock proposalId={proposalId} approval={state.approval} /> : null}
+      {state?.approval?.required ? (
+        <ProposalApprovalBlock
+          proposalId={proposalId}
+          approval={state.approval}
+          sentWithoutApproval={
+            state.latestPublication?.sentWithoutApproval === true &&
+            state.latestPublication.versionNumber === state.approval.current?.versionNumber
+          }
+        />
+      ) : null}
       {state?.publicPath ? (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => copyLink(state.publicPath!)}>
@@ -53,7 +62,10 @@ export function ProposalReadView({ proposalId }: { proposalId: string }) {
       ) : null}
       <iframe
         title="Apresentação da proposta"
-        src={`/proposals/${proposalId}/preview`}
+        // Cache-busted by the version so the creator always previews the
+        // version they're about to approve, never a stale iframe (spec D
+        // final review F2).
+        src={`/proposals/${proposalId}/preview${state?.latestVersionNumber ? `?v=${state.latestVersionNumber}` : ""}`}
         className="h-[70vh] w-full rounded-lg border border-border bg-card"
       />
       <ProposalSendHistory proposalId={proposalId} status={proposal.status} />

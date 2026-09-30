@@ -212,14 +212,32 @@ describe("approval gate (spec D §4.5)", () => {
     expect(await ProposalSendingService.listPublications(db, organization.id, proposal.id)).toEqual([]);
   });
 
-  it("approved → publication stores approval_id; history shows the approver", async () => {
+  it("approved → publication stores approval_id; history shows the approver's display name, even when it differs from their user fullName", async () => {
     const { db, organization, owner, creator, proposal } = await setupWithAccess();
+    // The fixture's creator has the same fullName and displayName ("Thais");
+    // diverge them here so the assertion actually distinguishes the two.
+    await db.update(creators).set({ displayName: "T. Ferreira" }).where(eq(creators.id, creator.id));
     const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null);
+    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, approval.id, null);
     const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
     expect(result.publication).toMatchObject({ approvalId: approval.id, sentWithoutApproval: false });
     const [item] = (await ProposalSendingService.listPublications(db, organization.id, proposal.id))!;
-    expect(item).toMatchObject({ approvedByName: "Thais", sentWithoutApproval: false });
+    expect(item).toMatchObject({ approvedByName: "T. Ferreira", sentWithoutApproval: false });
+  });
+
+  it("approved + withoutApproval:true is ignored: approvalId is still stored, sentWithoutApproval stays false, no sent_without_approval event", async () => {
+    const { db, organization, owner, creator, proposal } = await setupWithAccess();
+    const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, approval.id, null);
+
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    expect(result.publication).toMatchObject({ approvalId: approval.id, sentWithoutApproval: false });
+
+    const emitted = await db
+      .select()
+      .from(domainEvents)
+      .where(and(eq(domainEvents.organizationId, organization.id), eq(domainEvents.eventType, "proposal.sent_without_approval")));
+    expect(emitted).toHaveLength(0);
   });
 
   it("withoutApproval → flag stored, event emitted; ignored when approved", async () => {
@@ -234,6 +252,13 @@ describe("approval gate (spec D §4.5)", () => {
     expect(emitted[0].payload).toMatchObject({ publication_id: result.publication.id, creator_display_name: "Thais" });
     const [item] = (await ProposalSendingService.listPublications(db, organization.id, proposal.id))!;
     expect(item).toMatchObject({ approvedByName: null, sentWithoutApproval: true });
+  });
+
+  it("send-state exposes sentWithoutApproval on the latest publication", async () => {
+    const { db, organization, owner, proposal } = await setupWithAccess();
+    await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    const state = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
+    expect(state?.latestPublication).toMatchObject({ sentWithoutApproval: true });
   });
 
   it("idempotent re-publish of an already-published version is not gated", async () => {
@@ -251,8 +276,8 @@ describe("approval gate (spec D §4.5)", () => {
       creatorName: "Thais",
       current: null,
     });
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, "Ajustar preço");
+    const { approval: requested } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, requested.id, "Ajustar preço");
     const state = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
     expect(state?.approval).toMatchObject({
       state: "changes_requested",

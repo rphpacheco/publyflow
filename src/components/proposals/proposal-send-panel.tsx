@@ -49,7 +49,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const state = sendStateQuery.data;
   const publish = usePublishProposal(proposalId);
   const requestApproval = useRequestApproval(proposalId);
-  const [confirmStatus, setConfirmStatus] = React.useState<SendStateDto["status"] | null>(null);
+  const [confirm, setConfirm] = React.useState<{ status: SendStateDto["status"]; withoutApproval: boolean } | null>(null);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
   const [confirmWithoutApproval, setConfirmWithoutApproval] = React.useState(false);
@@ -63,13 +63,16 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const creatorName = approval.creatorName ?? "O creator";
   const busy = publish.isPending || requestApproval.isPending || checking;
 
-  function send() {
-    publish.mutate(undefined, { onSuccess: (result) => setSentPath(result.publicPath) });
+  function send(options?: { withoutApproval?: boolean }) {
+    publish.mutate(options?.withoutApproval ? { withoutApproval: true } : undefined, {
+      onSuccess: (result) => setSentPath(result.publicPath),
+    });
   }
 
   // Decide on the server's current state, not the one loaded with the page:
-  // the client may have accepted or rejected since.
-  async function onSendClick() {
+  // the client may have accepted or rejected since. Also used by "Enviar
+  // sem aprovação" so it never silently reopens an accepted/rejected round.
+  async function checkAndSend(options?: { withoutApproval?: boolean }) {
     setChecking(true);
     try {
       const result = await sendStateQuery.refetch();
@@ -80,13 +83,17 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
       }
       if (!fresh.canSend) return;
       if (CONFIRM_COPY[fresh.status]) {
-        setConfirmStatus(fresh.status);
+        setConfirm({ status: fresh.status, withoutApproval: options?.withoutApproval === true });
       } else {
-        send();
+        send(options);
       }
     } finally {
       setChecking(false);
     }
+  }
+
+  function onSendClick() {
+    return checkAndSend();
   }
 
   return (
@@ -183,11 +190,11 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
         <p className="text-xs text-muted-foreground">{DISABLED_HINT[state.status]}</p>
       ) : null}
 
-      <AlertDialog open={confirmStatus !== null} onOpenChange={(open) => !open && setConfirmStatus(null)}>
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Abrir nova rodada?</AlertDialogTitle>
-            <AlertDialogDescription>{confirmStatus ? CONFIRM_COPY[confirmStatus] : null}</AlertDialogDescription>
+            <AlertDialogDescription>{confirm ? CONFIRM_COPY[confirm.status] : null}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel asChild>
@@ -196,8 +203,9 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
             <AlertDialogAction asChild>
               <Button
                 onClick={() => {
-                  setConfirmStatus(null);
-                  send();
+                  const options = confirm ? { withoutApproval: confirm.withoutApproval } : undefined;
+                  setConfirm(null);
+                  send(options);
                 }}
               >
                 Reenviar
@@ -251,7 +259,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
                 disabled={busy}
                 onClick={() => {
                   setConfirmWithoutApproval(false);
-                  publish.mutate({ withoutApproval: true }, { onSuccess: (result) => setSentPath(result.publicPath) });
+                  void checkAndSend({ withoutApproval: true });
                 }}
               >
                 Enviar sem aprovação

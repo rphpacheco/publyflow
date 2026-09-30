@@ -61,6 +61,7 @@ async function decide(
   organizationId: string,
   proposalId: string,
   userId: string,
+  approvalId: string,
   decision: ApprovalDecision,
   message: string | null,
 ): Promise<ProposalApproval> {
@@ -68,7 +69,10 @@ async function decide(
     const { proposal, latestVersion, access, latest } = await loadLocked(tx, organizationId, proposalId);
     if (access.creatorUserId !== userId) throw new NotProposalCreatorError();
     if (!latest || latest.decision !== null) throw new NoPendingApprovalError();
-    if (latest.versionNumber !== latestVersion.versionNumber) throw new ApprovalStaleError();
+    // Must name the request it answers: a stale client (an older version of
+    // the page) can only agree with the request it was shown, never with
+    // whatever became latest in the meantime.
+    if (latest.id !== approvalId || latest.versionNumber !== latestVersion.versionNumber) throw new ApprovalStaleError();
 
     const decided = await ProposalApprovalsRepository.decideWithTx(tx, organizationId, latest.id, {
       decision,
@@ -117,12 +121,26 @@ export const ProposalApprovalService = {
   },
 
   /** Spec D §4.4 — the owning CREATOR only. */
-  async approve(db: Tx, organizationId: string, proposalId: string, userId: string, message: string | null): Promise<ProposalApproval> {
+  async approve(
+    db: Tx,
+    organizationId: string,
+    proposalId: string,
+    userId: string,
+    approvalId: string,
+    message: string | null,
+  ): Promise<ProposalApproval> {
     const trimmed = message?.trim() || null;
-    return decide(db, organizationId, proposalId, userId, "APPROVED", trimmed);
+    return decide(db, organizationId, proposalId, userId, approvalId, "APPROVED", trimmed);
   },
 
-  async requestChanges(db: Tx, organizationId: string, proposalId: string, userId: string, message: string): Promise<ProposalApproval> {
-    return decide(db, organizationId, proposalId, userId, "CHANGES_REQUESTED", message.trim());
+  async requestChanges(
+    db: Tx,
+    organizationId: string,
+    proposalId: string,
+    userId: string,
+    approvalId: string,
+    message: string,
+  ): Promise<ProposalApproval> {
+    return decide(db, organizationId, proposalId, userId, approvalId, "CHANGES_REQUESTED", message.trim());
   },
 };

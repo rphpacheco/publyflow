@@ -42,6 +42,7 @@ export default async function ProposalPreviewPage({
       savedTheme={model.theme}
       status={source.status}
       initialTheme={parseThemeParam(theme) ?? model.theme}
+      isCreator={session.role === "CREATOR"}
     />
   );
 }

@@ -77,6 +77,12 @@ describe("PresentationRenderer", () => {
     render(<PresentationRenderer model={model} theme="PREMIUM" className="flex-1" />);
     expect(document.querySelector('[data-theme="PREMIUM"]')).toHaveClass("flex-1");
   });
+
+  it("hideActions omits the action row entirely, even without a response", () => {
+    render(<PresentationRenderer model={model} theme="PREMIUM" hideActions />);
+    expect(screen.queryByRole("button", { name: "Aceitar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });
 
 describe.each(PROPOSAL_THEMES)("PresentationRenderer with a response — %s", (theme) => {

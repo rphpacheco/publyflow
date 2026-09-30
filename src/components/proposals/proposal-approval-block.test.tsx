@@ -76,7 +76,7 @@ describe("ProposalApprovalBlock", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Aprovar" }));
 
-    expect(approveMutateMock).toHaveBeenCalledWith({});
+    expect(approveMutateMock).toHaveBeenCalledWith({ approvalId: "req1" });
   });
 
   it("Pedir ajustes opens a dialog with a labelled textarea; submit disabled until text is entered", async () => {
@@ -93,7 +93,7 @@ describe("ProposalApprovalBlock", () => {
 
     await userEvent.click(submit);
 
-    expect(requestChangesMutateMock).toHaveBeenCalledWith({ message: "Trocar a capa" }, expect.anything());
+    expect(requestChangesMutateMock).toHaveBeenCalledWith({ approvalId: "req1", message: "Trocar a capa" }, expect.anything());
   });
 
   it("Pedir ajustes: submit stays disabled for whitespace-only text", async () => {
@@ -163,6 +163,20 @@ describe("ProposalApprovalBlock", () => {
     };
     render(<ProposalApprovalBlock proposalId="p1" approval={approval} />);
     expect(screen.getByText("A proposta mudou depois do pedido. Aguarde um novo pedido da agência.")).toBeInTheDocument();
+  });
+
+  it("pending + sentWithoutApproval: shows the sent-without-approval notice instead of the action buttons", () => {
+    render(<ProposalApprovalBlock proposalId="p1" approval={pending} sentWithoutApproval />);
+    expect(screen.getByText("A agência enviou esta versão sem a sua aprovação.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aprovar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pedir ajustes" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Owner pediu sua aprovação desta versão.")).not.toBeInTheDocument();
+  });
+
+  it("pending without sentWithoutApproval: still shows the normal request copy and buttons", () => {
+    render(<ProposalApprovalBlock proposalId="p1" approval={pending} sentWithoutApproval={false} />);
+    expect(screen.getByText("Owner pediu sua aprovação desta versão.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aprovar" })).toBeInTheDocument();
   });
 
   it("disables the action buttons while approve is pending", () => {

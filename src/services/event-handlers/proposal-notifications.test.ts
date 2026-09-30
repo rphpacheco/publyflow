@@ -65,8 +65,8 @@ describe("approval notifications end-to-end through the drain", () => {
     const { organization, owner, creator, proposal } = await seedProposal(db);
     await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
 
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null);
+    const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, approval.id, null);
     await EventDrainService.drain(db);
 
     const forOwner = await NotificationsRepository.listForUser(db, organization.id, owner.id, 10);

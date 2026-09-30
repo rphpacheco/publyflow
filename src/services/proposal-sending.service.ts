@@ -61,7 +61,9 @@ export interface SendStateApproval {
 export interface SendState {
   status: ProposalStatus;
   publicPath: string | null;
-  latestPublication: { id: string; versionNumber: number; publishedAt: Date; response: SendStateResponse | null } | null;
+  latestPublication:
+    | { id: string; versionNumber: number; publishedAt: Date; response: SendStateResponse | null; sentWithoutApproval: boolean }
+    | null;
   latestVersionNumber: number;
   hasUnsentChanges: boolean;
   canSend: boolean;
@@ -252,6 +254,7 @@ export const ProposalSendingService = {
                 versionNumber: latestPublication.versionNumber,
                 publishedAt: latestPublication.publishedAt,
                 response: toResponseView(response),
+                sentWithoutApproval: latestPublication.sentWithoutApproval,
               }
             : null,
           latestVersionNumber,

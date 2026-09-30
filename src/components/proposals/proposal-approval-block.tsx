@@ -18,7 +18,16 @@ import { useApproveProposal, useRequestProposalChanges, type SendStateApprovalDt
 import { formatDateTime } from "@/lib/presentation/format";
 
 /** Spec D §7.2: the creator's side of the approval. */
-export function ProposalApprovalBlock({ proposalId, approval }: { proposalId: string; approval: SendStateApprovalDto }) {
+export function ProposalApprovalBlock({
+  proposalId,
+  approval,
+  sentWithoutApproval = false,
+}: {
+  proposalId: string;
+  approval: SendStateApprovalDto;
+  /** The pending request's version was already sent to the client without waiting for this decision (spec D final review F5). */
+  sentWithoutApproval?: boolean;
+}) {
   const approve = useApproveProposal(proposalId);
   const requestChanges = useRequestProposalChanges(proposalId);
   const [confirmApprove, setConfirmApprove] = React.useState(false);
@@ -32,7 +41,9 @@ export function ProposalApprovalBlock({ proposalId, approval }: { proposalId: st
   return (
     <section aria-label="Aprovação" className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
       <h2 className="text-sm font-semibold">Aprovação</h2>
-      {approval.state === "pending" ? (
+      {approval.state === "pending" && sentWithoutApproval ? (
+        <p className="text-sm text-muted-foreground">A agência enviou esta versão sem a sua aprovação.</p>
+      ) : approval.state === "pending" ? (
         <>
           <p className="text-sm text-muted-foreground">{current.requestedByName} pediu sua aprovação desta versão.</p>
           <div className="flex flex-wrap gap-2">
@@ -73,7 +84,7 @@ export function ProposalApprovalBlock({ proposalId, approval }: { proposalId: st
                 disabled={busy}
                 onClick={() => {
                   setConfirmApprove(false);
-                  approve.mutate({});
+                  approve.mutate({ approvalId: current.id });
                 }}
               >
                 Aprovar
@@ -95,7 +106,7 @@ export function ProposalApprovalBlock({ proposalId, approval }: { proposalId: st
               const trimmed = message.trim();
               if (!trimmed) return;
               requestChanges.mutate(
-                { message: trimmed },
+                { approvalId: current.id, message: trimmed },
                 {
                   onSuccess: () => {
                     setChangesOpen(false);

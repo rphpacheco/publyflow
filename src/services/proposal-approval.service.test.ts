@@ -47,14 +47,14 @@ describe("ProposalApprovalService", () => {
     const first = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
     const again = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
     expect(again).toMatchObject({ created: false, approval: { id: first.approval.id } });
-    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null);
+    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, first.approval.id, null);
     expect((await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id)).created).toBe(false);
   });
 
   it("request: new request after changes_requested and after an edit (stale)", async () => {
     const { db, organization, owner, creator, proposal } = await setup();
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, "Trocar o preço");
+    const requested = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, requested.approval.id, "Trocar o preço");
     const afterChanges = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
     expect(afterChanges).toMatchObject({ created: true, approval: { requestNumber: 2, versionNumber: 1 } });
 
@@ -76,26 +76,56 @@ describe("ProposalApprovalService", () => {
 
   it("approve: records the decision and emits creator_approved; second decision fails", async () => {
     const { db, organization, owner, creator, proposal } = await setup();
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    const approved = await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, "Perfeito");
+    const requested = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    const approved = await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, requested.approval.id, "Perfeito");
     expect(approved).toMatchObject({ decision: "APPROVED", decidedBy: creator.userId, message: "Perfeito" });
     expect(await events(db, organization.id, "proposal.creator_approved")).toHaveLength(1);
-    await expect(ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null)).rejects.toBeInstanceOf(NoPendingApprovalError);
+    await expect(
+      ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, requested.approval.id, null),
+    ).rejects.toBeInstanceOf(NoPendingApprovalError);
   });
 
   it("approve: no request → NoPending; stale → ApprovalStale; non-creator user → NotProposalCreator", async () => {
     const { db, organization, owner, creator, proposal } = await setup();
-    await expect(ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null)).rejects.toBeInstanceOf(NoPendingApprovalError);
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    await expect(ProposalApprovalService.approve(db, organization.id, proposal.id, owner.id, null)).rejects.toBeInstanceOf(NotProposalCreatorError);
+    await expect(
+      ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, "00000000-0000-0000-0000-000000000000", null),
+    ).rejects.toBeInstanceOf(NoPendingApprovalError);
+    const requested = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await expect(
+      ProposalApprovalService.approve(db, organization.id, proposal.id, owner.id, requested.approval.id, null),
+    ).rejects.toBeInstanceOf(NotProposalCreatorError);
     await ProposalService.update(db, organization.id, proposal.id, { title: "Mudou", userId: owner.id });
-    await expect(ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null)).rejects.toBeInstanceOf(ApprovalStaleError);
+    await expect(
+      ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, requested.approval.id, null),
+    ).rejects.toBeInstanceOf(ApprovalStaleError);
+  });
+
+  it("approve: an approvalId naming a superseded request is stale even against the current latest", async () => {
+    const { db, organization, owner, creator, proposal } = await setup();
+    const reqA = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha Verão 2", userId: owner.id });
+    const reqB = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    expect(reqB.approval.id).not.toBe(reqA.approval.id);
+
+    await expect(
+      ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, reqA.approval.id, null),
+    ).rejects.toBeInstanceOf(ApprovalStaleError);
+
+    const approved = await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, reqB.approval.id, null);
+    expect(approved).toMatchObject({ id: reqB.approval.id, decision: "APPROVED" });
   });
 
   it("requestChanges: stores the trimmed message and emits creator_changes_requested", async () => {
     const { db, organization, owner, creator, proposal } = await setup();
-    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-    const decided = await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, "  Trocar a capa  ");
+    const requested = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    const decided = await ProposalApprovalService.requestChanges(
+      db,
+      organization.id,
+      proposal.id,
+      creator.userId,
+      requested.approval.id,
+      "  Trocar a capa  ",
+    );
     expect(decided).toMatchObject({ decision: "CHANGES_REQUESTED", message: "Trocar a capa" });
     expect(await events(db, organization.id, "proposal.creator_changes_requested")).toHaveLength(1);
   });

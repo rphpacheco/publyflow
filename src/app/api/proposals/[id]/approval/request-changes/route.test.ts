@@ -19,8 +19,8 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 async function setupWithRequest(db: Awaited<ReturnType<typeof withTestDb>>["db"]) {
   const { organization, owner, creator, proposal } = await seedProposal(db);
   await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
-  await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
-  return { organization, owner, creator, proposal };
+  const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+  return { organization, owner, creator, proposal, approval };
 }
 
 describe("/api/proposals/:id/approval/request-changes", () => {
@@ -33,13 +33,13 @@ describe("/api/proposals/:id/approval/request-changes", () => {
   it("200 records the requested changes for the owning creator", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
-    const { organization, creator, proposal } = await setupWithRequest(db);
+    const { organization, creator, proposal, approval } = await setupWithRequest(db);
     const { POST } = await importRouteWithSession(() => import("./route"), {
       db,
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id, { message: "Trocar capa" }), params(proposal.id));
+    const response = await POST(post(proposal.id, { approvalId: approval.id, message: "Trocar capa" }), params(proposal.id));
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.approval.decision).toBe("CHANGES_REQUESTED");
@@ -50,15 +50,28 @@ describe("/api/proposals/:id/approval/request-changes", () => {
   it("400 when the message is blank", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
+    const { organization, creator, proposal, approval } = await setupWithRequest(db);
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: creatorSession(organization.id, creator.userId, creator.id),
+    });
+
+    const response = await POST(post(proposal.id, { approvalId: approval.id, message: "   " }), params(proposal.id));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ errors: { message: ["Descreva os ajustes."] } });
+  });
+
+  it("400 when approvalId is missing", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
     const { organization, creator, proposal } = await setupWithRequest(db);
     const { POST } = await importRouteWithSession(() => import("./route"), {
       db,
       session: creatorSession(organization.id, creator.userId, creator.id),
     });
 
-    const response = await POST(post(proposal.id, { message: "   " }), params(proposal.id));
+    const response = await POST(post(proposal.id, { message: "Trocar capa" }), params(proposal.id));
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ errors: { message: ["Descreva os ajustes."] } });
   });
 
   it("403 for OWNER", async () => {
