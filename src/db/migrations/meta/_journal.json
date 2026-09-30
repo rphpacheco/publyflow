@@ -148,6 +148,13 @@
       "when": 1790708327792,
       "tag": "0020_add_member_login_timestamps",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790734887204,
+      "tag": "0021_add_proposal_approvals",
+      "breakpoints": true
     }
   ]
 }
