@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error) }, { status: 400 });
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
   }
   const payload = parsed.data;
   // companyId/brandId are left as-is (undefined when omitted from the

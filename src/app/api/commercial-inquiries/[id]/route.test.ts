@@ -173,8 +173,7 @@ describe("PATCH /api/commercial-inquiries/:id", () => {
 
     const response = await PATCH(request, { params: Promise.resolve({ id: inquiry.id }) });
     expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.errors).toBeDefined();
+    expect(await response.json()).toEqual({ errors: { form: ["Informe ao menos um campo."] } });
   });
 
   it("returns 400 when companyName exceeds 200 characters", async () => {
@@ -196,7 +195,29 @@ describe("PATCH /api/commercial-inquiries/:id", () => {
     const response = await PATCH(request, { params: Promise.resolve({ id: inquiry.id }) });
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.errors).toBeDefined();
+    expect(body.errors.companyName).toEqual(["Use no máximo 200 caracteres."]);
+  });
+
+  it("returns 200 when companyName has surrounding whitespace that trims within the limit", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization, owner, inquiry } = await setupOrgCreatorAndInquiry(db);
+
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
+    const request = new Request(`http://localhost/api/commercial-inquiries/${inquiry.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ companyName: "  " + "x".repeat(200) + "  " }),
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: inquiry.id }) });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.companyGuess).toBe("x".repeat(200));
   });
 
   it("returns 200 and the updated companyGuess", async () => {

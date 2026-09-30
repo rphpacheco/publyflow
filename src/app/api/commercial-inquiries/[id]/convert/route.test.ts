@@ -232,7 +232,7 @@ describe("POST /api/commercial-inquiries/:id/convert", () => {
     const response = await POST(request, { params: Promise.resolve({ id: inquiry.id }) });
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.errors).toBeDefined();
+    expect(body.errors).toHaveProperty("contact");
   });
 
   it("returns 401 without a session", async () => {

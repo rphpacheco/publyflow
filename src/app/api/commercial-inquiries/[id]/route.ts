@@ -8,10 +8,8 @@ import { denyCreatorWrite } from "@/lib/auth/access";
 import { isUuid } from "@/lib/uuid";
 import { inquiryErrorResponse, inquiryNotFoundResponse } from "./inquiry-errors";
 
-const field = z.string().max(200, "Use no máximo 200 caracteres.").nullable().optional();
-const bodySchema = z
-  .object({ contactName: field, companyName: field, brandName: field })
-  .refine((value) => Object.values(value).some((v) => v !== undefined), { message: "Informe ao menos um campo." });
+const field = z.string().trim().max(200, "Use no máximo 200 caracteres.").nullable().optional();
+const bodySchema = z.object({ contactName: field, companyName: field, brandName: field });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -25,7 +23,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error) }, { status: 400 });
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  if (
+    parsed.data.contactName === undefined &&
+    parsed.data.companyName === undefined &&
+    parsed.data.brandName === undefined
+  ) {
+    return NextResponse.json({ errors: { form: ["Informe ao menos um campo."] } }, { status: 400 });
   }
 
   try {
