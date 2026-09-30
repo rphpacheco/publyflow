@@ -21,6 +21,9 @@ const existing = {
   instagramHandle: "@thais",
   email: "thais@x.com",
   createdAt: "2026-09-28T12:00:00.000Z",
+  access: "invited" as const,
+  lastLoginAt: null as string | null,
+  emailEditable: true,
 };
 
 describe("CreatorFormDialog", () => {
@@ -76,13 +79,13 @@ describe("CreatorFormDialog", () => {
     expect(screen.getByLabelText("E-mail").getAttribute("aria-invalid")).not.toBe("true");
   });
 
-  it("edit: e-mail disabled, only display fields sent", async () => {
+  it("edit: e-mail input is enabled when emailEditable, only display fields sent when e-mail unchanged", async () => {
     const onSaved = vi.fn();
     updateMock.mockResolvedValue({ ...existing, displayName: "Thais R." });
     render(<CreatorFormDialog open creator={existing} onOpenChange={() => {}} onSaved={onSaved} />);
 
     expect(screen.getByRole("heading", { name: "Editar creator" })).toBeInTheDocument();
-    expect(screen.getByLabelText("E-mail")).toBeDisabled();
+    expect(screen.getByLabelText("E-mail")).toBeEnabled();
     expect(screen.getByLabelText("E-mail")).toHaveValue("thais@x.com");
     expect(screen.queryByLabelText("Nome completo")).not.toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Nome de exibição"));
@@ -91,5 +94,47 @@ describe("CreatorFormDialog", () => {
 
     expect(updateMock).toHaveBeenCalledWith({ displayName: "Thais R.", instagramHandle: "@thais" });
     expect(onSaved).toHaveBeenCalledWith({ ...existing, displayName: "Thais R." }, "edit");
+  });
+
+  it("edit: the e-mail input is disabled when emailEditable is false", () => {
+    render(<CreatorFormDialog open creator={{ ...existing, emailEditable: false }} onOpenChange={() => {}} onSaved={() => {}} />);
+    expect(screen.getByLabelText("E-mail")).toBeDisabled();
+  });
+
+  it("edit: saving with a changed e-mail sends it in the PATCH", async () => {
+    const onSaved = vi.fn();
+    updateMock.mockResolvedValue({ ...existing, email: "novo@x.com" });
+    render(<CreatorFormDialog open creator={existing} onOpenChange={() => {}} onSaved={onSaved} />);
+
+    await userEvent.clear(screen.getByLabelText("E-mail"));
+    await userEvent.type(screen.getByLabelText("E-mail"), "novo@x.com");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    expect(updateMock).toHaveBeenCalledWith({ displayName: "Thais", instagramHandle: "@thais", email: "novo@x.com" });
+  });
+
+  it("edit: an e-mail changed only in case/whitespace is treated as unchanged", async () => {
+    updateMock.mockResolvedValue(existing);
+    render(<CreatorFormDialog open creator={existing} onOpenChange={() => {}} onSaved={() => {}} />);
+
+    await userEvent.clear(screen.getByLabelText("E-mail"));
+    await userEvent.type(screen.getByLabelText("E-mail"), "  THAIS@X.com  ");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    expect(updateMock).toHaveBeenCalledWith({ displayName: "Thais", instagramHandle: "@thais" });
+  });
+
+  it("edit: a 409 on e-mail conflict appears under E-mail", async () => {
+    updateMock.mockRejectedValueOnce(
+      new ApiError(409, "Já existe um creator com este e-mail.", { error: "Já existe um creator com este e-mail." }),
+    );
+    render(<CreatorFormDialog open creator={existing} onOpenChange={() => {}} onSaved={() => {}} />);
+
+    await userEvent.clear(screen.getByLabelText("E-mail"));
+    await userEvent.type(screen.getByLabelText("E-mail"), "novo@x.com");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    expect(await screen.findByText("Já existe um creator com este e-mail.")).toBeInTheDocument();
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("aria-invalid", "true");
   });
 });

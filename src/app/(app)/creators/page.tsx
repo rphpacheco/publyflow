@@ -4,15 +4,25 @@ import * as React from "react";
 import { Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCreatorContext } from "@/components/shell/creator-context";
 import { useIsCreator } from "@/components/shell/session-role-context";
 import { CreatorFormDialog } from "@/components/creators/creator-form-dialog";
+import { CreatorAccessActions } from "@/components/creators/creator-access-actions";
+import { AccessInstructionsDialog } from "@/components/creators/access-instructions-dialog";
 import { useCreators, type CreatorDto } from "@/hooks/use-creators";
 
 const dateLabel = (iso: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
+
+const ACCESS_LABEL: Record<CreatorDto["access"], string> = {
+  none: "Sem acesso",
+  invited: "Convite enviado",
+  active: "Ativo",
+  team: "Equipe",
+};
 
 export default function CreatorsPage() {
   const router = useRouter();
@@ -24,6 +34,7 @@ export default function CreatorsPage() {
     creator: null,
     key: 0,
   });
+  const [instructions, setInstructions] = React.useState<{ email: string; message: string } | null>(null);
 
   React.useEffect(() => {
     if (isCreator) router.replace("/pipeline");
@@ -72,6 +83,8 @@ export default function CreatorsPage() {
               <TableHead>@Instagram</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>Cadastrado em</TableHead>
+              <TableHead>Acesso</TableHead>
+              <TableHead>Último acesso</TableHead>
               <TableHead className="w-0" />
             </TableRow>
           </TableHeader>
@@ -83,9 +96,16 @@ export default function CreatorsPage() {
                 <TableCell>{creator.email}</TableCell>
                 <TableCell>{dateLabel(creator.createdAt)}</TableCell>
                 <TableCell>
-                  <Button type="button" variant="outline" size="sm" onClick={() => openDialog(creator)}>
-                    Editar
-                  </Button>
+                  <Badge>{ACCESS_LABEL[creator.access]}</Badge>
+                </TableCell>
+                <TableCell>{creator.lastLoginAt ? dateLabel(creator.lastLoginAt) : "—"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => openDialog(creator)}>
+                      Editar
+                    </Button>
+                    <CreatorAccessActions creator={creator} onInstructions={setInstructions} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -98,6 +118,12 @@ export default function CreatorsPage() {
         creator={dialog.creator}
         onOpenChange={(open) => setDialog((prev) => ({ ...prev, open }))}
         onSaved={onSaved}
+      />
+      <AccessInstructionsDialog
+        open={instructions !== null}
+        onOpenChange={(open) => !open && setInstructions(null)}
+        email={instructions?.email ?? ""}
+        message={instructions?.message ?? ""}
       />
     </div>
   );

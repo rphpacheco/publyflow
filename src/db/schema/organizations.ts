@@ -33,6 +33,8 @@ export const organizationMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     role: organizationMemberRoleEnum("role").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    firstLoginAt: timestamp("first_login_at", { withTimezone: true }),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   },
   (table) => [unique("organization_members_org_user_unique").on(table.organizationId, table.userId)],
 );

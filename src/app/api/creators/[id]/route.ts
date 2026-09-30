@@ -6,8 +6,9 @@ import { getSession } from "@/lib/auth/session";
 import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
 import { canManageOrganization } from "@/lib/auth/access";
 import { updateCreatorSchema } from "@/lib/creators/creator-input";
-import { CreatorNotFoundError } from "@/domain/creators/errors";
+import { CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
 import { isUuid } from "@/lib/uuid";
+import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -21,6 +22,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const parsed = updateCreatorSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+
+  try {
+    if (parsed.data.email) {
+      await CreatorService.changeEmail(db, session.organizationId, id, parsed.data.email);
+    }
+  } catch (error) {
+    if (error instanceof CreatorNotFoundError) return notFound();
+    if (error instanceof CreatorAccessConflictError || error instanceof CreatorEmailTakenError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (isDeadlockError(error)) {
+      return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
+    }
+    throw error;
   }
 
   const creator = await CreatorService.update(db, session.organizationId, id, parsed.data);

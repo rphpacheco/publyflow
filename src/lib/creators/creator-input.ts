@@ -16,14 +16,16 @@ const displayName = z
   .min(1, "Informe o nome de exibição.")
   .max(80, "Use no máximo 80 caracteres.");
 
+const email = z.string().trim().toLowerCase().pipe(z.email({ error: "Informe um e-mail válido." }).max(254, "Informe um e-mail válido."));
+
 export const createCreatorSchema = z.object({
   fullName: z.string().trim().min(1, "Informe o nome completo.").max(120, "Use no máximo 120 caracteres."),
   displayName,
   instagramHandle,
-  email: z.string().trim().toLowerCase().pipe(z.email({ error: "Informe um e-mail válido." }).max(254, "Informe um e-mail válido.")),
+  email,
 });
 
-export const updateCreatorSchema = z.object({ displayName, instagramHandle });
+export const updateCreatorSchema = z.object({ displayName, instagramHandle, email: email.optional() });
 
 export type CreateCreatorInput = z.output<typeof createCreatorSchema>;
 export type UpdateCreatorInput = z.output<typeof updateCreatorSchema>;

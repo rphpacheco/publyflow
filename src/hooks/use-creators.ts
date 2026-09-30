@@ -9,6 +9,14 @@ export interface CreatorDto {
   createdAt: string;
   userId: string;
   organizationId: string;
+  access: "none" | "invited" | "active" | "team";
+  lastLoginAt: string | null;
+  emailEditable: boolean;
+}
+
+export interface AccessInstructionsDto {
+  loginUrl: string;
+  message: string;
 }
 
 export interface CreatorFormValues {
@@ -44,8 +52,35 @@ export function useCreateCreator() {
 export function useUpdateCreator(creatorId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (values: { displayName: string; instagramHandle: string }) =>
+    mutationFn: (values: { displayName: string; instagramHandle: string; email?: string }) =>
       apiFetch<CreatorDto>(`/api/creators/${creatorId}`, json("PATCH", values)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: creatorsQueryKey }),
+  });
+}
+
+export function useInviteCreator() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ creatorId }: { creatorId: string }) =>
+      apiFetch<AccessInstructionsDto>(`/api/creators/${creatorId}/access`, { method: "POST" }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: creatorsQueryKey }),
+  });
+}
+
+export function useRevokeCreatorAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ creatorId }: { creatorId: string }) =>
+      apiFetch<void>(`/api/creators/${creatorId}/access`, { method: "DELETE" }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: creatorsQueryKey }),
+  });
+}
+
+export function useRemindCreatorAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ creatorId }: { creatorId: string }) =>
+      apiFetch<AccessInstructionsDto>(`/api/creators/${creatorId}/access/remind`, { method: "POST" }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: creatorsQueryKey }),
   });
 }

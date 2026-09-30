@@ -32,10 +32,36 @@ vi.mock("@/components/creators/creator-form-dialog", () => ({
       </button>
     ) : null,
 }));
+vi.mock("@/components/creators/creator-access-actions", () => ({
+  CreatorAccessActions: ({
+    creator,
+    onInstructions,
+  }: {
+    creator: { id: string };
+    onInstructions: (args: { email: string; message: string }) => void;
+  }) => (
+    <button type="button" onClick={() => onInstructions({ email: "thais@x.com", message: "msg-" + creator.id })}>
+      fake-access-actions
+    </button>
+  ),
+}));
+vi.mock("@/components/creators/access-instructions-dialog", () => ({
+  AccessInstructionsDialog: ({ open, email, message }: { open: boolean; email: string; message: string }) =>
+    open ? <div data-testid="instructions-dialog">{email}: {message}</div> : null,
+}));
 
 import CreatorsPage from "./page";
 
-const thais = { id: "c1", displayName: "Thais", instagramHandle: "@thais", email: "thais@x.com", createdAt: "2026-09-28T12:00:00.000Z" };
+const thais = {
+  id: "c1",
+  displayName: "Thais",
+  instagramHandle: "@thais",
+  email: "thais@x.com",
+  createdAt: "2026-09-28T12:00:00.000Z",
+  access: "invited" as const,
+  lastLoginAt: null as string | null,
+  emailEditable: true,
+};
 
 describe("CreatorsPage", () => {
   beforeEach(() => {
@@ -59,12 +85,46 @@ describe("CreatorsPage", () => {
   it("lists creators with their columns", () => {
     list = [thais];
     render(<CreatorsPage />);
-    for (const header of ["Nome de exibição", "@Instagram", "E-mail", "Cadastrado em"]) {
+    for (const header of ["Nome de exibição", "@Instagram", "E-mail", "Cadastrado em", "Acesso", "Último acesso"]) {
       expect(screen.getByRole("columnheader", { name: header })).toBeInTheDocument();
     }
     expect(screen.getByRole("cell", { name: "Thais" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "thais@x.com" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "fake-access-actions" })).toBeInTheDocument();
+  });
+
+  it("maps access statuses to their badge labels", () => {
+    list = [
+      { ...thais, id: "c1", access: "none" as const },
+      { ...thais, id: "c2", access: "invited" as const },
+      { ...thais, id: "c3", access: "active" as const },
+      { ...thais, id: "c4", access: "team" as const },
+    ];
+    render(<CreatorsPage />);
+    expect(screen.getByText("Sem acesso")).toBeInTheDocument();
+    expect(screen.getByText("Convite enviado")).toBeInTheDocument();
+    expect(screen.getByText("Ativo")).toBeInTheDocument();
+    expect(screen.getByText("Equipe")).toBeInTheDocument();
+  });
+
+  it("shows the pt-BR short date for lastLoginAt, or an em dash", () => {
+    list = [
+      { ...thais, id: "c1", lastLoginAt: "2026-09-28T12:00:00.000Z" },
+      { ...thais, id: "c2", lastLoginAt: null },
+    ];
+    render(<CreatorsPage />);
+    expect(
+      screen.getAllByText(new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date("2026-09-28T12:00:00.000Z"))).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("opens the instructions dialog when access actions report an invite/remind", async () => {
+    list = [thais];
+    render(<CreatorsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "fake-access-actions" }));
+    expect(screen.getByTestId("instructions-dialog")).toHaveTextContent("thais@x.com: msg-c1");
   });
 
   it("after creating: toast, refresh, and selects the new creator when none was selected", async () => {

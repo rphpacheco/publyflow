@@ -1,8 +1,12 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
+import { CreatorAccessService } from "@/services/creator-access.service";
+import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
+import { users } from "@/db/schema/organizations";
 
 const patch = (id: string, body: unknown) =>
   new Request(`http://localhost/api/creators/${id}`, {
@@ -31,12 +35,60 @@ describe("PATCH /api/creators/[id]", () => {
     return { db, a, b, creator, route, role };
   }
 
-  it("200 updates display fields and ignores e-mail", async () => {
+  it("200 updates display fields, without an e-mail, as before", async () => {
     const { a, creator, route } = await setup();
     const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
-    const response = await PATCH(patch(creator.id, { displayName: "Thais R.", instagramHandle: "@thais.r", email: "novo@x.com" }), params(creator.id));
+    const response = await PATCH(patch(creator.id, { displayName: "Thais R.", instagramHandle: "@thais.r" }), params(creator.id));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ displayName: "Thais R.", instagramHandle: "@thais.r", userId: creator.userId });
+  });
+
+  it("200 updates display fields and the e-mail when present", async () => {
+    const { a, db, creator, route } = await setup();
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais R.", instagramHandle: "@thais.r", email: "novo@x.com" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ displayName: "Thais R.", instagramHandle: "@thais.r", userId: creator.userId });
+    const [user] = await db.select().from(users).where(eq(users.id, creator.userId));
+    expect(user.email).toBe("novo@x.com");
+  });
+
+  it("409 with emailLocked once the creator has accessed the app", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
+    await OrganizationMembersRepository.recordLogin(db, a.organization.id, creator.userId, new Date());
+
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "novo@x.com" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Não é possível alterar o e-mail de quem já acessou o app." });
+  });
+
+  it("409 with a retry message when changeEmail hits a Postgres deadlock (40P01)", async () => {
+    const { db, a, creator } = await setup();
+    const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
+    const { PATCH } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(a.organization.id, a.owner.id),
+      extraMocks: () => {
+        vi.doMock("@/services/creator.service", () => ({
+          CreatorService: { changeEmail: vi.fn().mockRejectedValue(deadlock), update: vi.fn() },
+        }));
+      },
+    });
+
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "novo@x.com" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
   });
 
   it("404 for another organization's creator", async () => {
