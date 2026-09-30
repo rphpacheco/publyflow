@@ -106,6 +106,22 @@ describe("loginWithPassword", () => {
     expect(signOut).toHaveBeenCalled();
     expect(recordLoginMock).not.toHaveBeenCalled();
   });
+
+  it("still redirects to /pipeline when recordLogin fails (F2)", async () => {
+    const session = { userId: "u", organizationId: "o", role: "OWNER" };
+    const { loginWithPassword, recordLoginMock } = await importActions({
+      signIn: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
+      session,
+    });
+    recordLoginMock.mockRejectedValueOnce(new Error("db unavailable"));
+    await expect(loginWithPassword({ error: null }, form("a@x.test", "secret"))).rejects.toMatchObject({
+      url: "/pipeline",
+    });
+    expect(recordLoginMock).toHaveBeenCalled();
+  });
 });
 
 describe("sendMagicLink", () => {
@@ -158,5 +174,29 @@ describe("sendMagicLink", () => {
       sent: false,
       error: "Informe seu e-mail.",
     });
+  });
+
+  it("rejects an invalid e-mail format before checking the rate limit (F3)", async () => {
+    const { sendMagicLink } = await importActions({});
+    const form = new FormData();
+    form.set("email", "not-an-email");
+    expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({
+      sent: false,
+      error: "Informe um e-mail válido.",
+    });
+    expect(checkRateLimitMock).not.toHaveBeenCalled();
+    expect(signInWithOtpMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses when only the IP limit trips (F4)", async () => {
+    const { sendMagicLink } = await importActions({});
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 60 });
+    const form = new FormData();
+    form.set("email", "thais@example.com");
+    expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({
+      sent: false,
+      error: "Muitas tentativas. Tente novamente em alguns minutos.",
+    });
+    expect(signInWithOtpMock).not.toHaveBeenCalled();
   });
 });

@@ -27,6 +27,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/sem-acesso", url.origin));
   }
 
-  await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
+  try {
+    await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
+  } catch (e) {
+    // Never let a login-tracking failure block the login itself.
+    console.error("recordLogin failed", (e as { code?: string })?.code ?? "unknown");
+  }
   return NextResponse.redirect(new URL("/pipeline", url.origin));
 }

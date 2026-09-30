@@ -53,7 +53,7 @@ describe("provisionUser", () => {
     const result = await provisionUser(db, admin, {
       email: "Thais@PublyFlow.test",
       fullName: "Thais",
-      role: "CREATOR",
+      role: "MANAGER",
       organization: { id: organization.id },
     });
 
@@ -66,7 +66,7 @@ describe("provisionUser", () => {
       .select()
       .from(organizationMembers)
       .where(eq(organizationMembers.userId, creator.userId));
-    expect(memberships.map((m) => m.role)).toEqual(["CREATOR"]);
+    expect(memberships.map((m) => m.role)).toEqual(["MANAGER"]);
   });
 
   it("is idempotent: a second run creates nothing new", async () => {

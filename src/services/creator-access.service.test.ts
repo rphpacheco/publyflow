@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
@@ -103,6 +104,67 @@ describe("CreatorAccessService", () => {
         CreatorNotFoundError,
       );
     });
+
+    it("serializes two concurrent invites for the same user across orgs (F1): only one succeeds, the other gets otherOrganization", async () => {
+      const { db, organization } = await setup();
+      const other = await OrganizationService.createWithOwner(db, {
+        organizationName: "Org B",
+        ownerEmail: "owner-b@publyflow.test",
+        ownerFullName: "Owner B",
+      });
+      // Same e-mail reused across both orgs (like register does for an
+      // existing `users` row), so both invites share one `users` row.
+      const creatorA = await CreatorService.register(db, organization.id, {
+        fullName: "Shared",
+        displayName: "Shared A",
+        email: "shared@publyflow.test",
+        instagramHandle: null,
+      });
+      const creatorB = await CreatorService.register(db, other.organization.id, {
+        fullName: "Shared",
+        displayName: "Shared B",
+        email: "shared@publyflow.test",
+        instagramHandle: null,
+      });
+      expect(creatorB.userId).toBe(creatorA.userId);
+
+      // Hold a lock on the shared user's row in a separate transaction to
+      // simulate invite A getting there first, then insert the org A
+      // membership it would produce, before releasing the lock that
+      // invite B's loadLockedCreator is blocked on.
+      let signalLockAcquired: () => void = () => {};
+      const lockAcquired = new Promise<void>((resolve) => {
+        signalLockAcquired = resolve;
+      });
+      let releaseHeldTx: () => void = () => {};
+      const releaseSignal = new Promise<void>((resolve) => {
+        releaseHeldTx = resolve;
+      });
+
+      const holdingTx = db.transaction(async (tx) => {
+        await tx.execute(sql`select id from ${users} where id = ${creatorA.userId} for update`);
+        signalLockAcquired();
+        await releaseSignal;
+        await tx.insert(organizationMembers).values({ organizationId: organization.id, userId: creatorA.userId, role: "CREATOR" });
+      });
+
+      await lockAcquired;
+
+      const inviteBPromise = CreatorAccessService.invite(db, other.organization.id, creatorB.id, "http://localhost");
+
+      // Give invite B time to reach (and block on) the lock before we
+      // release it -- otherwise the assertion below races invite B itself
+      // instead of proving it waited for the held lock.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      releaseHeldTx();
+      await holdingTx;
+
+      await expect(inviteBPromise).rejects.toThrow(ACCESS_ERRORS.otherOrganization);
+
+      const memberships = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, creatorA.userId));
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].organizationId).toBe(organization.id);
+    });
   });
 
   describe("revoke", () => {
@@ -150,6 +212,26 @@ describe("CreatorAccessService", () => {
       });
 
       await expect(CreatorAccessService.revoke(db, organization.id, foreignCreator.id)).rejects.toThrow(CreatorNotFoundError);
+    });
+
+    it("revokes the membership of the creator's CURRENT user after a changeEmail transfer (F1)", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      const oldUserId = creator.userId;
+
+      const [targetUser] = await db.insert(users).values({ email: "target@publyflow.test", fullName: "Target" }).returning();
+      await CreatorService.changeEmail(db, organization.id, creator.id, "target@publyflow.test");
+
+      await CreatorAccessService.revoke(db, organization.id, creator.id);
+
+      const targetMemberships = await db
+        .select()
+        .from(organizationMembers)
+        .where(and(eq(organizationMembers.userId, targetUser.id), eq(organizationMembers.role, "CREATOR")));
+      expect(targetMemberships).toHaveLength(0);
+
+      const oldUserMemberships = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, oldUserId));
+      expect(oldUserMemberships).toHaveLength(0);
     });
   });
 

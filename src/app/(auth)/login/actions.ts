@@ -2,12 +2,16 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
+
+// Same shape as the `email` field in src/lib/creators/creator-input.ts.
+const magicLinkEmailSchema = z.email({ error: "Informe um e-mail válido." }).max(254, "Informe um e-mail válido.");
 
 export interface LoginState {
   error: string | null;
@@ -35,7 +39,12 @@ export async function loginWithPassword(_prev: LoginState, formData: FormData): 
     await supabase.auth.signOut();
     redirect("/sem-acesso");
   }
-  await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
+  try {
+    await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
+  } catch (e) {
+    // Never let a login-tracking failure block the login itself.
+    console.error("recordLogin failed", (e as { code?: string })?.code ?? "unknown");
+  }
   redirect("/pipeline");
 }
 
@@ -66,6 +75,11 @@ const MAGIC_LINK_WINDOW = { limit: 5, windowSeconds: 600 } as const;
 export async function sendMagicLink(_prev: MagicLinkState, formData: FormData): Promise<MagicLinkState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { sent: false, error: "Informe seu e-mail." };
+
+  const emailCheck = magicLinkEmailSchema.safeParse(email);
+  if (!emailCheck.success) {
+    return { sent: false, error: emailCheck.error.issues[0].message };
+  }
 
   const requestHeaders = await headers();
   const byIp = await checkRateLimit(db, { scope: "magic-link:ip", ip: clientIp(requestHeaders), ...MAGIC_LINK_WINDOW });

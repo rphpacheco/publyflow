@@ -11,7 +11,10 @@ export interface AuthAdmin {
 export interface ProvisionUserInput {
   email: string;
   fullName: string;
-  role: "OWNER" | "MANAGER" | "CREATOR";
+  // CREATOR is intentionally excluded: CreatorAccessService.invite is the
+  // only path that should create a CREATOR membership (it runs the
+  // transactional lock + re-validation this script does not).
+  role: "OWNER" | "MANAGER";
   organization: { id: string } | { newName: string };
   password?: string;
 }

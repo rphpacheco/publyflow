@@ -7,11 +7,12 @@ import { getDb } from "../src/db/client";
 import { provisionUser, type AuthAdmin, type ProvisionUserInput } from "../src/lib/auth/provision-user";
 
 const USAGE = `Usage:
-  pnpm provision-user --email <e-mail> --name <nome> --role OWNER|MANAGER|CREATOR
+  pnpm provision-user --email <e-mail> --name <nome> --role OWNER|MANAGER
                       (--org <organization-uuid> | --new-org <nome da organização>)
                       [--password <senha>]
 
-Without --password, the user signs in with Google (same e-mail) and is linked on first login.`;
+Without --password, the user signs in with Google (same e-mail) and is linked on first login.
+CREATOR is not accepted here: use the creator invite flow in the app instead.`;
 
 async function main() {
   const { values } = parseArgs({
@@ -26,7 +27,7 @@ async function main() {
   });
 
   const role = values.role;
-  if (!values.email || !values.name || (role !== "OWNER" && role !== "MANAGER" && role !== "CREATOR")) {
+  if (!values.email || !values.name || (role !== "OWNER" && role !== "MANAGER")) {
     console.error(USAGE);
     process.exit(1);
   }

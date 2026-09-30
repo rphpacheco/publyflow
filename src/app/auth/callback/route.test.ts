@@ -59,6 +59,21 @@ describe("GET /auth/callback", () => {
     expect(recordLoginMock).not.toHaveBeenCalled();
   });
 
+  it("still redirects to /pipeline when recordLogin fails (F2)", async () => {
+    const session = { userId: "u", organizationId: "o", role: "OWNER" };
+    const { GET, recordLoginMock } = await importCallback({
+      exchange: {
+        data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+        error: null,
+      },
+      session,
+    });
+    recordLoginMock.mockRejectedValueOnce(new Error("db unavailable"));
+    const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc"));
+    expect(response.headers.get("location")).toBe("http://localhost:3000/pipeline");
+    expect(recordLoginMock).toHaveBeenCalled();
+  });
+
   it("redirects to /login?error=oauth without a code or when the exchange fails", async () => {
     const { GET } = await importCallback({
       exchange: { data: { user: null }, error: { message: "bad" } },

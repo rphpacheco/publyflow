@@ -189,6 +189,9 @@ export const CreatorService = {
       const targetMemberships = await OrganizationMembersRepository.listForUser(tx, target.id);
 
       // Temporary: remove when multi-organization sessions exist.
+      // TODO: until then, this 409 tells an OWNER/MANAGER whether the target
+      // e-mail already belongs to a user with a membership elsewhere -- a
+      // minor enumeration probe that goes away with the restriction above.
       if (targetMemberships.some((membership) => membership.organizationId !== organizationId)) {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.otherOrganization);
       }
