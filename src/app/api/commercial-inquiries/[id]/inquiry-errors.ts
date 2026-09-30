@@ -9,6 +9,7 @@ import {
 
 export const INQUIRY_NOT_FOUND = "Mensagem não encontrada.";
 const PARTY_REQUIRED = "Informe a empresa ou a marca antes de converter.";
+const INVALID_PARTY = "A marca selecionada não pertence a essa empresa.";
 
 export function inquiryNotFoundResponse(): NextResponse {
   return NextResponse.json({ error: INQUIRY_NOT_FOUND }, { status: 404 });
@@ -26,8 +27,11 @@ export function inquiryErrorResponse(error: unknown): NextResponse | null {
       { status: 422 },
     );
   }
-  if (error instanceof InquiryPartyRequiredError || error instanceof InvalidOpportunityPartyError) {
+  if (error instanceof InquiryPartyRequiredError) {
     return NextResponse.json({ error: PARTY_REQUIRED, code: "PARTY_REQUIRED" }, { status: 422 });
+  }
+  if (error instanceof InvalidOpportunityPartyError) {
+    return NextResponse.json({ error: INVALID_PARTY, code: "INVALID_PARTY" }, { status: 422 });
   }
   return null;
 }

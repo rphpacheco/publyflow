@@ -402,6 +402,63 @@ describe("CommercialInquiryService", () => {
         ),
       ).rejects.toThrow(InquiryNotFoundError);
     });
+
+    // Fix F2: the terminal-status read must happen inside the same locked
+    // transaction that later writes CONVERTED, otherwise two concurrent
+    // /convert requests on the same NEW inquiry can both observe status
+    // NEW before either commits and both succeed, creating two Leads.
+    it("resolve()'d concurrently on the same NEW inquiry: exactly one succeeds and only one Lead exists", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+
+      const [company] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning(),
+      );
+
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 94,
+        intent: "Pedido de mídia kit",
+        extracted: {
+          companyName: "Bella Cosméticos",
+          brandName: null,
+          contactName: "Maria",
+          email: null,
+          phone: null,
+          budget: null,
+          deliverables: null,
+        },
+      });
+
+      const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Olá, gostaríamos de saber os valores para uma campanha.",
+        receivedAt: new Date(),
+      });
+
+      const results = await Promise.allSettled([
+        CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+          contact: { fullName: "Maria" },
+          companyId: company.id,
+        }),
+        CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+          contact: { fullName: "Maria" },
+          companyId: company.id,
+        }),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === "fulfilled");
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(InquiryAlreadyResolvedError);
+
+      const allLeads = await db.select().from(leads).where(eq(leads.inquiryId, inquiry!.id));
+      expect(allLeads).toHaveLength(1);
+    });
   });
 
   describe("findOpenOpportunityForParty is scoped per creator (Fix 6)", () => {

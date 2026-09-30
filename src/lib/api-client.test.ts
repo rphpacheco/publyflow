@@ -113,6 +113,36 @@ describe("apiFetch", () => {
     expect(error.requestId).toBeNull();
   });
 
+  it("400 with a field errors object (no top-level error string): uses the first field message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        headers: new Headers(),
+        json: async () => ({ errors: { companyName: ["Use no máximo 200 caracteres."] } }),
+      }),
+    );
+    const error = (await apiFetch("/api/example").catch((e: unknown) => e)) as ApiError;
+    expect(error.message).toBe("Use no máximo 200 caracteres.");
+  });
+
+  it("400 with a form-level errors entry: uses that message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        headers: new Headers(),
+        json: async () => ({ errors: { form: ["Informe ao menos um campo."] } }),
+      }),
+    );
+    const error = (await apiFetch("/api/example").catch((e: unknown) => e)) as ApiError;
+    expect(error.message).toBe("Informe ao menos um campo.");
+  });
+
   it("4xx without a JSON error: 'Não foi possível concluir a ação'", async () => {
     vi.stubGlobal(
       "fetch",

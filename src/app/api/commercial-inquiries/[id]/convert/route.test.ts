@@ -5,7 +5,7 @@ import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 import { InboxService } from "@/services/inbox.service";
 import { runInTenantContext } from "@/repositories/tenant-context";
-import { companies } from "@/db/schema/companies-brands-contacts";
+import { companies, brands } from "@/db/schema/companies-brands-contacts";
 
 function fakeAI() {
   return {
@@ -210,6 +210,46 @@ describe("POST /api/commercial-inquiries/:id/convert", () => {
     expect(await response.json()).toEqual({
       error: "Informe a empresa ou a marca antes de converter.",
       code: "PARTY_REQUIRED",
+    });
+  });
+
+  it("returns 422 with INVALID_PARTY when the selected brand doesn't belong to the selected company", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization, owner, inquiry } = await setupOrgCreatorAndInquiry(db);
+    const [company] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning(),
+    );
+    const [otherCompany] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Outra Empresa" }).returning(),
+    );
+    const [brand] = await runInTenantContext(db, organization.id, (tx) =>
+      tx
+        .insert(brands)
+        .values({ organizationId: organization.id, name: "Marca X", companyId: otherCompany.id })
+        .returning(),
+    );
+
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
+    const request = new Request(`http://localhost/api/commercial-inquiries/${inquiry.id}/convert`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contact: { fullName: "Maria" },
+        companyId: company.id,
+        brandId: brand.id,
+      }),
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ id: inquiry.id }) });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      error: "A marca selecionada não pertence a essa empresa.",
+      code: "INVALID_PARTY",
     });
   });
 

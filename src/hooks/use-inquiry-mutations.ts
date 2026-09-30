@@ -56,14 +56,24 @@ export interface UpdateInquiryGuessesInput {
   brandName?: string | null;
 }
 
+// F3: the PATCH route (src/app/api/commercial-inquiries/[id]/route.ts)
+// returns the raw `commercial_inquiries` row from
+// CommercialInquiryService.updateGuesses, not a full
+// CommercialInquiryListItem (which also carries join-derived fields like
+// `messageBody`/`externalContactLabel` that the row alone doesn't have).
+export type UpdateInquiryGuessesResult = Pick<
+  CommercialInquiryListItem,
+  "id" | "status" | "contactNameGuess" | "companyGuess" | "brandGuess"
+>;
+
 export function useUpdateInquiryGuesses(
   creatorId: string,
   status: InquiryStatus,
-): UseMutationResult<CommercialInquiryListItem, ApiError, UpdateInquiryGuessesInput> {
+): UseMutationResult<UpdateInquiryGuessesResult, ApiError, UpdateInquiryGuessesInput> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ inquiryId, ...fields }) =>
-      apiFetch<CommercialInquiryListItem>(`/api/commercial-inquiries/${inquiryId}`, {
+      apiFetch<UpdateInquiryGuessesResult>(`/api/commercial-inquiries/${inquiryId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(fields),

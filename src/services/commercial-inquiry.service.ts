@@ -169,13 +169,19 @@ export const CommercialInquiryService = {
     inquiryId: string,
     input: ResolveInquiryInput,
   ): Promise<ResolveInquiryResult> {
-    const inquiry = await CommercialInquiriesRepository.findById(db, organizationId, inquiryId);
-    if (!inquiry) throw new InquiryNotFoundError(inquiryId);
-    if (TERMINAL_STATUSES.has(inquiry.status)) {
-      throw new InquiryAlreadyResolvedError(inquiryId, inquiry.status);
-    }
-
     return runInTenantContext(db, organizationId, async (tx) => {
+      // Fix F2: read-then-act on the inquiry's status must happen inside
+      // the same transaction that later flips it to CONVERTED, and must
+      // lock the row (`SELECT ... FOR UPDATE`) -- otherwise two concurrent
+      // /convert requests for the same NEW inquiry can both pass the
+      // terminal-status check before either commits, producing two Leads
+      // and two Opportunities for one inquiry.
+      const inquiry = await CommercialInquiriesRepository.lockByIdWithTx(tx, organizationId, inquiryId);
+      if (!inquiry) throw new InquiryNotFoundError(inquiryId);
+      if (TERMINAL_STATUSES.has(inquiry.status)) {
+        throw new InquiryAlreadyResolvedError(inquiryId, inquiry.status);
+      }
+
       const companyId = await resolvePartyIdFromGuess(
         tx,
         organizationId,
