@@ -6,6 +6,7 @@ import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
 import { canManageOrganization } from "@/lib/auth/access";
 import { CreatorAccessConflictError, CreatorNotFoundError } from "@/domain/creators/errors";
 import { isUuid } from "@/lib/uuid";
+import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -26,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error instanceof CreatorAccessConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    if (isDeadlockError(error)) return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
     throw error;
   }
 }

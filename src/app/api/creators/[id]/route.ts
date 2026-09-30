@@ -8,16 +8,7 @@ import { canManageOrganization } from "@/lib/auth/access";
 import { updateCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
 import { isUuid } from "@/lib/uuid";
-
-// Postgres deadlock (two transactions locking the same pair of `users` rows
-// in opposite orders) -- changeEmail locks rows in ascending id order to
-// avoid this, but concurrent callers on old code paths, or a future bug,
-// could still produce one, and it must surface as a retryable 409 rather
-// than an uncaught 500.
-function isDeadlockError(error: unknown): boolean {
-  const code = (error as { code?: string; cause?: { code?: string } })?.code ?? (error as { cause?: { code?: string } })?.cause?.code;
-  return code === "40P01";
-}
+import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -43,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     if (isDeadlockError(error)) {
-      return NextResponse.json({ error: "Não foi possível salvar agora. Tente novamente." }, { status: 409 });
+      return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
     }
     throw error;
   }

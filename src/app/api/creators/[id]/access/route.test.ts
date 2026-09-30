@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession, creatorSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
@@ -105,5 +105,27 @@ describe("/api/creators/:id/access", () => {
 
     const response = await DELETE(del(creator.id), { params: Promise.resolve({ id: creator.id }) });
     expect(response.status).toBe(403);
+  });
+
+  it("409 with a retry message when invite or revoke hits a Postgres deadlock (40P01)", async () => {
+    const { db, organization, owner, creator } = await setup();
+    const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
+    const { POST, DELETE } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+      extraMocks: () => {
+        vi.doMock("@/services/creator-access.service", () => ({
+          CreatorAccessService: { invite: vi.fn().mockRejectedValue(deadlock), revoke: vi.fn().mockRejectedValue(deadlock) },
+        }));
+      },
+    });
+
+    for (const response of [
+      await POST(post(creator.id), { params: Promise.resolve({ id: creator.id }) }),
+      await DELETE(del(creator.id), { params: Promise.resolve({ id: creator.id }) }),
+    ]) {
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
+    }
   });
 });
