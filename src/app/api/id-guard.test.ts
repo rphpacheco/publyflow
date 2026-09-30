@@ -1,7 +1,8 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
-import { OpportunityNotFoundError, InquiryNotFoundError } from "@/domain/commercial-flow/errors";
+import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
+import { INQUIRY_NOT_FOUND } from "./commercial-inquiries/[id]/inquiry-errors";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 import { RateCardNotFoundError, ServiceNotFoundError } from "@/domain/rate-cards/errors";
 import { CreatorNotFoundError } from "@/domain/creators/errors";
@@ -17,9 +18,10 @@ const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>
   { route: "contacts/[id]", load: () => import("./contacts/[id]/route"), methods: ["GET"], error: `Contact ${BAD} not found` },
   { route: "leads/[id]", load: () => import("./leads/[id]/route"), methods: ["GET"], error: `Lead ${BAD} not found` },
   { route: "opportunities/[id]", load: () => import("./opportunities/[id]/route"), methods: ["GET", "PATCH"], error: new OpportunityNotFoundError(BAD).message },
-  { route: "commercial-inquiries/[id]/convert", load: () => import("./commercial-inquiries/[id]/convert/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
-  { route: "commercial-inquiries/[id]/discard", load: () => import("./commercial-inquiries/[id]/discard/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
-  { route: "commercial-inquiries/[id]/mark-false-positive", load: () => import("./commercial-inquiries/[id]/mark-false-positive/route"), methods: ["POST"], error: new InquiryNotFoundError(BAD).message },
+  { route: "commercial-inquiries/[id]", load: () => import("./commercial-inquiries/[id]/route"), methods: ["PATCH"], error: INQUIRY_NOT_FOUND },
+  { route: "commercial-inquiries/[id]/convert", load: () => import("./commercial-inquiries/[id]/convert/route"), methods: ["POST"], error: INQUIRY_NOT_FOUND },
+  { route: "commercial-inquiries/[id]/discard", load: () => import("./commercial-inquiries/[id]/discard/route"), methods: ["POST"], error: INQUIRY_NOT_FOUND },
+  { route: "commercial-inquiries/[id]/mark-false-positive", load: () => import("./commercial-inquiries/[id]/mark-false-positive/route"), methods: ["POST"], error: INQUIRY_NOT_FOUND },
   { route: "proposals/[id]", load: () => import("./proposals/[id]/route"), methods: ["GET", "PATCH"], error: new ProposalNotFoundError(BAD).message },
   { route: "proposals/[id]/blocks", load: () => import("./proposals/[id]/blocks/route"), methods: ["GET", "POST"], error: new ProposalNotFoundError(BAD).message },
   { route: "proposals/[id]/items", load: () => import("./proposals/[id]/items/route"), methods: ["GET", "POST"], error: new ProposalNotFoundError(BAD).message },

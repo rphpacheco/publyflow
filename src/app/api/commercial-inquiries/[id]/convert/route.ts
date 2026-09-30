@@ -2,15 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
-import {
-  InquiryNotFoundError,
-  InquiryAlreadyResolvedError,
-  AmbiguousPartyGuessError,
-} from "@/domain/commercial-flow/errors";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
 import { denyCreatorWrite } from "@/lib/auth/access";
+import { inquiryErrorResponse, inquiryNotFoundResponse } from "../inquiry-errors";
 
 const bodySchema = z.object({
   contact: z.union([
@@ -30,13 +26,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!session) return unauthorizedResponse();
 
   const { id } = await params;
-  if (!isUuid(id)) {
-    return NextResponse.json({ error: new InquiryNotFoundError(id).message }, { status: 404 });
-  }
+  if (!isUuid(id)) return inquiryNotFoundResponse();
 
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
-  const payload = bodySchema.parse(await request.json());
+
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error) }, { status: 400 });
+  }
+  const payload = parsed.data;
   // companyId/brandId are left as-is (undefined when omitted from the
   // request body, distinct from an explicit `null`) so
   // CommercialInquiryService.resolve can tell "not provided -- resolve
@@ -49,15 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    if (error instanceof InquiryNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-    if (error instanceof InquiryAlreadyResolvedError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
-    }
-    if (error instanceof AmbiguousPartyGuessError) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
-    }
+    const mapped = inquiryErrorResponse(error);
+    if (mapped) return mapped;
     throw error;
   }
 }

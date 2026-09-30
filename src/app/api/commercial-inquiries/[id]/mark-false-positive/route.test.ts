@@ -92,6 +92,32 @@ describe("POST /api/commercial-inquiries/:id/mark-false-positive", () => {
 
     const response = await POST(request, { params: Promise.resolve({ id: nonexistentId }) });
     expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Mensagem não encontrada." });
+  });
+
+  it("returns 404 with the Portuguese message for another organization's inquiry", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { inquiry } = await setupOrgCreatorAndInquiry(db);
+    const { organization: otherOrganization, owner: otherOwner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Other Org",
+      ownerEmail: `other-${Date.now()}-${Math.random()}@publyflow.test`,
+      ownerFullName: "Other Owner",
+    });
+
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(otherOrganization.id, otherOwner.id),
+    });
+    const request = new Request(
+      `http://localhost/api/commercial-inquiries/${inquiry.id}/mark-false-positive`,
+      { method: "POST" },
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ id: inquiry.id }) });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Mensagem não encontrada." });
   });
 
   it("returns 409 when the inquiry is already in a terminal status", async () => {
@@ -114,6 +140,7 @@ describe("POST /api/commercial-inquiries/:id/mark-false-positive", () => {
 
     const response = await POST(request, { params: Promise.resolve({ id: inquiry.id }) });
     expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Esta mensagem já foi resolvida." });
   });
 
   it("returns 401 without a session", async () => {
