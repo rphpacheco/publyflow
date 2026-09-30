@@ -27,6 +27,11 @@ vi.mock("@/components/proposals/proposal-share-actions", () => ({
     <div>share-actions:{proposalId}:{publicPath}</div>
   ),
 }));
+vi.mock("@/components/proposals/proposal-approval-block", () => ({
+  ProposalApprovalBlock: ({ proposalId, approval }: { proposalId: string; approval: SendStateDto["approval"] }) => (
+    <div>approval-block:{proposalId}:{approval.state}</div>
+  ),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ProposalReadView } from "./proposal-read-view";
@@ -78,6 +83,44 @@ describe("ProposalReadView", () => {
     expect(screen.getByRole("button", { name: "Copiar link" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", "/p/tok");
     expect(screen.getByText("share-actions:p1:/p/tok")).toBeInTheDocument();
+  });
+
+  it("renders the approval block when approval is required", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: null,
+      latestVersionNumber: 1,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: { state: "pending", required: true, creatorName: "Creator Teste", current: null },
+    };
+
+    render(<ProposalReadView proposalId="p1" />);
+
+    expect(screen.getByText("approval-block:p1:pending")).toBeInTheDocument();
+  });
+
+  it("does not render the approval block when approval is not required", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: null,
+      latestVersionNumber: 1,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: { state: "not_required", required: false, creatorName: null, current: null },
+    };
+
+    render(<ProposalReadView proposalId="p1" />);
+
+    expect(screen.queryByText(/^approval-block:/)).not.toBeInTheDocument();
   });
 
   it("never renders send/resend controls", () => {

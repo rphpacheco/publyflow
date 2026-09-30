@@ -7,6 +7,7 @@ import { useProposalSendState } from "@/hooks/use-proposal-sending";
 import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import { ProposalSendHistory } from "@/components/proposals/proposal-send-history";
 import { ProposalShareActions } from "@/components/proposals/proposal-share-actions";
+import { ProposalApprovalBlock } from "@/components/proposals/proposal-approval-block";
 
 /** What a CREATOR sees instead of the editor: presentation, status, history, sharing. */
 export function ProposalReadView({ proposalId }: { proposalId: string }) {
@@ -36,6 +37,7 @@ export function ProposalReadView({ proposalId }: { proposalId: string }) {
         <h1 className="text-lg font-semibold">{proposal.title}</h1>
         <ProposalStatusBadge status={proposal.status} />
       </div>
+      {state?.approval?.required ? <ProposalApprovalBlock proposalId={proposalId} approval={state.approval} /> : null}
       {state?.publicPath ? (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => copyLink(state.publicPath!)}>
