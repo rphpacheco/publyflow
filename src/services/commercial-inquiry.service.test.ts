@@ -10,7 +10,7 @@ import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
 import type { MessageClassification } from "@/lib/ai/schemas";
-import { companies, contacts } from "@/db/schema/companies-brands-contacts";
+import { companies, contacts, brands } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import {
@@ -18,6 +18,7 @@ import {
   InquiryNotFoundError,
   AmbiguousPartyGuessError,
   InquiryPartyRequiredError,
+  InvalidOpportunityPartyError,
 } from "@/domain/commercial-flow/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
@@ -614,6 +615,47 @@ describe("inquiry without company/brand (production bug 2026-09-30)", () => {
     await expect(
       CommercialInquiryService.resolve(db, organization.id, inquiryId, { contact: { fullName: "Rodolfo Barbosa" } }),
     ).rejects.toBeInstanceOf(InquiryPartyRequiredError);
+    expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
+    expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
+  });
+
+  it("rolls back the Lead insert if resolve()'s Opportunity create fails on a mismatched explicit company/brand", async () => {
+    // Coverage note (fix round 1): the party-required guard above only
+    // fires when companyId/brandId both resolve to null/undefined, so it
+    // cannot exercise resolve()'s mid-transaction rollback. This test uses
+    // an explicit companyId + brandId pair that bypasses the guard (both
+    // non-null) but is invalid at the DB/domain level -- the brand belongs
+    // to a different company than the one passed -- so
+    // OpportunityService.createFromLeadWithTx's checkValidParty still
+    // throws InvalidOpportunityPartyError, and only *after* the Lead
+    // (and Contact) inserts already ran inside resolve()'s shared
+    // transaction. If that transaction were not shared, the Contact and
+    // Lead rows asserted below would remain committed instead of rolling
+    // back. Fixture mirrors src/services/opportunity.service.test.ts:60-98.
+    const { db, organization, inquiryId } = await setupInquiry();
+
+    const [companyA] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Grupo Boticário" }).returning(),
+    );
+    const [companyB] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Unilever" }).returning(),
+    );
+    const [brand] = await runInTenantContext(db, organization.id, (tx) =>
+      tx
+        .insert(brands)
+        .values({ organizationId: organization.id, name: "O Boticário", companyId: companyA.id })
+        .returning(),
+    );
+
+    await expect(
+      CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+        contact: { fullName: "Rodolfo Barbosa" },
+        companyId: companyB.id,
+        brandId: brand.id,
+      }),
+    ).rejects.toBeInstanceOf(InvalidOpportunityPartyError);
+
     expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
     expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
     expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
