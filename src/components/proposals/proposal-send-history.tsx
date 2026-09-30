@@ -31,6 +31,8 @@ export function ProposalSendHistory({ proposalId, status }: { proposalId: string
           <li key={item.id}>
             Versão {item.versionNumber} · {formatDateTime(new Date(item.publishedAt))} ·{" "}
             {resultLabel(item, item.publicationNumber === highestPublicationNumber, status)}
+            {item.approvedByName ? ` · aprovada por ${item.approvedByName}` : null}
+            {!item.approvedByName && item.sentWithoutApproval ? " · enviada sem aprovação" : null}
           </li>
         ))}
       </ul>

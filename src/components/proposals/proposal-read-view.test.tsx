@@ -70,6 +70,7 @@ describe("ProposalReadView", () => {
       latestVersionNumber: 1,
       hasUnsentChanges: false,
       canSend: true,
+      approval: { state: "not_required", required: false, creatorName: "Thais", current: null },
     };
 
     render(<ProposalReadView proposalId="p1" />);

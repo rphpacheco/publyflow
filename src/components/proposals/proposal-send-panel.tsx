@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useProposalSendState, usePublishProposal, type SendStateDto } from "@/hooks/use-proposal-sending";
+import { useProposalSendState, usePublishProposal, useRequestApproval, type SendStateDto } from "@/hooks/use-proposal-sending";
 import { formatDateTime, formatIssuedAt } from "@/lib/presentation/format";
 import { ProposalStatusBadge } from "./proposal-status-badge";
 import { ProposalShareActions } from "./proposal-share-actions";
@@ -48,14 +48,20 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const sendStateQuery = useProposalSendState(proposalId);
   const state = sendStateQuery.data;
   const publish = usePublishProposal(proposalId);
+  const requestApproval = useRequestApproval(proposalId);
   const [confirmStatus, setConfirmStatus] = React.useState<SendStateDto["status"] | null>(null);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
+  const [confirmWithoutApproval, setConfirmWithoutApproval] = React.useState(false);
 
   if (!state || state.status === "ARCHIVED") return null;
 
   const publication = state.latestPublication;
   const response = publication?.response ?? null;
+  const approval = state.approval;
+  const gated = approval.required && state.canSend && approval.state !== "approved";
+  const creatorName = approval.creatorName ?? "O creator";
+  const busy = publish.isPending || requestApproval.isPending || checking;
 
   function send() {
     publish.mutate(undefined, { onSuccess: (result) => setSentPath(result.publicPath) });
@@ -121,10 +127,44 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
         </div>
       ) : null}
 
+      {approval.required && state.canSend ? (
+        <div className="flex flex-col gap-2" aria-label="Aprovação do creator">
+          <h2 className="text-sm font-semibold">Aprovação do creator</h2>
+          {approval.state === "none" ? <p className="text-sm text-muted-foreground">Este creator precisa aprovar a proposta antes do envio.</p> : null}
+          {approval.state === "pending" && approval.current ? (
+            <p className="text-sm text-muted-foreground">Aguardando aprovação de {creatorName} (versão {approval.current.versionNumber}).</p>
+          ) : null}
+          {approval.state === "approved" && approval.current?.decidedAt ? (
+            <p className="text-sm text-muted-foreground">Aprovada por {creatorName} em {formatDateTime(new Date(approval.current.decidedAt))}.</p>
+          ) : null}
+          {approval.state === "changes_requested" && approval.current ? (
+            <div className="flex flex-col gap-1 text-sm">
+              <p className="text-muted-foreground">{creatorName} pediu ajustes:</p>
+              <blockquote className="whitespace-pre-line border-l-2 border-border pl-3">{approval.current.message}</blockquote>
+            </div>
+          ) : null}
+          {approval.state === "stale" ? <p className="text-sm text-warning">A proposta mudou depois do pedido de aprovação.</p> : null}
+          {gated ? (
+            <div className="flex flex-wrap gap-2">
+              {approval.state !== "pending" ? (
+                <Button type="button" size="sm" disabled={busy} onClick={() => requestApproval.mutate()}>
+                  Pedir aprovação
+                </Button>
+              ) : null}
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setConfirmWithoutApproval(true)}>
+                Enviar sem aprovação
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
-          {checking ? "Verificando…" : publication ? "Reenviar" : "Enviar proposta"}
-        </Button>
+        {gated ? null : (
+          <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
+            {checking ? "Verificando…" : publication ? "Reenviar" : "Enviar proposta"}
+          </Button>
+        )}
         {state.publicPath ? (
           <>
             <Button type="button" size="sm" variant="outline" onClick={() => copyLink(state.publicPath!)}>
@@ -192,6 +232,34 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmWithoutApproval} onOpenChange={setConfirmWithoutApproval}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar sem aprovação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {creatorName} ainda não aprovou esta versão. A proposta será enviada ao cliente e {creatorName} será avisado(a).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline">Cancelar</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  setConfirmWithoutApproval(false);
+                  publish.mutate({ withoutApproval: true }, { onSuccess: (result) => setSentPath(result.publicPath) });
+                }}
+              >
+                Enviar sem aprovação
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
