@@ -1,6 +1,10 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api-client";
-import { commercialInquiriesQueryKey, type InquiryStatus } from "./use-commercial-inquiries";
+import {
+  commercialInquiriesQueryKey,
+  type CommercialInquiryListItem,
+  type InquiryStatus,
+} from "./use-commercial-inquiries";
 
 export interface ConvertContactInput {
   id: string;
@@ -41,6 +45,31 @@ export function useConvertInquiry(
       queryClient.invalidateQueries({
         queryKey: commercialInquiriesQueryKey(creatorId, status),
       });
+    },
+  });
+}
+
+export interface UpdateInquiryGuessesInput {
+  inquiryId: string;
+  contactName?: string | null;
+  companyName?: string | null;
+  brandName?: string | null;
+}
+
+export function useUpdateInquiryGuesses(
+  creatorId: string,
+  status: InquiryStatus,
+): UseMutationResult<CommercialInquiryListItem, ApiError, UpdateInquiryGuessesInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ inquiryId, ...fields }) =>
+      apiFetch<CommercialInquiryListItem>(`/api/commercial-inquiries/${inquiryId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(fields),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: commercialInquiriesQueryKey(creatorId, status) });
     },
   });
 }
