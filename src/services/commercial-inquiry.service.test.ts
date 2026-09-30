@@ -17,6 +17,7 @@ import {
   InquiryAlreadyResolvedError,
   InquiryNotFoundError,
   AmbiguousPartyGuessError,
+  InquiryPartyRequiredError,
 } from "@/domain/commercial-flow/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
@@ -268,7 +269,7 @@ describe("CommercialInquiryService", () => {
     expect(mariaContact.fullName).toBe("Maria");
   });
 
-  it("rolls back the Lead insert if the Opportunity create fails, leaving the inquiry unresolved", async () => {
+  it("refuses conversion with InquiryPartyRequiredError when no company/brand is available, leaving the inquiry unresolved", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
     const { organization, creator } = await setupOrgAndCreator(db);
@@ -296,17 +297,17 @@ describe("CommercialInquiryService", () => {
       receivedAt: new Date(),
     });
 
-    // No companyId/brandId is passed, so OpportunityService.createFromLeadWithTx's
-    // party validation (Task 13's InvalidOpportunityPartyError) fails — but only
-    // *after* the Lead insert already ran inside resolve()'s shared transaction.
-    // This proves the Lead insert, the (failed) Opportunity insert, and the
-    // inquiry status update all share one transaction: if they didn't, the Lead
-    // row would remain committed despite resolve() rejecting.
+    // No companyId/brandId is passed and the inquiry has no company/brand
+    // guess either, so resolve()'s InquiryPartyRequiredError guard (bugfix
+    // 2026-09-30) now refuses up front, before any Lead/Opportunity insert
+    // is attempted -- this used to fail later, at
+    // OpportunityService.createFromLeadWithTx's DB-level party validation,
+    // after the Lead insert had already run inside the shared transaction.
     await expect(
       CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
         contact: { fullName: "Carlos" },
       }),
-    ).rejects.toThrow(/company_id or brand_id/);
+    ).rejects.toBeInstanceOf(InquiryPartyRequiredError);
 
     const remainingLeads = await db
       .select()
@@ -580,5 +581,74 @@ describe("CommercialInquiryService", () => {
       const stillNew = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
       expect(stillNew?.status).toBe("NEW");
     });
+  });
+});
+
+describe("inquiry without company/brand (production bug 2026-09-30)", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  const noGuesses = fakeAI({
+    category: "COMMERCIAL_LEAD",
+    commercialScore: 80,
+    intent: "orçamento",
+    extracted: { companyName: null, brandName: null, contactName: null, email: null, phone: null, budget: null, deliverables: null },
+  });
+
+  async function setupInquiry() {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setupOrgAndCreator(db);
+    const { inquiry } = await InboxService.ingestManualMessage(db, noGuesses, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "Rodolfo Barbosa",
+      body: "Queria fazer um orçamento para divulgação da minha marca contigo.",
+      receivedAt: new Date(),
+    });
+    return { db, organization, creator, inquiryId: inquiry!.id };
+  }
+
+  it("resolve refuses with InquiryPartyRequiredError and inserts nothing", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await expect(
+      CommercialInquiryService.resolve(db, organization.id, inquiryId, { contact: { fullName: "Rodolfo Barbosa" } }),
+    ).rejects.toBeInstanceOf(InquiryPartyRequiredError);
+    expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
+    expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
+  });
+
+  it("updateGuesses sets only the provided keys, trims, and null clears", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    const updated = await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, {
+      contactName: "  Rodolfo Barbosa ",
+      companyName: "Barbosa Moda",
+    });
+    expect(updated).toMatchObject({ contactNameGuess: "Rodolfo Barbosa", companyGuess: "Barbosa Moda", brandGuess: null });
+    const cleared = await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: null, brandName: "BM" });
+    expect(cleared).toMatchObject({ contactNameGuess: "Rodolfo Barbosa", companyGuess: null, brandGuess: "BM" });
+  });
+
+  it("after updateGuesses, resolve creates the company and converts", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: "Barbosa Moda" });
+    const result = await CommercialInquiryService.resolve(db, organization.id, inquiryId, { contact: { fullName: "Rodolfo Barbosa" } });
+    expect(result.opportunity.companyId).not.toBeNull();
+    const [company] = await db.select().from(companies).where(eq(companies.organizationId, organization.id));
+    expect(company.name).toBe("Barbosa Moda");
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("CONVERTED");
+  });
+
+  it("updateGuesses rejects non-NEW inquiries and other organizations", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await CommercialInquiryService.discard(db, organization.id, inquiryId);
+    await expect(
+      CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: "X" }),
+    ).rejects.toBeInstanceOf(InquiryAlreadyResolvedError);
+    const other = await setupOrgAndCreator(db);
+    await expect(
+      CommercialInquiryService.updateGuesses(db, other.organization.id, inquiryId, { companyName: "X" }),
+    ).rejects.toBeInstanceOf(InquiryNotFoundError);
   });
 });

@@ -16,6 +16,7 @@ import {
   InquiryAlreadyResolvedError,
   InquiryNotFoundError,
   AmbiguousPartyGuessError,
+  InquiryPartyRequiredError,
 } from "@/domain/commercial-flow/errors";
 
 const TERMINAL_STATUSES = new Set<CommercialInquiry["status"]>(["DISCARDED", "FALSE_POSITIVE", "CONVERTED"]);
@@ -44,6 +45,12 @@ export interface ResolveInquiryResult {
   inquiry: CommercialInquiry;
   lead: Lead;
   opportunity: Opportunity;
+}
+
+export interface UpdateInquiryGuessesInput {
+  contactName?: string | null;
+  companyName?: string | null;
+  brandName?: string | null;
 }
 
 async function resolveContactWithTx(
@@ -184,6 +191,10 @@ export const CommercialInquiryService = {
         BrandsRepository,
       );
 
+      // Spec 2026-09-30 §3.2: an Opportunity needs a company or a brand;
+      // refuse before inserting anything (contact, lead, opportunity).
+      if (!companyId && !brandId) throw new InquiryPartyRequiredError(inquiryId);
+
       // Only match on contact identity when the caller passed an existing
       // contact id -- a brand-new {fullName,...} contact can't already be
       // linked to an open Opportunity, so there's nothing to match on and
@@ -265,6 +276,33 @@ export const CommercialInquiryService = {
       if (!updatedInquiry) throw new InquiryNotFoundError(inquiryId);
 
       return { inquiry: updatedInquiry, lead, opportunity };
+    });
+  },
+
+  async updateGuesses(
+    db: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+    input: UpdateInquiryGuessesInput,
+  ): Promise<CommercialInquiry> {
+    return runInTenantContext(db, organizationId, async (tx) => {
+      const inquiry = await CommercialInquiriesRepository.lockByIdWithTx(tx, organizationId, inquiryId);
+      if (!inquiry) throw new InquiryNotFoundError(inquiryId);
+      if (inquiry.status !== "NEW") throw new InquiryAlreadyResolvedError(inquiryId, inquiry.status);
+
+      const normalize = (value: string | null) => {
+        const trimmed = value?.trim() ?? "";
+        return trimmed === "" ? null : trimmed;
+      };
+      const fields: Partial<Pick<CommercialInquiry, "contactNameGuess" | "companyGuess" | "brandGuess">> = {};
+      if (input.contactName !== undefined) fields.contactNameGuess = normalize(input.contactName);
+      if (input.companyName !== undefined) fields.companyGuess = normalize(input.companyName);
+      if (input.brandName !== undefined) fields.brandGuess = normalize(input.brandName);
+      if (Object.keys(fields).length === 0) return inquiry;
+
+      const updated = await CommercialInquiriesRepository.updateGuessesWithTx(tx, organizationId, inquiryId, fields);
+      if (!updated) throw new InquiryNotFoundError(inquiryId);
+      return updated;
     });
   },
 };

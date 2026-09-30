@@ -49,3 +49,13 @@ export class AmbiguousPartyGuessError extends Error {
     this.name = "AmbiguousPartyGuessError";
   }
 }
+
+// Thrown by CommercialInquiryService.resolve when neither an explicit
+// company/brand id nor a usable company/brand guess exists: an Opportunity
+// always needs one of them, so conversion is refused before any insert.
+export class InquiryPartyRequiredError extends Error {
+  constructor(inquiryId: string) {
+    super(`Commercial inquiry ${inquiryId} has no company or brand to convert`);
+    this.name = "InquiryPartyRequiredError";
+  }
+}
