@@ -33,14 +33,14 @@ Rules, first match wins:
 | # | Situation | Condition |
 |---|---|---|
 | 1 | `archived` | `status = ARCHIVED` |
-| 2 | `changes_requested` | `approvalState = changes_requested` (creator asked for changes on the current version), **or** `status = CHANGES_REQUESTED` and not `hasUnsentChanges` (client asked for changes and nothing was edited yet) |
+| 2 | `changes_requested` | `approvalState = changes_requested` **and `canSend`** (creator asked for changes on the current version and there is still something to send), **or** `status = CHANGES_REQUESTED` and not `hasUnsentChanges` (client asked for changes and nothing was edited yet) |
 | 3 | `ready_to_send` | `canSend` and (`approvalState = approved` or (`approvalState = not_required` and `hasPublication`)) |
 | 4 | `awaiting_creator` | `canSend` and `approvalState = pending` |
 | 5 | `draft` | `canSend` (covers: never sent without a pending request; approval `none` or `stale`) |
 | 6 | `awaiting_client` | `status = SENT` |
 | 7 | `closed` | `status ∈ {APPROVED, REJECTED}` |
 
-Once the agency edits after a client's change request, the proposal leaves `changes_requested` and follows rules 3–5 (the next action is to send). Rule 7 is reached only when there is nothing new to send; an edited APPROVED/REJECTED proposal falls in rules 3–5.
+After a send (with or without the creator's approval), the latest publication and its commercial status are the source of truth: an old creator change request no longer classifies the proposal (amended 2026-09-30 after final review — same meaning as the proposal page, which only shows the approval block while there is something to send). Once the agency edits after a client's change request, the proposal leaves `changes_requested` and follows rules 3–5 (the next action is to send). Rule 7 is reached only when there is nothing new to send; an edited APPROVED/REJECTED proposal falls in rules 3–5.
 
 ## 4. API — `GET /api/proposals/queue`
 
