@@ -7,6 +7,7 @@ import {
   useConvertInquiry,
   useDiscardInquiry,
   useMarkFalsePositiveInquiry,
+  useUpdateInquiryGuesses,
 } from "./use-inquiry-mutations";
 import { commercialInquiriesQueryKey } from "./use-commercial-inquiries";
 
@@ -96,5 +97,46 @@ describe("useConvertInquiry", () => {
     });
     expect(parsedBody).not.toHaveProperty("organizationId");
     expect(parsedBody).not.toHaveProperty("userId");
+  });
+});
+
+describe("useUpdateInquiryGuesses", () => {
+  it("PATCHes the fields (no inquiryId in the body) and invalidates the inquiries list on success", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "inquiry1", companyGuess: "Barbosa Moda" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateInquiryGuesses("creator1", "NEW"), {
+      wrapper: wrapper(queryClient),
+    });
+
+    result.current.mutate({
+      inquiryId: "inquiry1",
+      contactName: "Maria",
+      companyName: "Barbosa Moda",
+      brandName: null,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/commercial-inquiries/inquiry1");
+    expect((init as RequestInit).method).toBe("PATCH");
+    const parsedBody = JSON.parse((init as RequestInit).body as string);
+    expect(parsedBody).toEqual({
+      contactName: "Maria",
+      companyName: "Barbosa Moda",
+      brandName: null,
+    });
+    expect(parsedBody).not.toHaveProperty("inquiryId");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: commercialInquiriesQueryKey("creator1", "NEW"),
+    });
   });
 });

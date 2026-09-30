@@ -10,13 +10,15 @@ import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
 import type { MessageClassification } from "@/lib/ai/schemas";
-import { companies, contacts } from "@/db/schema/companies-brands-contacts";
+import { companies, contacts, brands } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import {
   InquiryAlreadyResolvedError,
   InquiryNotFoundError,
   AmbiguousPartyGuessError,
+  InquiryPartyRequiredError,
+  InvalidOpportunityPartyError,
 } from "@/domain/commercial-flow/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
@@ -268,7 +270,7 @@ describe("CommercialInquiryService", () => {
     expect(mariaContact.fullName).toBe("Maria");
   });
 
-  it("rolls back the Lead insert if the Opportunity create fails, leaving the inquiry unresolved", async () => {
+  it("refuses conversion with InquiryPartyRequiredError when no company/brand is available, leaving the inquiry unresolved", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
     const { organization, creator } = await setupOrgAndCreator(db);
@@ -296,17 +298,17 @@ describe("CommercialInquiryService", () => {
       receivedAt: new Date(),
     });
 
-    // No companyId/brandId is passed, so OpportunityService.createFromLeadWithTx's
-    // party validation (Task 13's InvalidOpportunityPartyError) fails — but only
-    // *after* the Lead insert already ran inside resolve()'s shared transaction.
-    // This proves the Lead insert, the (failed) Opportunity insert, and the
-    // inquiry status update all share one transaction: if they didn't, the Lead
-    // row would remain committed despite resolve() rejecting.
+    // No companyId/brandId is passed and the inquiry has no company/brand
+    // guess either, so resolve()'s InquiryPartyRequiredError guard (bugfix
+    // 2026-09-30) now refuses up front, before any Lead/Opportunity insert
+    // is attempted -- this used to fail later, at
+    // OpportunityService.createFromLeadWithTx's DB-level party validation,
+    // after the Lead insert had already run inside the shared transaction.
     await expect(
       CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
         contact: { fullName: "Carlos" },
       }),
-    ).rejects.toThrow(/company_id or brand_id/);
+    ).rejects.toBeInstanceOf(InquiryPartyRequiredError);
 
     const remainingLeads = await db
       .select()
@@ -399,6 +401,63 @@ describe("CommercialInquiryService", () => {
           "00000000-0000-0000-0000-000000000000",
         ),
       ).rejects.toThrow(InquiryNotFoundError);
+    });
+
+    // Fix F2: the terminal-status read must happen inside the same locked
+    // transaction that later writes CONVERTED, otherwise two concurrent
+    // /convert requests on the same NEW inquiry can both observe status
+    // NEW before either commits and both succeed, creating two Leads.
+    it("resolve()'d concurrently on the same NEW inquiry: exactly one succeeds and only one Lead exists", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+
+      const [company] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning(),
+      );
+
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 94,
+        intent: "Pedido de mídia kit",
+        extracted: {
+          companyName: "Bella Cosméticos",
+          brandName: null,
+          contactName: "Maria",
+          email: null,
+          phone: null,
+          budget: null,
+          deliverables: null,
+        },
+      });
+
+      const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria — Bella Cosméticos",
+        body: "Olá, gostaríamos de saber os valores para uma campanha.",
+        receivedAt: new Date(),
+      });
+
+      const results = await Promise.allSettled([
+        CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+          contact: { fullName: "Maria" },
+          companyId: company.id,
+        }),
+        CommercialInquiryService.resolve(db, organization.id, inquiry!.id, {
+          contact: { fullName: "Maria" },
+          companyId: company.id,
+        }),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === "fulfilled");
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(InquiryAlreadyResolvedError);
+
+      const allLeads = await db.select().from(leads).where(eq(leads.inquiryId, inquiry!.id));
+      expect(allLeads).toHaveLength(1);
     });
   });
 
@@ -580,5 +639,115 @@ describe("CommercialInquiryService", () => {
       const stillNew = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
       expect(stillNew?.status).toBe("NEW");
     });
+  });
+});
+
+describe("inquiry without company/brand (production bug 2026-09-30)", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  const noGuesses = fakeAI({
+    category: "COMMERCIAL_LEAD",
+    commercialScore: 80,
+    intent: "orçamento",
+    extracted: { companyName: null, brandName: null, contactName: null, email: null, phone: null, budget: null, deliverables: null },
+  });
+
+  async function setupInquiry() {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, creator } = await setupOrgAndCreator(db);
+    const { inquiry } = await InboxService.ingestManualMessage(db, noGuesses, organization.id, {
+      creatorId: creator.id,
+      source: "INSTAGRAM",
+      externalContactLabel: "Rodolfo Barbosa",
+      body: "Queria fazer um orçamento para divulgação da minha marca contigo.",
+      receivedAt: new Date(),
+    });
+    return { db, organization, creator, inquiryId: inquiry!.id };
+  }
+
+  it("resolve refuses with InquiryPartyRequiredError and inserts nothing", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await expect(
+      CommercialInquiryService.resolve(db, organization.id, inquiryId, { contact: { fullName: "Rodolfo Barbosa" } }),
+    ).rejects.toBeInstanceOf(InquiryPartyRequiredError);
+    expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
+    expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
+  });
+
+  it("rolls back the Lead insert if resolve()'s Opportunity create fails on a mismatched explicit company/brand", async () => {
+    // Coverage note (fix round 1): the party-required guard above only
+    // fires when companyId/brandId both resolve to null/undefined, so it
+    // cannot exercise resolve()'s mid-transaction rollback. This test uses
+    // an explicit companyId + brandId pair that bypasses the guard (both
+    // non-null) but is invalid at the DB/domain level -- the brand belongs
+    // to a different company than the one passed -- so
+    // OpportunityService.createFromLeadWithTx's checkValidParty still
+    // throws InvalidOpportunityPartyError, and only *after* the Lead
+    // (and Contact) inserts already ran inside resolve()'s shared
+    // transaction. If that transaction were not shared, the Contact and
+    // Lead rows asserted below would remain committed instead of rolling
+    // back. Fixture mirrors src/services/opportunity.service.test.ts:60-98.
+    const { db, organization, inquiryId } = await setupInquiry();
+
+    const [companyA] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Grupo Boticário" }).returning(),
+    );
+    const [companyB] = await runInTenantContext(db, organization.id, (tx) =>
+      tx.insert(companies).values({ organizationId: organization.id, name: "Unilever" }).returning(),
+    );
+    const [brand] = await runInTenantContext(db, organization.id, (tx) =>
+      tx
+        .insert(brands)
+        .values({ organizationId: organization.id, name: "O Boticário", companyId: companyA.id })
+        .returning(),
+    );
+
+    await expect(
+      CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+        contact: { fullName: "Rodolfo Barbosa" },
+        companyId: companyB.id,
+        brandId: brand.id,
+      }),
+    ).rejects.toBeInstanceOf(InvalidOpportunityPartyError);
+
+    expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
+    expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
+  });
+
+  it("updateGuesses sets only the provided keys, trims, and null clears", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    const updated = await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, {
+      contactName: "  Rodolfo Barbosa ",
+      companyName: "Barbosa Moda",
+    });
+    expect(updated).toMatchObject({ contactNameGuess: "Rodolfo Barbosa", companyGuess: "Barbosa Moda", brandGuess: null });
+    const cleared = await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: null, brandName: "BM" });
+    expect(cleared).toMatchObject({ contactNameGuess: "Rodolfo Barbosa", companyGuess: null, brandGuess: "BM" });
+  });
+
+  it("after updateGuesses, resolve creates the company and converts", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: "Barbosa Moda" });
+    const result = await CommercialInquiryService.resolve(db, organization.id, inquiryId, { contact: { fullName: "Rodolfo Barbosa" } });
+    expect(result.opportunity.companyId).not.toBeNull();
+    const [company] = await db.select().from(companies).where(eq(companies.organizationId, organization.id));
+    expect(company.name).toBe("Barbosa Moda");
+    expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("CONVERTED");
+  });
+
+  it("updateGuesses rejects non-NEW inquiries and other organizations", async () => {
+    const { db, organization, inquiryId } = await setupInquiry();
+    await CommercialInquiryService.discard(db, organization.id, inquiryId);
+    await expect(
+      CommercialInquiryService.updateGuesses(db, organization.id, inquiryId, { companyName: "X" }),
+    ).rejects.toBeInstanceOf(InquiryAlreadyResolvedError);
+    const other = await setupOrgAndCreator(db);
+    await expect(
+      CommercialInquiryService.updateGuesses(db, other.organization.id, inquiryId, { companyName: "X" }),
+    ).rejects.toBeInstanceOf(InquiryNotFoundError);
   });
 });

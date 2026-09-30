@@ -159,6 +159,33 @@ export const CommercialInquiriesRepository = {
     return applyStatusUpdate(tx, organizationId, inquiryId, fields);
   },
 
+  async lockByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+  ): Promise<CommercialInquiry | null> {
+    const [row] = await tx
+      .select()
+      .from(commercialInquiries)
+      .where(and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)))
+      .for("update");
+    return row ?? null;
+  },
+
+  async updateGuessesWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    inquiryId: string,
+    fields: Partial<Pick<CommercialInquiry, "contactNameGuess" | "companyGuess" | "brandGuess">>,
+  ): Promise<CommercialInquiry | null> {
+    const [row] = await tx
+      .update(commercialInquiries)
+      .set(fields)
+      .where(and(eq(commercialInquiries.id, inquiryId), eq(commercialInquiries.organizationId, organizationId)))
+      .returning();
+    return row ?? null;
+  },
+
   async listByCreator(
     db: NodePgDatabase<typeof schema>,
     organizationId: string,

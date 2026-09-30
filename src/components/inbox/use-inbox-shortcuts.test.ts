@@ -67,7 +67,7 @@ describe("useInboxShortcuts", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("does not fire C/D/F/j/k while focus is inside an input, but still handles Escape", async () => {
+  it("does not fire C/D/F/j/k/Escape while focus is inside an input (F8: lets the input handle Escape itself)", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const onConvert = vi.fn();
@@ -95,6 +95,11 @@ describe("useInboxShortcuts", () => {
     await user.keyboard("j");
     expect(onSelect).not.toHaveBeenCalled();
 
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+
+    input.blur();
+    document.body.focus();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
   });

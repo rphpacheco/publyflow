@@ -31,12 +31,16 @@ export function useInboxShortcuts({
 }: UseInboxShortcutsOptions): void {
   React.useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      // F8: Escape while focus is inside an editable element (an open
+      // "Editar dados" input, the select-existing combobox, ...) must let
+      // that element handle it (e.g. blur, close a popover) instead of
+      // closing the whole side panel out from under the user.
+      if (isEditableTarget(event.target)) return;
+
       if (event.key === "Escape") {
         onClose();
         return;
       }
-
-      if (isEditableTarget(event.target)) return;
 
       const key = event.key.toLowerCase();
 

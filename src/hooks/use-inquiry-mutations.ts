@@ -1,6 +1,10 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api-client";
-import { commercialInquiriesQueryKey, type InquiryStatus } from "./use-commercial-inquiries";
+import {
+  commercialInquiriesQueryKey,
+  type CommercialInquiryListItem,
+  type InquiryStatus,
+} from "./use-commercial-inquiries";
 
 export interface ConvertContactInput {
   id: string;
@@ -41,6 +45,41 @@ export function useConvertInquiry(
       queryClient.invalidateQueries({
         queryKey: commercialInquiriesQueryKey(creatorId, status),
       });
+    },
+  });
+}
+
+export interface UpdateInquiryGuessesInput {
+  inquiryId: string;
+  contactName?: string | null;
+  companyName?: string | null;
+  brandName?: string | null;
+}
+
+// F3: the PATCH route (src/app/api/commercial-inquiries/[id]/route.ts)
+// returns the raw `commercial_inquiries` row from
+// CommercialInquiryService.updateGuesses, not a full
+// CommercialInquiryListItem (which also carries join-derived fields like
+// `messageBody`/`externalContactLabel` that the row alone doesn't have).
+export type UpdateInquiryGuessesResult = Pick<
+  CommercialInquiryListItem,
+  "id" | "status" | "contactNameGuess" | "companyGuess" | "brandGuess"
+>;
+
+export function useUpdateInquiryGuesses(
+  creatorId: string,
+  status: InquiryStatus,
+): UseMutationResult<UpdateInquiryGuessesResult, ApiError, UpdateInquiryGuessesInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ inquiryId, ...fields }) =>
+      apiFetch<UpdateInquiryGuessesResult>(`/api/commercial-inquiries/${inquiryId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(fields),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: commercialInquiriesQueryKey(creatorId, status) });
     },
   });
 }
