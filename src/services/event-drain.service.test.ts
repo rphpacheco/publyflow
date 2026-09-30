@@ -73,7 +73,9 @@ describe("EventDrainService.drain", () => {
       { organizationId: organization.id, userId: x.user.id, role: "CREATOR" },
       { organizationId: organization.id, userId: y.user.id, role: "CREATOR" },
     ]);
-    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, y.proposal.id, owner.id);
+    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, y.proposal.id, owner.id, {
+      withoutApproval: true,
+    });
     await ProposalResponseService.respond(db, publicPath.replace("/p/", ""), {
       publicationId: publication.id,
       action: "ACCEPT",

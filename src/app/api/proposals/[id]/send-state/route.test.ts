@@ -25,6 +25,7 @@ describe("GET /api/proposals/:id/send-state", () => {
       latestVersionNumber: 1,
       hasUnsentChanges: true,
       canSend: true,
+      approval: { state: "not_required", required: false, creatorName: "Thais", current: null },
     });
   });
 

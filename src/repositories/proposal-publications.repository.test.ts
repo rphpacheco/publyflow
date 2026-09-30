@@ -33,6 +33,8 @@ describe("publication repositories", () => {
         context,
         publishedBy: owner.id,
         publishedAt: new Date("2026-09-25T15:00:00Z"),
+        approvalId: null,
+        sentWithoutApproval: false,
       });
       const response = await ProposalResponsesRepository.insertWithTx(tx, orgId, {
         publicationId: first.id,
@@ -48,6 +50,8 @@ describe("publication repositories", () => {
         context,
         publishedBy: owner.id,
         publishedAt: new Date("2026-09-25T15:00:00Z"),
+        approvalId: null,
+        sentWithoutApproval: false,
       });
       return {
         locked,
@@ -90,6 +94,8 @@ describe("publication repositories", () => {
         context,
         publishedBy: b.owner.id,
         publishedAt: new Date(),
+        approvalId: null,
+        sentWithoutApproval: false,
       });
     });
 

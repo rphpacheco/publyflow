@@ -1,14 +1,17 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { expectProposalInvariants } from "@/test/helpers/proposal-invariants";
 import { ProposalService } from "./proposal.service";
+import { ProposalApprovalService } from "./proposal-approval.service";
 import { ProposalSendingService, computeSendFlags } from "./proposal-sending.service";
 import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
-import { ProposalArchivedError } from "@/domain/proposals/errors";
+import { ApprovalRequiredError, ProposalArchivedError } from "@/domain/proposals/errors";
 import { opportunities, opportunityStageHistory } from "@/db/schema/commercial-flow";
 import { creators } from "@/db/schema/creators";
+import { organizationMembers } from "@/db/schema/organizations";
+import { domainEvents } from "@/db/schema/domain-events";
 
 describe("computeSendFlags (spec §5.2)", () => {
   it.each([
@@ -176,5 +179,85 @@ describe("ProposalSendingService.publish", () => {
 
     expect(await ProposalSendingService.getSendState(db, b.organization.id, a.proposal.id)).toBeNull();
     expect(await ProposalSendingService.listPublications(db, b.organization.id, a.proposal.id)).toBeNull();
+  });
+});
+
+describe("approval gate (spec D §4.5)", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  async function setupWithAccess() {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const seeded = await seedProposal(db);
+    await db.insert(organizationMembers).values({ organizationId: seeded.organization.id, userId: seeded.creator.userId, role: "CREATOR" });
+    return { db, ...seeded };
+  }
+
+  it("creator without access: publishes as before, no approval data", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    expect(result.publication).toMatchObject({ approvalId: null, sentWithoutApproval: false });
+    const state = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
+    expect(state?.approval).toEqual({ state: "not_required", required: false, creatorName: "Thais", current: null });
+  });
+
+  it("required and not approved → ApprovalRequiredError, nothing published", async () => {
+    const { db, organization, owner, proposal } = await setupWithAccess();
+    await expect(ProposalSendingService.publish(db, organization.id, proposal.id, owner.id)).rejects.toBeInstanceOf(ApprovalRequiredError);
+    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await expect(ProposalSendingService.publish(db, organization.id, proposal.id, owner.id)).rejects.toBeInstanceOf(ApprovalRequiredError);
+    expect(await ProposalSendingService.listPublications(db, organization.id, proposal.id)).toEqual([]);
+  });
+
+  it("approved → publication stores approval_id; history shows the approver", async () => {
+    const { db, organization, owner, creator, proposal } = await setupWithAccess();
+    const { approval } = await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.approve(db, organization.id, proposal.id, creator.userId, null);
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    expect(result.publication).toMatchObject({ approvalId: approval.id, sentWithoutApproval: false });
+    const [item] = (await ProposalSendingService.listPublications(db, organization.id, proposal.id))!;
+    expect(item).toMatchObject({ approvedByName: "Thais", sentWithoutApproval: false });
+  });
+
+  it("withoutApproval → flag stored, event emitted; ignored when approved", async () => {
+    const { db, organization, owner, proposal } = await setupWithAccess();
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    expect(result.publication).toMatchObject({ approvalId: null, sentWithoutApproval: true });
+    const emitted = await db
+      .select()
+      .from(domainEvents)
+      .where(and(eq(domainEvents.organizationId, organization.id), eq(domainEvents.eventType, "proposal.sent_without_approval")));
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].payload).toMatchObject({ publication_id: result.publication.id, creator_display_name: "Thais" });
+    const [item] = (await ProposalSendingService.listPublications(db, organization.id, proposal.id))!;
+    expect(item).toMatchObject({ approvedByName: null, sentWithoutApproval: true });
+  });
+
+  it("idempotent re-publish of an already-published version is not gated", async () => {
+    const { db, organization, owner, proposal } = await setupWithAccess();
+    await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { withoutApproval: true });
+    const again = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    expect(again.created).toBe(false);
+  });
+
+  it("send-state exposes the approval block", async () => {
+    const { db, organization, owner, creator, proposal } = await setupWithAccess();
+    expect((await ProposalSendingService.getSendState(db, organization.id, proposal.id))?.approval).toEqual({
+      state: "none",
+      required: true,
+      creatorName: "Thais",
+      current: null,
+    });
+    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    await ProposalApprovalService.requestChanges(db, organization.id, proposal.id, creator.userId, "Ajustar preço");
+    const state = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
+    expect(state?.approval).toMatchObject({
+      state: "changes_requested",
+      required: true,
+      current: { versionNumber: 1, requestedByName: "Owner", decision: "CHANGES_REQUESTED", message: "Ajustar preço" },
+    });
   });
 });
