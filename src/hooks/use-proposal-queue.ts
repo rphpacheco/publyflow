@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
 
 export type QueueSituationDto =
@@ -36,5 +36,6 @@ export function useProposalQueue(includeArchived: boolean): UseQueryResult<Propo
   return useQuery({
     queryKey: ["proposals", "queue", includeArchived],
     queryFn: () => apiFetch<ProposalQueueDto>(`/api/proposals/queue${includeArchived ? "?includeArchived=1" : ""}`),
+    placeholderData: keepPreviousData,
   });
 }

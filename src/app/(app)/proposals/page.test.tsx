@@ -82,6 +82,11 @@ describe("ProposalsPage", () => {
     expect(link).toHaveTextContent("Marca X");
     expect(link).toHaveTextContent("R$ 7.000,00");
     expect(link).toHaveTextContent("Maria pediu: Trocar a capa");
+
+    // F5: each group is an accessible region labelled by its own heading.
+    expect(screen.getByRole("region", { name: "Ajustes pedidos (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Pronta para enviar (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Rascunho (1)" })).toBeInTheDocument();
   });
 
   it("creator view: awaiting_creator first, ready_to_send+draft merged under Com a agência, no creator name shown", () => {
@@ -113,10 +118,31 @@ describe("ProposalsPage", () => {
 
     expect(useProposalQueueMock).toHaveBeenLastCalledWith(false);
     const toggle = screen.getByRole("button", { name: "Mostrar arquivadas" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
     expect(useProposalQueueMock).toHaveBeenLastCalledWith(true);
-    expect(screen.getByRole("button", { name: "Ocultar arquivadas" })).toBeInTheDocument();
+    const toggled = screen.getByRole("button", { name: "Ocultar arquivadas" });
+    expect(toggled).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Arquivadas (1)")).toBeInTheDocument();
+  });
+
+  it("F3/F4: keeps previous groups visible and no error block when isError is true alongside stale data", () => {
+    data = { items: [item({ id: "p1", situation: "draft" })], closedCount: 0, truncated: false };
+    isError = true;
+    render(<ProposalsPage />);
+
+    expect(screen.getByText("Rascunho (1)")).toBeInTheDocument();
+    expect(screen.queryByText("Não foi possível carregar as propostas.")).not.toBeInTheDocument();
+  });
+
+  it("F5: subtitle line is omitted when there's no creator/counterpart to show", () => {
+    isCreator = true;
+    data = { items: [item({ id: "p1", situation: "draft", counterpartName: null })], closedCount: 0, truncated: false };
+    render(<ProposalsPage />);
+
+    const link = screen.getByRole("link", { name: /Proposta Marca X/ });
+    // Title + detail line + total + date — no empty subtitle span in between.
+    expect(link.querySelectorAll("span")).toHaveLength(4);
   });
 
   it("truncated note", () => {
@@ -137,7 +163,7 @@ describe("ProposalsPage", () => {
   it("loading state", () => {
     isLoading = true;
     render(<ProposalsPage />);
-    expect(screen.getByText("Carregando...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando...");
   });
 
   it("error state retries", async () => {

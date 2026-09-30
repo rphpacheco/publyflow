@@ -20,14 +20,24 @@ export default function ProposalsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">Propostas</h1>
-        <Button type="button" size="sm" variant="outline" onClick={() => setShowArchived((value) => !value)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-pressed={showArchived}
+          onClick={() => setShowArchived((value) => !value)}
+        >
           {showArchived ? "Ocultar arquivadas" : "Mostrar arquivadas"}
         </Button>
       </div>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : null}
+      {isLoading ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Carregando...
+        </p>
+      ) : null}
 
-      {isError ? (
+      {isError && !data ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-sm text-muted-foreground">Não foi possível carregar as propostas.</p>
           <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>
@@ -55,9 +65,10 @@ export default function ProposalsPage() {
         ? groupsFor(viewer).map((group) => {
             const items = data.items.filter((item) => group.situations.includes(item.situation));
             if (items.length === 0) return null;
+            const headingId = `${group.key}-heading`;
             return (
-              <section key={group.key} aria-label={group.label} className="flex flex-col gap-2">
-                <h2 className="text-sm font-semibold">
+              <section key={group.key} aria-labelledby={headingId} className="flex flex-col gap-2">
+                <h2 id={headingId} className="text-sm font-semibold">
                   {group.label} ({items.length})
                 </h2>
                 <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card">
@@ -69,9 +80,10 @@ export default function ProposalsPage() {
                       >
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <span className="truncate text-sm font-medium">{item.title}</span>
-                          <span className="truncate text-xs text-muted-foreground">
-                            {[isCreator ? null : item.creatorName, item.counterpartName].filter(Boolean).join(" · ")}
-                          </span>
+                          {(() => {
+                            const subtitle = [isCreator ? null : item.creatorName, item.counterpartName].filter(Boolean).join(" · ");
+                            return subtitle ? <span className="truncate text-xs text-muted-foreground">{subtitle}</span> : null;
+                          })()}
                           <span className="text-xs text-muted-foreground">{detailLine(item, viewer)}</span>
                         </div>
                         <div className="flex shrink-0 flex-col items-start gap-0.5 sm:items-end">
