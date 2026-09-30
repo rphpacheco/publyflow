@@ -16,6 +16,8 @@ export interface FanOutInput {
 
 export interface FanOutAudience {
   creatorUserId: string | null;
+  /** "staff": OWNER/MANAGER only. "creator": the owning creator only. Omitted: staff + owning creator. */
+  only?: "staff" | "creator";
 }
 
 export const NotificationsRepository = {
@@ -30,12 +32,13 @@ export const NotificationsRepository = {
     input: FanOutInput,
     audience: FanOutAudience,
   ): Promise<number> {
-    const roleCondition = audience.creatorUserId
-      ? or(
-          inArray(organizationMembers.role, ["OWNER", "MANAGER"]),
-          and(eq(organizationMembers.role, "CREATOR"), eq(organizationMembers.userId, audience.creatorUserId)),
-        )
-      : inArray(organizationMembers.role, ["OWNER", "MANAGER"]);
+    if (audience.only === "creator" && !audience.creatorUserId) return 0;
+    const staff = inArray(organizationMembers.role, ["OWNER", "MANAGER"]);
+    const owningCreator = audience.creatorUserId
+      ? and(eq(organizationMembers.role, "CREATOR"), eq(organizationMembers.userId, audience.creatorUserId))
+      : undefined;
+    const roleCondition =
+      audience.only === "staff" ? staff : audience.only === "creator" ? owningCreator! : owningCreator ? or(staff, owningCreator) : staff;
     const members = await tx
       .select({ userId: organizationMembers.userId })
       .from(organizationMembers)
