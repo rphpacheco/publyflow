@@ -1,7 +1,8 @@
 import { and, desc, eq, max } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
-import { proposalPublications, proposalResponses } from "@/db/schema/proposals";
+import { proposalApprovals, proposalPublications, proposalResponses } from "@/db/schema/proposals";
+import { creators } from "@/db/schema/creators";
 import type { PublicationContextJson } from "@/lib/presentation/snapshot-schema";
 import type { ProposalResponse } from "./proposal-responses.repository";
 
@@ -14,6 +15,8 @@ export interface InsertPublicationInput {
   context: PublicationContextJson;
   publishedBy: string;
   publishedAt: Date;
+  approvalId: string | null;
+  sentWithoutApproval: boolean;
 }
 
 export const ProposalPublicationsRepository = {
@@ -64,13 +67,20 @@ export const ProposalPublicationsRepository = {
     tx: NodePgDatabase<typeof schema>,
     organizationId: string,
     proposalId: string,
-  ): Promise<Array<{ publication: ProposalPublication; response: ProposalResponse | null }>> {
+  ): Promise<Array<{ publication: ProposalPublication; response: ProposalResponse | null; approvedByName: string | null }>> {
+    // "aprovada por" is the creator's display name (as the creator block
+    // shows it), not their users.fullName — the two can differ.
     const rows = await tx
-      .select({ publication: proposalPublications, response: proposalResponses })
+      .select({ publication: proposalPublications, response: proposalResponses, approvedByName: creators.displayName })
       .from(proposalPublications)
       .leftJoin(proposalResponses, eq(proposalResponses.publicationId, proposalPublications.id))
+      .leftJoin(
+        proposalApprovals,
+        and(eq(proposalApprovals.id, proposalPublications.approvalId), eq(proposalApprovals.organizationId, organizationId)),
+      )
+      .leftJoin(creators, and(eq(creators.userId, proposalApprovals.decidedBy), eq(creators.organizationId, organizationId)))
       .where(and(eq(proposalPublications.proposalId, proposalId), eq(proposalPublications.organizationId, organizationId)))
       .orderBy(desc(proposalPublications.publicationNumber));
-    return rows.map((row) => ({ publication: row.publication, response: row.response ?? null }));
+    return rows.map((row) => ({ publication: row.publication, response: row.response ?? null, approvedByName: row.approvedByName ?? null }));
   },
 };

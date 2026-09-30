@@ -15,6 +15,8 @@ export interface PresentationRendererProps {
   className?: string;
   /** Recorded client response: replaces the action buttons. */
   response?: PresentationResponse;
+  /** Hides the (always-inert, since onAction is never wired here) client action row entirely — the CREATOR preview (spec D final review F7). */
+  hideActions?: boolean;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface PresentationRendererProps {
  * Responsive rules are container queries on this root, so a 390px frame
  * renders the phone layout even on a wide screen.
  */
-export function PresentationRenderer({ model, theme, onAction, className, response }: PresentationRendererProps) {
+export function PresentationRenderer({ model, theme, onAction, className, response, hideActions }: PresentationRendererProps) {
   const definition = THEMES[theme ?? model.theme];
 
   return (
@@ -41,7 +43,7 @@ export function PresentationRenderer({ model, theme, onAction, className, respon
             <TotalSection model={model} theme={definition} />
           </>
         ) : null}
-        <ActionsSection theme={definition} onAction={onAction} response={response} />
+        {hideActions ? null : <ActionsSection theme={definition} onAction={onAction} response={response} />}
       </article>
     </div>
   );

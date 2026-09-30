@@ -27,6 +27,21 @@ vi.mock("@/components/proposals/proposal-share-actions", () => ({
     <div>share-actions:{proposalId}:{publicPath}</div>
   ),
 }));
+vi.mock("@/components/proposals/proposal-approval-block", () => ({
+  ProposalApprovalBlock: ({
+    proposalId,
+    approval,
+    sentWithoutApproval,
+  }: {
+    proposalId: string;
+    approval: SendStateDto["approval"];
+    sentWithoutApproval?: boolean;
+  }) => (
+    <div>
+      approval-block:{proposalId}:{approval.state}:{String(sentWithoutApproval ?? false)}
+    </div>
+  ),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ProposalReadView } from "./proposal-read-view";
@@ -70,6 +85,7 @@ describe("ProposalReadView", () => {
       latestVersionNumber: 1,
       hasUnsentChanges: false,
       canSend: true,
+      approval: { state: "not_required", required: false, creatorName: "Thais", current: null },
     };
 
     render(<ProposalReadView proposalId="p1" />);
@@ -77,6 +93,104 @@ describe("ProposalReadView", () => {
     expect(screen.getByRole("button", { name: "Copiar link" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", "/p/tok");
     expect(screen.getByText("share-actions:p1:/p/tok")).toBeInTheDocument();
+  });
+
+  it("renders the approval block when approval is required", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: null,
+      latestVersionNumber: 1,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: { state: "pending", required: true, creatorName: "Creator Teste", current: null },
+    };
+
+    render(<ProposalReadView proposalId="p1" />);
+
+    expect(screen.getByText("approval-block:p1:pending:false")).toBeInTheDocument();
+  });
+
+  it("passes sentWithoutApproval:true when the latest publication matches the pending request's version and was sent without approval", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: {
+        id: "pub1",
+        versionNumber: 2,
+        publishedAt: new Date().toISOString(),
+        response: null,
+        sentWithoutApproval: true,
+      },
+      latestVersionNumber: 2,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: {
+        state: "pending",
+        required: true,
+        creatorName: "Creator Teste",
+        current: {
+          id: "a1",
+          versionNumber: 2,
+          requestedAt: new Date().toISOString(),
+          requestedByName: "Owner",
+          decision: null,
+          decidedAt: null,
+          message: null,
+        },
+      },
+    };
+
+    render(<ProposalReadView proposalId="p1" />);
+
+    expect(screen.getByText("approval-block:p1:pending:true")).toBeInTheDocument();
+  });
+
+  it("does not render the approval block when approval is not required", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: null,
+      latestVersionNumber: 1,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: { state: "not_required", required: false, creatorName: null, current: null },
+    };
+
+    render(<ProposalReadView proposalId="p1" />);
+
+    expect(screen.queryByText(/^approval-block:/)).not.toBeInTheDocument();
+  });
+
+  it("reloads the preview iframe when the latest version changes (cache-busting query param)", () => {
+    proposalState.data = proposal;
+    proposalState.isLoading = false;
+    proposalState.isError = false;
+    sendState.data = {
+      status: "SENT",
+      publicPath: "/p/tok",
+      latestPublication: null,
+      latestVersionNumber: 1,
+      hasUnsentChanges: false,
+      canSend: true,
+      approval: { state: "not_required", required: false, creatorName: null, current: null },
+    };
+
+    const { rerender } = render(<ProposalReadView proposalId="p1" />);
+    expect(screen.getByTitle("Apresentação da proposta")).toHaveAttribute("src", "/proposals/p1/preview?v=1");
+
+    sendState.data = { ...sendState.data, latestVersionNumber: 2 };
+    rerender(<ProposalReadView proposalId="p1" />);
+    expect(screen.getByTitle("Apresentação da proposta")).toHaveAttribute("src", "/proposals/p1/preview?v=2");
   });
 
   it("never renders send/resend controls", () => {

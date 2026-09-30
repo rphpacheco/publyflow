@@ -14,7 +14,13 @@ const GUARD_RE = /denyCreatorWrite\(|canManageOrganization\(/;
 
 // path (relative to src/app/api, posix-style) + method that is intentionally
 // exempt from the guard requirement (see global-constraints.md).
-const ALLOWLIST = new Set<string>(["inbox/messages/route.ts POST", "notifications/[id]/route.ts PATCH", "notifications/read-all/route.ts POST"]);
+const ALLOWLIST = new Set<string>([
+  "inbox/messages/route.ts POST",
+  "notifications/[id]/route.ts PATCH",
+  "notifications/read-all/route.ts POST",
+  "proposals/[id]/approval/approve/route.ts POST", // spec D: creator decides on approval
+  "proposals/[id]/approval/request-changes/route.ts POST", // spec D: creator decides on approval
+]);
 
 function listRouteFiles(dir: string): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });

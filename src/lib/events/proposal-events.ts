@@ -5,6 +5,10 @@ export const PROPOSAL_EVENT = {
   APPROVED: "proposal.approved",
   CHANGES_REQUESTED: "proposal.changes_requested",
   REJECTED: "proposal.rejected",
+  APPROVAL_REQUESTED: "proposal.approval_requested",
+  CREATOR_APPROVED: "proposal.creator_approved",
+  CREATOR_CHANGES_REQUESTED: "proposal.creator_changes_requested",
+  SENT_WITHOUT_APPROVAL: "proposal.sent_without_approval",
 } as const;
 
 type ResponseAction = "ACCEPT" | "REQUEST_CHANGES" | "REJECT";
@@ -52,6 +56,40 @@ export function proposalSentEvent(input: ProposalRef & { userId: string }): Appe
     entityType: "proposal",
     entityId: input.proposalId,
     payload: basePayload(input),
+    actor: { kind: "user", user_id: input.userId },
+  };
+}
+
+export interface ApprovalEventInput {
+  eventType:
+    | typeof PROPOSAL_EVENT.APPROVAL_REQUESTED
+    | typeof PROPOSAL_EVENT.CREATOR_APPROVED
+    | typeof PROPOSAL_EVENT.CREATOR_CHANGES_REQUESTED
+    | typeof PROPOSAL_EVENT.SENT_WITHOUT_APPROVAL;
+  proposalId: string;
+  proposalTitle: string;
+  opportunityId: string;
+  versionNumber: number;
+  approvalId: string | null;
+  publicationId: string | null;
+  creatorDisplayName: string;
+  userId: string;
+}
+
+export function proposalApprovalEvent(input: ApprovalEventInput): AppendEventInput {
+  return {
+    eventType: input.eventType,
+    entityType: "proposal",
+    entityId: input.proposalId,
+    payload: {
+      proposal_id: input.proposalId,
+      proposal_title: input.proposalTitle,
+      opportunity_id: input.opportunityId,
+      version_number: input.versionNumber,
+      approval_id: input.approvalId,
+      publication_id: input.publicationId,
+      creator_display_name: input.creatorDisplayName,
+    },
     actor: { kind: "user", user_id: input.userId },
   };
 }

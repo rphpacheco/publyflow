@@ -110,3 +110,40 @@ export class ProposalStatusTransitionError extends Error {
     this.name = "ProposalStatusTransitionError";
   }
 }
+
+// Spec D: approval errors. Messages are user-facing (routes return them as-is).
+export class ApprovalNotRequiredError extends Error {
+  constructor() {
+    super("Este creator não tem acesso ao PublyFlow; envie direto.");
+    this.name = "ApprovalNotRequiredError";
+  }
+}
+
+export class ApprovalRequiredError extends Error {
+  constructor() {
+    super("Aguardando aprovação do creator.");
+    this.name = "ApprovalRequiredError";
+  }
+}
+
+export class NoPendingApprovalError extends Error {
+  constructor() {
+    super("Não há pedido de aprovação pendente.");
+    this.name = "NoPendingApprovalError";
+  }
+}
+
+export class ApprovalStaleError extends Error {
+  constructor() {
+    super("A proposta mudou depois do pedido de aprovação.");
+    this.name = "ApprovalStaleError";
+  }
+}
+
+// The deciding user is not the proposal's creator (defense in depth behind the route checks).
+export class NotProposalCreatorError extends Error {
+  constructor() {
+    super("Somente o creator pode aprovar.");
+    this.name = "NotProposalCreatorError";
+  }
+}

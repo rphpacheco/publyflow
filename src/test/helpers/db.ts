@@ -7,6 +7,7 @@ const DOMAIN_TABLES = [
   "domain_events",
   "proposal_responses",
   "proposal_publications",
+  "proposal_approvals",
   "proposal_versions",
   "proposal_blocks",
   "proposal_items",

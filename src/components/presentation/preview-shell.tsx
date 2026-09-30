@@ -24,6 +24,8 @@ export interface PreviewShellProps {
   savedTheme: ProposalTheme;
   status: ProposalStatus;
   initialTheme: ProposalTheme;
+  /** CREATOR sessions get a read-only preview: no editor link, no theme switcher, no inert client action row (spec D final review F7). */
+  isCreator?: boolean;
 }
 
 type Viewport = "desktop" | "mobile";
@@ -41,7 +43,7 @@ function writeThemeParam(theme: ProposalTheme | null) {
   window.history.replaceState(null, "", `${url.pathname}${url.search}`);
 }
 
-export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme, status, initialTheme }: PreviewShellProps) {
+export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme, status, initialTheme, isCreator = false }: PreviewShellProps) {
   const [theme, setTheme] = React.useState<ProposalTheme>(initialTheme);
   const [savedTheme, setSavedTheme] = React.useState<ProposalTheme>(initialSavedTheme);
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
@@ -70,7 +72,7 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
     );
   }
 
-  const renderer = <PresentationRenderer model={model} theme={theme} />;
+  const renderer = <PresentationRenderer model={model} theme={theme} hideActions={isCreator} />;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted">
@@ -78,31 +80,35 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
         aria-label="Pré-visualização"
         className="sm:sticky sm:top-0 sm:z-10 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3"
       >
-        <Link
-          href={`/proposals/${proposalId}`}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Voltar ao editor
-        </Link>
+        {isCreator ? null : (
+          <Link
+            href={`/proposals/${proposalId}`}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Voltar ao editor
+          </Link>
+        )}
 
-        <div role="group" aria-label="Tema" className="flex flex-wrap gap-1">
-          {PROPOSAL_THEMES.map((item) => (
-            <Button
-              key={item}
-              type="button"
-              size="sm"
-              variant={item === theme ? "default" : "outline"}
-              aria-pressed={item === theme}
-              onClick={() => selectTheme(item)}
-            >
-              {PROPOSAL_THEME_LABELS[item]}
-              {item === savedTheme ? " (atual)" : null}
-            </Button>
-          ))}
-        </div>
+        {isCreator ? null : (
+          <div role="group" aria-label="Tema" className="flex flex-wrap gap-1">
+            {PROPOSAL_THEMES.map((item) => (
+              <Button
+                key={item}
+                type="button"
+                size="sm"
+                variant={item === theme ? "default" : "outline"}
+                aria-pressed={item === theme}
+                onClick={() => selectTheme(item)}
+              >
+                {PROPOSAL_THEME_LABELS[item]}
+                {item === savedTheme ? " (atual)" : null}
+              </Button>
+            ))}
+          </div>
+        )}
 
-        {canApply ? (
+        {canApply && !isCreator ? (
           <Button type="button" size="sm" onClick={applyTheme} disabled={updateProposal.isPending}>
             Aplicar este tema
           </Button>
@@ -147,7 +153,7 @@ export function PreviewShell({ proposalId, model, savedTheme: initialSavedTheme,
           </div>
         ) : (
           <div className="flex flex-1 flex-col">
-            <PresentationRenderer model={model} theme={theme} className="flex-1" />
+            <PresentationRenderer model={model} theme={theme} className="flex-1" hideActions={isCreator} />
           </div>
         )}
       </div>

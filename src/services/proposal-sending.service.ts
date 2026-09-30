@@ -13,9 +13,11 @@ import { moveOpportunityIfOpenWithTx } from "./proposal-pipeline";
 import { toPublicationContextJson } from "@/lib/presentation/snapshot-schema";
 import { publicPathFor, SENT_STAGE } from "@/lib/proposal-sharing";
 import { PUBLIC_PROPOSAL_STATUSES, type ProposalStatus } from "@/lib/proposal-themes";
-import { OpportunityNotFoundError, ProposalArchivedError, ProposalNotFoundError } from "@/domain/proposals/errors";
+import { ApprovalRequiredError, OpportunityNotFoundError, ProposalArchivedError, ProposalNotFoundError } from "@/domain/proposals/errors";
 import { DomainEventsRepository } from "@/repositories/domain-events.repository";
-import { proposalSentEvent } from "@/lib/events/proposal-events";
+import { PROPOSAL_EVENT, proposalApprovalEvent, proposalSentEvent } from "@/lib/events/proposal-events";
+import { ProposalApprovalsRepository } from "@/repositories/proposal-approvals.repository";
+import { deriveApprovalState, type ApprovalState } from "@/lib/proposals/approval-state";
 
 export function generatePublicToken(): string {
   return randomBytes(32).toString("base64url");
@@ -41,13 +43,31 @@ export interface SendStateResponse {
   respondedAt: Date;
 }
 
+export interface SendStateApproval {
+  state: ApprovalState;
+  required: boolean;
+  creatorName: string | null;
+  current: {
+    id: string;
+    versionNumber: number;
+    requestedAt: Date;
+    requestedByName: string;
+    decision: "APPROVED" | "CHANGES_REQUESTED" | null;
+    decidedAt: Date | null;
+    message: string | null;
+  } | null;
+}
+
 export interface SendState {
   status: ProposalStatus;
   publicPath: string | null;
-  latestPublication: { id: string; versionNumber: number; publishedAt: Date; response: SendStateResponse | null } | null;
+  latestPublication:
+    | { id: string; versionNumber: number; publishedAt: Date; response: SendStateResponse | null; sentWithoutApproval: boolean }
+    | null;
   latestVersionNumber: number;
   hasUnsentChanges: boolean;
   canSend: boolean;
+  approval: SendStateApproval;
 }
 
 export interface PublicationHistoryItem {
@@ -56,6 +76,8 @@ export interface PublicationHistoryItem {
   versionNumber: number;
   publishedAt: Date;
   response: SendStateResponse | null;
+  approvedByName: string | null;
+  sentWithoutApproval: boolean;
 }
 
 function toResponseView(response: ProposalResponse | null): SendStateResponse | null {
@@ -75,6 +97,7 @@ export const ProposalSendingService = {
     organizationId: string,
     proposalId: string,
     userId: string,
+    options: { withoutApproval?: boolean } = {},
   ): Promise<{ publication: ProposalPublication; publicPath: string; created: boolean }> {
     return runInTenantContext(db, organizationId, async (tx) => {
       await assertMember(tx, organizationId, userId);
@@ -102,6 +125,23 @@ export const ProposalSendingService = {
         return { publication: latestPublication, publicPath: publicPathFor(token), created: false };
       }
 
+      // Spec D §4.5: approval gate (after the idempotent no-op, so re-sending an already-published version never asks).
+      const access = await ProposalApprovalsRepository.creatorAccessForProposalWithTx(tx, organizationId, proposalId);
+      const latestApproval = access?.hasAccess ? await ProposalApprovalsRepository.findLatestWithTx(tx, organizationId, proposalId) : null;
+      const approvalState = deriveApprovalState({
+        required: access?.hasAccess ?? false,
+        latestVersionNumber: latestVersion.versionNumber,
+        latest: latestApproval,
+      });
+      let approvalId: string | null = null;
+      let sentWithoutApproval = false;
+      if (approvalState === "approved") {
+        approvalId = latestApproval!.id;
+      } else if (approvalState !== "not_required") {
+        if (!options.withoutApproval) throw new ApprovalRequiredError();
+        sentWithoutApproval = true;
+      }
+
       const opportunity = await OpportunitiesRepository.findByIdWithTx(tx, organizationId, proposal.opportunityId);
       if (!opportunity) throw new OpportunityNotFoundError(proposal.opportunityId);
       const parties = await loadPresentationPartiesWithTx(tx, organizationId, opportunity);
@@ -115,6 +155,8 @@ export const ProposalSendingService = {
         context: toPublicationContextJson(parties, publishedAt),
         publishedBy: userId,
         publishedAt,
+        approvalId,
+        sentWithoutApproval,
       });
 
       await DomainEventsRepository.appendWithTx(
@@ -129,6 +171,24 @@ export const ProposalSendingService = {
           userId,
         }),
       );
+
+      if (sentWithoutApproval && access) {
+        await DomainEventsRepository.appendWithTx(
+          tx,
+          organizationId,
+          proposalApprovalEvent({
+            eventType: PROPOSAL_EVENT.SENT_WITHOUT_APPROVAL,
+            proposalId,
+            proposalTitle: proposal.title,
+            opportunityId: proposal.opportunityId,
+            versionNumber: publication.versionNumber,
+            approvalId: null,
+            publicationId: publication.id,
+            creatorDisplayName: access.creatorDisplayName,
+            userId,
+          }),
+        );
+      }
 
       await ProposalsRepository.setStatusWithTx(tx, organizationId, proposalId, "SENT");
       await moveOpportunityIfOpenWithTx(tx, organizationId, proposal.opportunityId, SENT_STAGE);
@@ -159,6 +219,31 @@ export const ProposalSendingService = {
           latestPublicationVersionNumber: latestPublication?.versionNumber ?? null,
         });
 
+        const access = await ProposalApprovalsRepository.creatorAccessForProposalWithTx(tx, organizationId, proposalId);
+        const current = access?.hasAccess
+          ? await ProposalApprovalsRepository.findLatestWithRequesterWithTx(tx, organizationId, proposalId)
+          : null;
+        const approval: SendStateApproval = {
+          state: deriveApprovalState({
+            required: access?.hasAccess ?? false,
+            latestVersionNumber: latestVersion?.versionNumber ?? 0,
+            latest: current?.approval ?? null,
+          }),
+          required: access?.hasAccess ?? false,
+          creatorName: access?.creatorDisplayName ?? null,
+          current: current
+            ? {
+                id: current.approval.id,
+                versionNumber: current.approval.versionNumber,
+                requestedAt: current.approval.requestedAt,
+                requestedByName: current.requestedByName,
+                decision: current.approval.decision,
+                decidedAt: current.approval.decidedAt,
+                message: current.approval.message,
+              }
+            : null,
+        };
+
         return {
           status,
           publicPath:
@@ -169,10 +254,12 @@ export const ProposalSendingService = {
                 versionNumber: latestPublication.versionNumber,
                 publishedAt: latestPublication.publishedAt,
                 response: toResponseView(response),
+                sentWithoutApproval: latestPublication.sentWithoutApproval,
               }
             : null,
           latestVersionNumber,
           ...flags,
+          approval,
         };
       },
       { isolationLevel: "repeatable read" },
@@ -188,12 +275,14 @@ export const ProposalSendingService = {
       const proposal = await ProposalsRepository.findByIdWithTx(tx, organizationId, proposalId);
       if (!proposal) return null;
       const rows = await ProposalPublicationsRepository.listWithResponsesWithTx(tx, organizationId, proposalId);
-      return rows.map(({ publication, response }) => ({
+      return rows.map(({ publication, response, approvedByName }) => ({
         id: publication.id,
         publicationNumber: publication.publicationNumber,
         versionNumber: publication.versionNumber,
         publishedAt: publication.publishedAt,
         response: toResponseView(response),
+        approvedByName,
+        sentWithoutApproval: publication.sentWithoutApproval,
       }));
     });
   },

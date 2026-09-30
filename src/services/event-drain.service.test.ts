@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
@@ -73,7 +73,9 @@ describe("EventDrainService.drain", () => {
       { organizationId: organization.id, userId: x.user.id, role: "CREATOR" },
       { organizationId: organization.id, userId: y.user.id, role: "CREATOR" },
     ]);
-    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, y.proposal.id, owner.id);
+    const { publication, publicPath } = await ProposalSendingService.publish(db, organization.id, y.proposal.id, owner.id, {
+      withoutApproval: true,
+    });
     await ProposalResponseService.respond(db, publicPath.replace("/p/", ""), {
       publicationId: publication.id,
       action: "ACCEPT",
@@ -84,7 +86,12 @@ describe("EventDrainService.drain", () => {
 
     await EventDrainService.drain(db);
 
-    const recipients = (await db.select().from(notifications)).map((n) => n.recipientUserId).sort();
+    // Publishing without approval also notifies the owning creator ("Enviada sem sua
+    // aprovação"); filter to the client-response notification to keep this test's
+    // original intent: which members hear about the client's ACCEPT.
+    const recipients = (await db.select().from(notifications).where(eq(notifications.kind, "proposal.approved")))
+      .map((n) => n.recipientUserId)
+      .sort();
     expect(recipients).toEqual([owner.id, y.user.id].sort());
   });
 
