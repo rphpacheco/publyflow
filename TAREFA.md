@@ -28,15 +28,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Revisão da spec pelo Raphael
 - [x] Achado no planejamento: reabrir oportunidade não voltava `status` p/ OPEN → **corrigir na raiz** (updateStage + migration 0022 só de dados; aplicar 0022 em prod antes do push) — spec D14/D15 atualizada
 - [x] Plano — `docs/superpowers/plans/2026-10-05-dashboard.md` (8 tasks; regra: sem emoji na UI, só lucide)
-- [ ] Implementação (subagentes) + revisão final
-  - [ ] T1 status OPEN ao reabrir + migration 0022
-  - [ ] T2 period/value/delta
-  - [ ] T3 DashboardRepository
-  - [ ] T4 DashboardService
-  - [ ] T5 actions service + rotas
-  - [ ] T6 hooks + recharts + componentes
-  - [ ] T7 página /dashboard
-  - [ ] T8 verificação + 0022 em test/dev + navegador
+- [x] Implementação (subagentes) + revisão final (opus) + rodada de correções (proposta vazia → estimado; contagens exatas; comparação com trecho decorrido; rótulo sem seta; transbordamento corrigido)
+  - [x] T1 status OPEN ao reabrir + migration 0022
+  - [x] T2 period/value/delta
+  - [x] T3 DashboardRepository
+  - [x] T4 DashboardService
+  - [x] T5 actions service + rotas
+  - [x] T6 hooks + recharts + componentes
+  - [x] T7 página /dashboard
+  - [x] T8 verificação: tsc ok, lint ok nos arquivos novos, 0022 em test/dev, suíte 1228 verde, build ok, navegador ok (números conferidos, layout sem transbordar de 320 a 1920px)
 - [ ] Merge + deploy
 
 ## Concluído nesta fase
@@ -100,6 +100,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Dashboard: somar itens do snapshot aceito no SQL (DISTINCT ON + jsonb) em vez de carregar o JSON inteiro; staleTime ~60s nas queries
+- [ ] Dashboard: contagem de "Requer ação" carrega a fila inteira (limit null) — agregar no SQL se o volume crescer
+- [ ] Dashboard: hooks disparam p/ creator antes do redirect (403); ErrorBox sem role=alert; gráfico sem texto alternativo
 - [ ] CRM: teste defensivo cross-org cobrir brands/opportunities/proposals (hoje só contacts)
 - [ ] CRM: erro de empresa no combobox sem aria-describedby; diálogos de contato/brand duplicam plumbing
 - [ ] CRM: testes de páginas sem estado de erro/retry e toast de brand; 403/401 dos route tests chamam setup() 2x
