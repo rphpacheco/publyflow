@@ -91,12 +91,10 @@ async function updateOpportunityStage(
     return current;
   }
 
-  const statusUpdate: Partial<typeof opportunities.$inferInsert> = {};
-  if (newStage === "FECHADO") {
-    statusUpdate.status = "WON";
-  } else if (newStage === "PERDIDO") {
-    statusUpdate.status = "LOST";
-  }
+  // Stage is the source of truth: leaving a terminal stage reopens the deal.
+  const statusUpdate: Partial<typeof opportunities.$inferInsert> = {
+    status: newStage === "FECHADO" ? "WON" : newStage === "PERDIDO" ? "LOST" : "OPEN",
+  };
 
   const [updated] = await tx
     .update(opportunities)
