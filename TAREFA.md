@@ -21,17 +21,17 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Escrever spec — `docs/superpowers/specs/2026-10-04-companies-contacts-design.md`
 - [x] Revisão da spec pelo Raphael
 - [x] Plano de implementação — `docs/superpowers/plans/2026-10-04-companies-contacts.md` (9 tasks)
-- [ ] Implementação + testes (subagent-driven, aprovado pelo Raphael)
-  - [ ] T1 erros, schemas, busca, mapper
-  - [ ] T2 read model (listas c/ contagem, detalhes)
-  - [ ] T3 repositórios de escrita + CrmService
-  - [ ] T4 rotas API + id-guard
-  - [ ] T5 hooks
-  - [ ] T6 componentes (diálogos, tabela de oportunidades)
-  - [ ] T7 páginas /companies
-  - [ ] T8 páginas /contacts
-  - [ ] T9 verificação completa + checagem no navegador
-- [ ] Revisão final
+- [x] Implementação + testes (subagent-driven) — branch `companies-contacts`, 1135 testes verdes
+  - [x] T1 erros, schemas, busca, mapper
+  - [x] T2 read model (listas c/ contagem, detalhes)
+  - [x] T3 repositórios de escrita + CrmService
+  - [x] T4 rotas API + id-guard
+  - [x] T5 hooks
+  - [x] T6 componentes (diálogos, tabela de oportunidades)
+  - [x] T7 páginas /companies
+  - [x] T8 páginas /contacts
+  - [x] T9 verificação completa + checagem no navegador (listas, busca, detalhe, 409 de nome, brand movida, e-mail inválido, contato vinculado)
+- [x] Revisão final (opus): sem Critical/Important; 4 ajustes aplicados (409 só por COMPANY_NAME_TAKEN, Cmd-click nas linhas, lint, ordem no spec)
 - [ ] Merge em main
 - [ ] Push/deploy (feito pelo Raphael)
 
@@ -66,6 +66,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] CRM: teste defensivo cross-org cobrir brands/opportunities/proposals (hoje só contacts)
+- [ ] CRM: erro de empresa no combobox sem aria-describedby; diálogos de contato/brand duplicam plumbing
+- [ ] CRM: testes de páginas sem estado de erro/retry e toast de brand; 403/401 dos route tests chamam setup() 2x
 - [ ] Rate limit: normalização IPv6 /64 e chave com HMAC
 - [ ] Tabela `/creators` estoura em telas estreitas
 - [ ] PATCH de creator (e-mail + update) em duas transações
