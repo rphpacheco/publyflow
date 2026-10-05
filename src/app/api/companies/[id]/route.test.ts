@@ -3,6 +3,7 @@ import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession, creatorSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CompaniesRepository } from "@/repositories/companies.repository";
+import { addAlias } from "@/test/helpers/merge-fixtures";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { companies } from "@/db/schema/companies-brands-contacts";
 
@@ -37,6 +38,29 @@ describe("GET /api/companies/:id", () => {
     expect(json.brands).toEqual([]);
     expect(json.contacts).toEqual([]);
     expect(json.opportunities).toEqual([]);
+  });
+
+  it("includes the company aliases in the detail", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    const company = await CompaniesRepository.create(db, organization.id, { name: "Bella Cosméticos" });
+    const alias = await addAlias(db, organization.id, company.id, "Bella Skin Ltda");
+
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
+    const response = await GET(new Request(`http://localhost/api/companies/${company.id}`), {
+      params: Promise.resolve({ id: company.id }),
+    });
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.aliases).toEqual([expect.objectContaining({ id: alias.id, name: "Bella Skin Ltda" })]);
   });
 
   it("returns 404 when the company does not exist", async () => {
