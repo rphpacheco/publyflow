@@ -39,12 +39,11 @@ async function wonWithValues(tx: Db, organizationId: string, won: ClosedOpportun
 }
 
 async function periodMetrics(tx: Db, organizationId: string, bounds: Bounds, scope: string | null) {
-  const [inquiries, created, wonRows, lostRows] = await Promise.all([
-    DashboardRepository.inquiryCounts(tx, organizationId, bounds, scope),
-    DashboardRepository.opportunitiesCreatedCount(tx, organizationId, bounds, scope),
-    DashboardRepository.closedOpportunities(tx, organizationId, bounds, "FECHADO", scope),
-    DashboardRepository.closedOpportunities(tx, organizationId, bounds, "PERDIDO", scope),
-  ]);
+  // Sequential on purpose: one transaction = one pg connection; concurrent client.query() is deprecated in pg 8 and removed in pg 9.
+  const inquiries = await DashboardRepository.inquiryCounts(tx, organizationId, bounds, scope);
+  const created = await DashboardRepository.opportunitiesCreatedCount(tx, organizationId, bounds, scope);
+  const wonRows = await DashboardRepository.closedOpportunities(tx, organizationId, bounds, "FECHADO", scope);
+  const lostRows = await DashboardRepository.closedOpportunities(tx, organizationId, bounds, "PERDIDO", scope);
   const won = await wonWithValues(tx, organizationId, wonRows);
   const wonCents = won.reduce((sum, w) => sum + w.valueCents, 0);
   const days = won.map((w) => (w.closedAt.getTime() - w.createdAt.getTime()) / DAY_MS);
@@ -69,14 +68,13 @@ export const DashboardService = {
     const previous = previousPeriod(period);
     return runInTenantContext(db, organizationId, async (tx) => {
       const bounds = periodBounds(period);
-      const [current, prev, open, creatorList, sent, responses] = await Promise.all([
-        periodMetrics(tx, organizationId, bounds, scope),
-        periodMetrics(tx, organizationId, periodBounds(previous), scope),
-        DashboardRepository.openOpportunities(tx, organizationId, scope),
-        DashboardRepository.creators(tx, organizationId, scope),
-        DashboardRepository.proposalsSentByCreator(tx, organizationId, bounds, scope),
-        DashboardRepository.clientResponsesByCreator(tx, organizationId, bounds, scope),
-      ]);
+      // Sequential on purpose (see periodMetrics).
+      const current = await periodMetrics(tx, organizationId, bounds, scope);
+      const prev = await periodMetrics(tx, organizationId, periodBounds(previous), scope);
+      const open = await DashboardRepository.openOpportunities(tx, organizationId, scope);
+      const creatorList = await DashboardRepository.creators(tx, organizationId, scope);
+      const sent = await DashboardRepository.proposalsSentByCreator(tx, organizationId, bounds, scope);
+      const responses = await DashboardRepository.clientResponsesByCreator(tx, organizationId, bounds, scope);
 
       const totals = await DashboardRepository.currentProposalTotals(tx, organizationId, open.map((o) => o.id));
       const openValue = open.reduce(
