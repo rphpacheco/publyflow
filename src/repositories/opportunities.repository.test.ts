@@ -221,6 +221,26 @@ describe("OpportunitiesRepository", () => {
     expect(nonTerminalUpdate.status).toBe("OPEN");
   });
 
+  it("updateStage returns status to OPEN when an opportunity leaves FECHADO or PERDIDO", async () => {
+    const { db, cleanup: c, org, creator, company, lead } = await setup();
+    cleanup = c;
+
+    const opportunity = await OpportunitiesRepository.create(db, org.id, {
+      creatorId: creator.id,
+      leadId: lead.id,
+      companyId: company.id,
+      brandId: null,
+    });
+    const won = await OpportunitiesRepository.updateStage(db, org.id, opportunity.id, "FECHADO");
+    expect(won.status).toBe("WON");
+    const reopened = await OpportunitiesRepository.updateStage(db, org.id, opportunity.id, "NEGOCIACAO");
+    expect(reopened.status).toBe("OPEN");
+    const lost = await OpportunitiesRepository.updateStage(db, org.id, opportunity.id, "PERDIDO");
+    expect(lost.status).toBe("LOST");
+    const reopenedAgain = await OpportunitiesRepository.updateStage(db, org.id, opportunity.id, "QUALIFICACAO");
+    expect(reopenedAgain.status).toBe("OPEN");
+  });
+
   it("is a no-op that does not write a new stage_history row when the new stage equals the current stage", async () => {
     const { db, cleanup: c, org, creator, company, lead } = await setup();
     cleanup = c;
