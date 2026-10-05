@@ -6,10 +6,11 @@ import userEvent from "@testing-library/user-event";
 import { ApiError } from "@/lib/api-client";
 
 const replace = vi.fn();
+const push = vi.fn();
 const toastSuccess = vi.fn();
 let isCreator = false;
 let state: { data?: unknown; isLoading: boolean; error: unknown } = { isLoading: false, error: null };
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push }) }));
 vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: vi.fn() } }));
 vi.mock("@/components/shell/session-role-context", () => ({ useIsCreator: () => isCreator }));
 vi.mock("@/hooks/use-crm", () => ({ useContact: () => ({ ...state, refetch: vi.fn() }) }));
@@ -18,6 +19,14 @@ vi.mock("@/components/crm/contact-form-dialog", () => ({
     open ? (
       <button type="button" onClick={() => onSaved({ id: "p1", fullName: "Nova" })}>
         fake-save-contact
+      </button>
+    ) : null,
+}));
+vi.mock("@/components/crm/merge-contact-dialog", () => ({
+  MergeContactDialog: ({ open, onMerged }: { open: boolean; onMerged: (c: unknown) => void }) =>
+    open ? (
+      <button type="button" onClick={() => onMerged({ id: "p2", fullName: "Outra" })}>
+        fake-merge-contact
       </button>
     ) : null,
 }));
@@ -49,6 +58,7 @@ describe("ContactPage", () => {
     state = { data: detail, isLoading: false, error: null };
     toastSuccess.mockReset();
     replace.mockReset();
+    push.mockReset();
   });
 
   it("shows the contact with company link and opportunities", async () => {
@@ -70,6 +80,15 @@ describe("ContactPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Editar contato" }));
     await userEvent.click(screen.getByRole("button", { name: "fake-save-contact" }));
     expect(toastSuccess).toHaveBeenCalledWith("Contato atualizado.");
+  });
+
+  it("merges into another contact, toasts and navigates to the one that stays", async () => {
+    await renderPage();
+    expect(screen.queryByRole("button", { name: "fake-merge-contact" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Mesclar em…" }));
+    await userEvent.click(screen.getByRole("button", { name: "fake-merge-contact" }));
+    expect(toastSuccess).toHaveBeenCalledWith("Contatos mesclados.");
+    expect(push).toHaveBeenCalledWith("/contacts/p2");
   });
 
   it("shows not found for a 404", async () => {

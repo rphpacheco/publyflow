@@ -58,6 +58,7 @@ export interface ContactDto {
 
 export interface CompanyDetailDto {
   company: CompanyDto;
+  aliases: Array<{ id: string; name: string }>;
   brands: Array<{ id: string; name: string }>;
   contacts: Array<{ id: string; fullName: string; email: string | null; phone: string | null; instagramHandle: string | null }>;
   opportunities: CrmOpportunityDto[];
@@ -84,7 +85,7 @@ export interface BrandFormValues {
 
 export const crmQueryKey = ["crm"] as const;
 // Inbox selectors (use-party-options) read the same lists; renames must show up there too.
-const OPTION_KEYS = [["company-options"], ["brand-options"], ["contact-options"]] as const;
+export const OPTION_KEYS = [["company-options"], ["brand-options"], ["contact-options"]] as const;
 
 const json = (method: string, body: unknown): RequestInit => ({
   method,

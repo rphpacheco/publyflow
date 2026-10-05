@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Merge } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useIsCreator } from "@/components/shell/session-role-context";
 import { ContactFormDialog } from "@/components/crm/contact-form-dialog";
+import { MergeContactDialog } from "@/components/crm/merge-contact-dialog";
 import { CrmOpportunitiesTable } from "@/components/crm/crm-opportunities-table";
 import { useContact } from "@/hooks/use-crm";
 import { ApiError } from "@/lib/api-client";
@@ -18,6 +19,7 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
   const isCreator = useIsCreator();
   const { data, isLoading, error, refetch } = useContact(id);
   const [editing, setEditing] = React.useState(false);
+  const [merging, setMerging] = React.useState(false);
 
   React.useEffect(() => {
     if (isCreator) router.replace("/pipeline");
@@ -55,9 +57,9 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="flex flex-col gap-6">
       {back}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-lg font-semibold">{contact.fullName}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="min-w-0 break-words text-lg font-semibold">{contact.fullName}</h1>
           {company ? (
             <Link href={`/companies/${company.id}`} className="text-sm underline">
               {company.name}
@@ -66,9 +68,14 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
             <span className="text-sm text-muted-foreground">Sem empresa</span>
           )}
         </div>
-        <Button type="button" variant="outline" aria-label="Editar contato" onClick={() => setEditing(true)}>
-          Editar
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" aria-label="Editar contato" onClick={() => setEditing(true)}>
+            Editar
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setMerging(true)}>
+            <Merge className="size-4" aria-hidden="true" /> Mesclar em…
+          </Button>
+        </div>
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -93,6 +100,18 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
           onSaved={() => {
             setEditing(false);
             toast.success("Contato atualizado.");
+          }}
+        />
+      ) : null}
+      {merging ? (
+        <MergeContactDialog
+          open
+          contact={contact}
+          onOpenChange={setMerging}
+          onMerged={(stays) => {
+            setMerging(false);
+            toast.success("Contatos mesclados.");
+            router.push(`/contacts/${stays.id}`);
           }}
         />
       ) : null}

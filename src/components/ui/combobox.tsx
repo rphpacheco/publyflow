@@ -19,6 +19,7 @@ export interface ComboboxProps<T> {
   createLabel?: (name: string) => string;
   className?: string;
   "aria-label"?: string;
+  "aria-invalid"?: boolean;
 }
 
 function Combobox<T>({
@@ -33,6 +34,7 @@ function Combobox<T>({
   createLabel = (name) => `Criar "${name}"`,
   className,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -53,6 +55,7 @@ function Combobox<T>({
           role="combobox"
           aria-expanded={open}
           aria-label={ariaLabel}
+          aria-invalid={ariaInvalid}
           className={cn("h-11 w-full justify-between font-normal md:h-9", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
