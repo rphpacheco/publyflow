@@ -5,7 +5,23 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-_(nada — próximo: 1c mesclar duplicatas)_
+### 1c. Mesclar duplicatas
+- [x] Contexto: company ← brands, contacts, leads, opportunities; contact ← leads (restrict); brand ← leads, opportunities; textos congelados das publicações não mudam
+- [x] P1: escopo = **empresas e contatos** (brands fora)
+- [x] P2: prevalece o registro que fica; campos vazios dele são preenchidos com os do duplicado; prévia antes de confirmar
+- [x] P3: **apelidos só para empresas** (conversão do inbox procura empresa por nome; contato nunca é procurado por nome — commercial-inquiry.service.ts:56-74) → tabela nova de apelidos (migration), conversão procura nome + apelidos, apelidos visíveis/removíveis no detalhe da empresa
+- [x] P4: **sem desfazer**; confirmação mostra o impacto (o que será movido, apelido criado, "não pode ser desfeita"); registro interno do que foi feito
+- [x] P5: botão "Mesclar em…" no detalhe do duplicado → diálogo: escolher o que fica, prévia (dados finais + impacto), confirmar → vai para o que ficou
+- [x] Abordagem: transação única no service (trava em ordem de id, reaponta FKs, completa vazios, apelido, apaga, evento) + endpoint de prévia
+- [x] Design por seções
+  - [x] Seção 1: dados (company_aliases, migration 0023), regras de apelido (rename + conversão), mesclar empresa/contato, rotas
+  - [x] Seção 2: telas (Mesclar em… + diálogo com prévia e aviso; bloco Apelidos; contatos com campos "(do duplicado)")
+  - [x] Seção 3: erros e testes (aprovada)
+- [x] Spec — `docs/superpowers/specs/2026-10-05-merge-duplicates-design.md`
+- [~] Revisão da spec pelo Raphael
+- [ ] Plano
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy
 
 ## Concluído nesta fase (Dashboard)
 
@@ -78,8 +94,6 @@ _(nada — próximo: 1c mesclar duplicatas)_
 ## Próximos (na ordem combinada)
 
 
-### 1c. Mesclar duplicatas (companies e contacts)
-- [ ] Brainstorming (reapontar leads/opportunities/brands/contacts numa transação)
 
 ### 2. Dívida técnica
 - [ ] Cliente OpenAI lazy (sem `OPENAI_API_KEY` o POST do inbox quebra no load do módulo)
