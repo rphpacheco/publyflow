@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+_(nada — próximo: 1c mesclar duplicatas)_
+
+## Concluído nesta fase (Dashboard)
+
 ### 1b. Página Dashboard (spec própria)
 - [x] Levantar contexto (dados disponíveis: inquiries por status, opportunities por estágio/status/valor/creator, propostas/publicações/respostas/aprovações, histórico de estágio; `/` redireciona p/ /pipeline; creator não vê o link)
 - [x] P1: Dashboard responde as 3 perguntas — **A** comercial (funil + dinheiro), **B** o que requer ação, **C** desempenho por creator
@@ -37,7 +41,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] T6 hooks + recharts + componentes
   - [x] T7 página /dashboard
   - [x] T8 verificação: tsc ok, lint ok nos arquivos novos, 0022 em test/dev, suíte 1228 verde, build ok, navegador ok (números conferidos, layout sem transbordar de 320 a 1920px)
-- [ ] Merge + deploy
+- [x] Merge + deploy (`f81cb41`; suíte 1231 verde no main; 0022 aplicada em produção antes do push — 0 linhas afetadas; rota confirmada em publyflow.vercel.app, 2026-10-05)
 
 ## Concluído nesta fase
 
