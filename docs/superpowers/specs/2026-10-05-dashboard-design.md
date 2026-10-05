@@ -21,7 +21,8 @@ Visual references chosen by the user: Dribbble "Real Estate CRM", "CRM Admin Das
 | D11 | Chart "Fechado ao longo do período": won value (R$) per bucket — **day** when the period has ≤ 31 days, **week** (weeks starting Monday) when ≤ 180, **month** otherwise — buckets computed in America/Sao_Paulo, empty buckets zero-filled. New dependency **recharts** (v3, React 19 compatible — verify at install). |
 | D12 | Two endpoints computed on request (no pre-aggregation): `GET /api/dashboard/metrics?from&to` (Comercial, chart, Creators) and `GET /api/dashboard/actions` (Requer ação + Acompanhamento). |
 | D13 | Action counts reuse `ProposalQueueService.list` so numbers match the `/proposals` queue. |
-| D14 | No migration. |
+| D14 | **Status fix (found while planning, user chose to fix the root cause):** moving an opportunity out of `FECHADO`/`PERDIDO` to an open stage never reset `status` (stayed `WON`/`LOST`), which would break D5 and every `status = 'OPEN'` count (incl. Companies' "Oportunidades abertas"). `updateStage` now sets `status = 'OPEN'` when the new stage is not terminal, and a **data-only migration** `0022` backfills `status = 'OPEN'` where `stage NOT IN ('FECHADO','PERDIDO') AND status <> 'OPEN'`. Deploy order: apply 0022 in production, then push. No schema change. |
+| D15 | Previous period (D10): when the period is a whole calendar month the previous period is the whole previous month; a whole calendar year → the previous year; otherwise the same number of days ending the day before `from`. |
 
 ## 2. Server
 
@@ -31,7 +32,7 @@ All queries/joins carry an explicit `organization_id` predicate inside `runInTen
 - `src/lib/dashboard/period.ts`
   - `resolvePreset(preset: "this_month" | "last_month" | "last_90_days" | "this_year", now: Date): { from: string; to: string }` (YYYY-MM-DD, America/Sao_Paulo).
   - `periodBounds({ from, to }): { start: Date; endExclusive: Date }` (UTC instants of local midnights).
-  - `previousPeriod({ from, to }): { from; to }` (same number of days, ending the day before `from`).
+  - `previousPeriod({ from, to }): { from; to }` (D15).
   - `bucketFor({ from, to }): "day" | "week" | "month"` and `bucketStarts({ from, to }, bucket): string[]` (local dates).
   - `periodQuerySchema` (zod): `from`, `to` required `YYYY-MM-DD`, valid dates; `to >= from` ("A data final deve ser igual ou posterior à inicial."); span ≤ 2 years ("O período máximo é de 2 anos."); missing → "Informe a data inicial." / "Informe a data final.".
 - `src/lib/dashboard/value.ts` — `snapshotTotalCents(snapshotJson)` (via `parsePresentationSnapshot`, Σ quantity × unitPrice) and `resolveValueCents({ acceptedSnapshotTotal, currentProposalTotal, estimatedValueCents, won })` implementing D6.

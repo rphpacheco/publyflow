@@ -25,8 +25,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] Seção 2: tela (aprovada) — **layout B (duas colunas)** escolhido; referências visuais do Raphael (Dribbble ×4 + Coupler) analisadas; mockup v2 no visual companion; **entram os dois**: comparação vs período anterior em todos os cards históricos + gráfico "Fechado ao longo do período" (nova dependência recharts)
   - [x] Seção 3: erros e testes (aprovada)
 - [x] Spec — `docs/superpowers/specs/2026-10-05-dashboard-design.md`
-- [~] Revisão da spec pelo Raphael
-- [ ] Plano
+- [x] Revisão da spec pelo Raphael
+- [x] Achado no planejamento: reabrir oportunidade não voltava `status` p/ OPEN → **corrigir na raiz** (updateStage + migration 0022 só de dados; aplicar 0022 em prod antes do push) — spec D14/D15 atualizada
+- [~] Plano de implementação
 - [ ] Implementação (subagentes) + revisão final
 - [ ] Merge + deploy
 
