@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+_(nada — próximo: 1b Dashboard)_
+
+## Concluído nesta fase
+
 ### 1. Páginas da sidebar sem tela (Companies, Contacts, Dashboard — hoje 404)
 - [x] Levantar contexto (links na sidebar, APIs existentes: só GET em companies/contacts/brands)
 - [x] Brainstorming — decidido: **A) Companies + Contacts juntas** numa spec; Dashboard fica para spec própria depois
@@ -32,8 +36,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] T8 páginas /contacts
   - [x] T9 verificação completa + checagem no navegador (listas, busca, detalhe, 409 de nome, brand movida, e-mail inválido, contato vinculado)
 - [x] Revisão final (opus): sem Critical/Important; 4 ajustes aplicados (409 só por COMPANY_NAME_TAKEN, Cmd-click nas linhas, lint, ordem no spec)
-- [ ] Merge em main
-- [ ] Push/deploy (feito pelo Raphael)
+- [x] Merge em main (`78cfeca`, suíte 1135 verde no resultado)
+- [x] Push/deploy em produção (2026-10-05, sem migration; rota nova confirmada em publyflow.vercel.app)
 
 ## Próximos (na ordem combinada)
 
@@ -76,7 +80,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Housekeeping
 - [x] Criar TAREFA.md versionado no git
-- [ ] Push do commit local `7693b82` (CLAUDE.md/AGENTS.md) — feito pelo Raphael
+- [x] Push do commit local `7693b82` (CLAUDE.md/AGENTS.md) — junto com o deploy de 2026-10-05
 
 ## Concluído (histórico recente)
 - [x] Specs A/B/C/D de creators (cadastro, permissões, convite, aprovação) — em produção
