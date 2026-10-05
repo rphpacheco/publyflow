@@ -53,5 +53,6 @@ export const updateBrandSchema = z
   .refine(hasAnyField, AT_LEAST_ONE)
   .transform(withoutUndefined);
 
-export type UpdateContactInput = z.infer<typeof updateContactSchema>;
-export type UpdateBrandInput = z.infer<typeof updateBrandSchema>;
+// withoutUndefined strips omitted keys at runtime, so every key is optional.
+export type UpdateContactInput = Partial<z.infer<typeof updateContactSchema>>;
+export type UpdateBrandInput = Partial<z.infer<typeof updateBrandSchema>>;

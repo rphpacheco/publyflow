@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { companies } from "@/db/schema/companies-brands-contacts";
@@ -68,5 +68,53 @@ export const CompaniesRepository = {
       .from(companies)
       .where(and(eq(companies.id, companyId), eq(companies.organizationId, organizationId)));
     return row ?? null;
+  },
+
+  async lockByIdWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    companyId: string,
+  ): Promise<Company | null> {
+    const [row] = await tx
+      .select()
+      .from(companies)
+      .where(and(eq(companies.id, companyId), eq(companies.organizationId, organizationId)))
+      .for("update");
+    return row ?? null;
+  },
+
+  // Case-insensitive, trimmed comparison; no index (small per-org volume, spec D9).
+  async findOtherByNameCiWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    name: string,
+    excludeId: string,
+  ): Promise<Company | null> {
+    const [row] = await tx
+      .select()
+      .from(companies)
+      .where(
+        and(
+          eq(companies.organizationId, organizationId),
+          ne(companies.id, excludeId),
+          sql`lower(trim(${companies.name})) = lower(trim(${name}))`,
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  async updateNameWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    companyId: string,
+    name: string,
+  ): Promise<Company> {
+    const [row] = await tx
+      .update(companies)
+      .set({ name })
+      .where(and(eq(companies.id, companyId), eq(companies.organizationId, organizationId)))
+      .returning();
+    return row;
   },
 };
