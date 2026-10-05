@@ -5,7 +5,30 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-_(nada — próximo: 1b Dashboard)_
+### 1b. Página Dashboard (spec própria)
+- [x] Levantar contexto (dados disponíveis: inquiries por status, opportunities por estágio/status/valor/creator, propostas/publicações/respostas/aprovações, histórico de estágio; `/` redireciona p/ /pipeline; creator não vê o link)
+- [x] P1: Dashboard responde as 3 perguntas — **A** comercial (funil + dinheiro), **B** o que requer ação, **C** desempenho por creator
+- [x] P2: período — presets (este mês [padrão], mês passado, últimos 90 dias, este ano) **+ intervalo livre de/até**; fechado = data em que entrou em Fechado (histórico de estágio)
+- [x] P3: valor — fechado = itens da versão aceita pelo link (fallback: estimado da oportunidade); em negociação = total da proposta mais recente (fallback: estimado)
+- [x] P4: métricas (versão do Raphael)
+  - Comercial: mensagens recebidas, oportunidades criadas, conversão inbox→oportunidade, fechadas (qtd+R$), perdidas, taxa de fechamento, ticket médio, em negociação (qtd+R$), funil por estágio, tempo médio até fechamento
+  - Requer ação: sem triagem, ajustes pelo cliente, ajustes pelo creator, aguardando aprovação do creator, prontas p/ enviar
+  - Acompanhamento: aguardando resposta do cliente
+  - Creators: oportunidades abertas, propostas enviadas no período, fechadas (qtd+R$), taxa de aprovação da proposta = aceites ÷ (aceites + recusas)
+  - Valores em R$ sempre pela regra do P3 (nada financeiro baseado em "propostas enviadas")
+- [x] Definições: conversão = mensagens do período já CONVERTED ÷ mensagens do período; tempo até fechamento = média (entrada em Fechado − criação) das fechadas no período, "—" se zero; taxa de aprovação (cliente) = aceites ÷ (aceites + recusas) por respondedAt no período
+- [x] Abordagem: 2 endpoints calculados na hora — `/api/dashboard/metrics?from&to` (Comercial + Creators) e `/api/dashboard/actions` (Requer ação + Acompanhamento, reaproveita a classificação da fila)
+- [x] Bloco Creators filtrado pelo escopo do usuário quando o papel for CREATOR
+- [x] P5: **CREATOR não acessa** (403, só OWNER/MANAGER); camada de dados aceita `creatorScope` mesmo assim (defensivo/futuro)
+- [x] Design por seções
+  - [x] Seção 1: API e cálculo (aprovada; registrar: data de fechamento/perda = entrada mais recente em FECHADO/PERDIDO no opportunity_stage_history; inquiriesConverted = status ATUAL das mensagens recebidas no período; valor ganho = publication mais recente com response.action = ACCEPT)
+  - [x] Seção 2: tela (aprovada) — **layout B (duas colunas)** escolhido; referências visuais do Raphael (Dribbble ×4 + Coupler) analisadas; mockup v2 no visual companion; **entram os dois**: comparação vs período anterior em todos os cards históricos + gráfico "Fechado ao longo do período" (nova dependência recharts)
+  - [x] Seção 3: erros e testes (aprovada)
+- [x] Spec — `docs/superpowers/specs/2026-10-05-dashboard-design.md`
+- [~] Revisão da spec pelo Raphael
+- [ ] Plano
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy
 
 ## Concluído nesta fase
 
@@ -41,8 +64,6 @@ _(nada — próximo: 1b Dashboard)_
 
 ## Próximos (na ordem combinada)
 
-### 1b. Página Dashboard (spec própria, depois de Companies + Contacts)
-- [ ] Brainstorming (métricas, backend)
 
 ### 1c. Mesclar duplicatas (companies e contacts)
 - [ ] Brainstorming (reapontar leads/opportunities/brands/contacts numa transação)
