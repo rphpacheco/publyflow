@@ -69,6 +69,15 @@ describe("DashboardPage", () => {
     expect(metricsHook).toHaveBeenCalledWith(resolvePreset("this_month", new Date()));
   });
 
+  it("uses correct Portuguese plurals in the win-rate context", () => {
+    const { unmount } = render(<DashboardPage />);
+    expect(screen.getByText("3 ganhas · 2 perdidas")).toBeTruthy();
+    unmount();
+    metricsState = { ...metricsState, data: { ...metricsData, current: { ...base, wonCount: 1, lostCount: 1 } } };
+    render(<DashboardPage />);
+    expect(screen.getByText("1 ganha · 1 perdida")).toBeTruthy();
+  });
+
   it("uses the period from the query and falls back on an invalid one", () => {
     search = "from=2026-09-01&to=2026-09-30";
     const { unmount } = render(<DashboardPage />);

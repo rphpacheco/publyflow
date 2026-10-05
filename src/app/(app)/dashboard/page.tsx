@@ -37,7 +37,7 @@ function Skeleton({ className }: { className: string }) {
 function cards(current: PeriodMetricsDto, previous: PeriodMetricsDto) {
   return [
     { label: "Fechado", value: money(current.wonCents), context: plural(current.wonCount, "oportunidade", "oportunidades"), delta: computeDelta(current.wonCents, previous.wonCents, "money", true) },
-    { label: "Taxa de fechamento", value: percent(current.winRate), context: `${current.wonCount} ganhas · ${current.lostCount} perdidas`, delta: computeDelta(current.winRate, previous.winRate, "rate", true) },
+    { label: "Taxa de fechamento", value: percent(current.winRate), context: `${plural(current.wonCount, "ganha", "ganhas")} · ${plural(current.lostCount, "perdida", "perdidas")}`, delta: computeDelta(current.winRate, previous.winRate, "rate", true) },
     { label: "Ticket médio", value: money(current.averageTicketCents), context: "por oportunidade ganha", delta: computeDelta(current.averageTicketCents, previous.averageTicketCents, "money", true) },
     { label: "Tempo até fechar", value: days(current.averageDaysToClose), context: "média das fechadas", delta: computeDelta(current.averageDaysToClose, previous.averageDaysToClose, "days", false) },
     { label: "Mensagens recebidas", value: String(current.inquiriesReceived), context: plural(current.inquiriesConverted, "convertida", "convertidas"), delta: computeDelta(current.inquiriesReceived, previous.inquiriesReceived, "count", true) },
@@ -69,20 +69,20 @@ function DashboardContent() {
         <h1 className="text-lg font-semibold">Dashboard</h1>
         <PeriodPicker period={period} onChange={setPeriod} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
-        <aside className="order-first lg:order-last lg:sticky lg:top-4 lg:self-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4 lg:self-start">
           {actions.isLoading ? <Skeleton className="h-64" /> : actions.isError || !actions.data ? <ErrorBox onRetry={() => actions.refetch()} /> : <ActionsPanel actions={actions.data} />}
         </aside>
         <section className="flex min-w-0 flex-col gap-4">
           {metrics.isLoading ? (
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
               {Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-24" />)}
             </div>
           ) : metrics.isError || !metrics.data ? (
             <ErrorBox onRetry={() => metrics.refetch()} />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
                 {cards(metrics.data.current, metrics.data.previous).map((card) => <KpiCard key={card.label} {...card} />)}
               </div>
               <WonChart points={metrics.data.series.points} bucket={metrics.data.series.bucket} />

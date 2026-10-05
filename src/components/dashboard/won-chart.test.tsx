@@ -10,7 +10,7 @@ vi.mock("recharts", () => {
   return { ResponsiveContainer: Box, AreaChart: Box, Area: Null, CartesianGrid: Null, Tooltip: Null, XAxis: Null, YAxis: Null };
 });
 
-import { WonChart, bucketLabel } from "./won-chart";
+import { WonChart, bucketLabel, formatAxisBRL } from "./won-chart";
 
 const points = [
   { start: "2026-10-05", wonCents: 1000, wonCount: 1 },
@@ -28,5 +28,10 @@ describe("WonChart", () => {
     expect(bucketLabel("2026-10-05", "day")).toBe("05/10");
     expect(bucketLabel("2026-10-05", "week")).toBe("05/10");
     expect(bucketLabel("2026-10-01", "month")).toBe("out/26");
+  });
+  it("formats compact axis ticks", () => {
+    expect(formatAxisBRL(500)).toBe("R$ 500");
+    expect(formatAxisBRL(16000)).toBe("R$ 16 mil");
+    expect(formatAxisBRL(1250000)).toBe("R$ 1,3 mi");
   });
 });

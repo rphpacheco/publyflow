@@ -12,11 +12,11 @@ const TONE_CLASS: Record<Delta["tone"], string> = {
 export function KpiCard({ label, value, context, delta }: { label: string; value: string; context?: string; delta: Delta }) {
   const Icon = delta.direction === "up" ? ArrowUpRight : delta.direction === "down" ? ArrowDownRight : Minus;
   return (
-    <Card className="flex flex-col gap-1 p-4">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-2xl font-semibold tracking-tight">{value}</span>
-      <div className="flex flex-wrap items-center gap-x-2 text-xs">
-        {context ? <span className="text-muted-foreground">{context}</span> : null}
+    <Card className="@container flex min-w-0 flex-col gap-1 p-4">
+      <span className="min-w-0 break-words text-xs text-muted-foreground">{label}</span>
+      <span className="text-xl font-semibold tracking-tight tabular-nums whitespace-nowrap @[14rem]:text-2xl">{value}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
+        {context ? <span className="min-w-0 break-words text-muted-foreground">{context}</span> : null}
         <span data-testid="kpi-delta" data-tone={delta.tone} className={cn("inline-flex items-center gap-0.5", TONE_CLASS[delta.tone])}>
           {delta.label ? (
             <>
