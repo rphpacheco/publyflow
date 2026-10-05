@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { contacts } from "@/db/schema/companies-brands-contacts";
 import { runInTenantContext } from "./tenant-context";
+import type { UpdateContactInput } from "@/lib/crm/crm-input";
 
 export type Contact = typeof contacts.$inferSelect;
 
@@ -92,5 +93,19 @@ export const ContactsRepository = {
         .where(eq(contacts.organizationId, organizationId))
         .orderBy(desc(contacts.createdAt));
     });
+  },
+
+  async updateWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    contactId: string,
+    input: UpdateContactInput,
+  ): Promise<Contact | null> {
+    const [row] = await tx
+      .update(contacts)
+      .set(input)
+      .where(and(eq(contacts.id, contactId), eq(contacts.organizationId, organizationId)))
+      .returning();
+    return row ?? null;
   },
 };

@@ -37,7 +37,7 @@ All queries and joins carry an explicit `organization_id` predicate and run insi
 - Both: `isUuid` guard; unknown or other-org id → 404.
 
 ### 2.3 Edits (new routes)
-All: session (401) → `canManageOrganization` (CREATOR → 403) → `isUuid` (404) → zod `safeParse` (400 `{ errors: fieldErrors }`). Text fields are trimmed; max 200 chars ("Use no máximo 200 caracteres."); for nullable fields an empty string after trim is stored as `null`. At least one key required. Each route returns the updated entity.
+All: session (401) → `isUuid` (404) → `canManageOrganization` (CREATOR → 403) → zod `safeParse` (400 `{ errors: fieldErrors }`). Text fields are trimmed; max 200 chars ("Use no máximo 200 caracteres."); for nullable fields an empty string after trim is stored as `null`. At least one key required. Each route returns the updated entity.
 
 - `PATCH /api/companies/[id]` — `{ name }` (required non-empty when present).
   - Service locks the company row (`FOR UPDATE`), checks no *other* company in the org has `lower(trim(name)) = lower(trim(:name))`, updates.

@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { brands } from "@/db/schema/companies-brands-contacts";
 import { runInTenantContext } from "./tenant-context";
+import type { UpdateBrandInput } from "@/lib/crm/crm-input";
 
 export type Brand = typeof brands.$inferSelect;
 
@@ -56,6 +57,20 @@ export const BrandsRepository = {
       .select()
       .from(brands)
       .where(and(eq(brands.id, brandId), eq(brands.organizationId, organizationId)));
+    return row ?? null;
+  },
+
+  async updateWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    brandId: string,
+    input: UpdateBrandInput,
+  ): Promise<Brand | null> {
+    const [row] = await tx
+      .update(brands)
+      .set(input)
+      .where(and(eq(brands.id, brandId), eq(brands.organizationId, organizationId)))
+      .returning();
     return row ?? null;
   },
 };
