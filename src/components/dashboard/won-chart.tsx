@@ -13,10 +13,11 @@ export function bucketLabel(start: string, bucket: Bucket): string {
 }
 
 export function formatAxisBRL(value: number): string {
-  const abs = Math.abs(value);
   const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-  if (abs >= 1_000_000) return `R$ ${fmt(value / 1_000_000)} mi`;
-  if (abs >= 1_000) return `R$ ${fmt(value / 1_000)} mil`;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000 || round1(abs / 1_000) >= 1_000) return `R$ ${fmt(round1(value / 1_000_000))} mi`;
+  if (abs >= 1_000) return `R$ ${fmt(round1(value / 1_000))} mil`;
   return `R$ ${fmt(value)}`;
 }
 
@@ -30,7 +31,7 @@ export function WonChart({ points, bucket }: { points: Array<{ start: string; wo
           <AreaChart data={data} margin={{ left: 0, right: 12, top: 4, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={72} tickFormatter={formatAxisBRL} />
+            <YAxis tickLine={false} axisLine={false} fontSize={12} width={84} tickFormatter={formatAxisBRL} />
             <Tooltip
               formatter={(value) => [formatCurrencyBRL(Number(value) * 100), "Fechado"]}
               labelFormatter={(label, payload) => {

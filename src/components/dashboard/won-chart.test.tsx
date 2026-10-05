@@ -30,7 +30,11 @@ describe("WonChart", () => {
     expect(bucketLabel("2026-10-01", "month")).toBe("out/26");
   });
   it("formats compact axis ticks", () => {
+    expect(formatAxisBRL(0)).toBe("R$ 0");
     expect(formatAxisBRL(500)).toBe("R$ 500");
+    expect(formatAxisBRL(1000)).toBe("R$ 1 mil");
+    expect(formatAxisBRL(1500)).toBe("R$ 1,5 mil");
+    expect(formatAxisBRL(999_999)).toBe("R$ 1 mi");
     expect(formatAxisBRL(16000)).toBe("R$ 16 mil");
     expect(formatAxisBRL(1250000)).toBe("R$ 1,3 mi");
   });

@@ -14,6 +14,13 @@ describe("KpiCard", () => {
     expect(delta.querySelector("svg")).toBeTruthy();
     expect(container.textContent).not.toMatch(/[▲▼✓📅]/u);
   });
+  it("lets long values wrap inside the card instead of overflowing", () => {
+    render(<KpiCard label="Fechado" value="R$ 1.234.567,89" delta={{ label: null, direction: null, tone: "neutral" }} />);
+    const value = screen.getByText("R$ 1.234.567,89");
+    expect(value.className).toContain("[overflow-wrap:anywhere]");
+    expect(value.className).not.toContain("whitespace-nowrap");
+  });
+
   it("shows a dash when there is no comparison", () => {
     render(<KpiCard label="Taxa" value="—" delta={{ label: null, direction: null, tone: "neutral" }} />);
     expect(screen.getByTestId("kpi-delta").textContent).toContain("—");
