@@ -17,11 +17,12 @@ Visual references chosen by the user: Dribbble "Real Estate CRM", "CRM Admin Das
 | D7 | Inbox conversion = of the inquiries **created** in the period, how many have **current** status `CONVERTED` ("of the messages that arrived then, how many ended up converting"). |
 | D8 | Average days to close = mean of (close date − `opportunities.created_at`) over opportunities won in the period, in days with one decimal; `null` ("—") when none. |
 | D9 | Creator approval rate (UI label "Aprovação (cliente)") = `ACCEPT ÷ (ACCEPT + REJECT)` over client responses with `responded_at` in the period; `REQUEST_CHANGES` excluded; `null` ("—") when the denominator is 0. |
-| D10 | Every historical card shows the change vs the **previous period of the same length immediately before** (October → September; a 10-day range → the 10 days before). Rates change in percentage points ("▲ 4 p.p."), counts/values in percent ("▲ 18%"); previous = 0 → "—". Semantic color: up is good (green) except **Perdidas** and **Tempo até fechar** (up = red). |
+| D10 | Every historical card shows the change vs the **previous period of the same length immediately before** (October → September; a 10-day range → the 10 days before). Rates change in percentage points ("4 p.p."), counts/values in percent ("18%"), always with a lucide `ArrowUpRight` / `ArrowDownRight` / `Minus` icon (no ▲/▼ characters); previous = 0 → "—". Semantic color: up is good (green) except **Perdidas** and **Tempo até fechar** (up = red). |
 | D11 | Chart "Fechado ao longo do período": won value (R$) per bucket — **day** when the period has ≤ 31 days, **week** (weeks starting Monday) when ≤ 180, **month** otherwise — buckets computed in America/Sao_Paulo, empty buckets zero-filled. New dependency **recharts** (v3, React 19 compatible — verify at install). |
 | D12 | Two endpoints computed on request (no pre-aggregation): `GET /api/dashboard/metrics?from&to` (Comercial, chart, Creators) and `GET /api/dashboard/actions` (Requer ação + Acompanhamento). |
 | D13 | Action counts reuse `ProposalQueueService.list` so numbers match the `/proposals` queue. |
 | D14 | **Status fix (found while planning, user chose to fix the root cause):** moving an opportunity out of `FECHADO`/`PERDIDO` to an open stage never reset `status` (stayed `WON`/`LOST`), which would break D5 and every `status = 'OPEN'` count (incl. Companies' "Oportunidades abertas"). `updateStage` now sets `status = 'OPEN'` when the new stage is not terminal, and a **data-only migration** `0022` backfills `status = 'OPEN'` where `stage NOT IN ('FECHADO','PERDIDO') AND status <> 'OPEN'`. Deploy order: apply 0022 in production, then push. No schema change. |
+| D16 | **No emoji or symbol characters in the UI** — icons only from **lucide-react** (the project's icon library). |
 | D15 | Previous period (D10): when the period is a whole calendar month the previous period is the whole previous month; a whole calendar year → the previous year; otherwise the same number of days ending the day before `from`. |
 
 ## 2. Server
@@ -84,7 +85,7 @@ Response:
 Pattern of the other app pages (client page, TanStack Query hooks in `src/hooks/use-dashboard.ts` on `apiFetch`, components in `src/components/dashboard/`). Creator → `router.replace("/pipeline")`. `/` keeps redirecting to `/pipeline`.
 
 ### 3.1 Header
-"Dashboard" + preset segmented control (Este mês · Mês passado · 90 dias · Este ano) + "📅 De/até" button opening a popover with two date inputs and "Aplicar"; range errors shown inside the popover. The period lives in the URL (`?from&to`); no params → Este mês.
+"Dashboard" + preset segmented control (Este mês · Mês passado · 90 dias · Este ano) + "De/até" button with the lucide `CalendarRange` icon opening a popover with two date inputs and "Aplicar"; range errors shown inside the popover. The period lives in the URL (`?from&to`); no params → Este mês.
 
 ### 3.2 Left column (analysis)
 1. **8 cards** (grid 4 cols desktop, 2 mobile): Fechado (R$, ctx "N oportunidades"), Taxa de fechamento (ctx "N ganhas · N perdidas"), Ticket médio, Tempo até fechar, Mensagens recebidas (ctx "N convertidas"), Conversão Inbox → Oportunidade, Oportunidades criadas, Perdidas. Each with its delta (D10).
@@ -93,7 +94,7 @@ Pattern of the other app pages (client page, TanStack Query hooks in `src/hooks/
 4. **Creators** table: Creator · Oport. abertas · Propostas enviadas · Fechadas (N · R$) · Aprovação (cliente) ("—" when null).
 
 ### 3.3 Right column (sticky on desktop, first on mobile)
-- **Requer ação**: Mensagens sem triagem → `/inbox`; Ajustes pedidos pelo cliente, Ajustes pedidos pelo creator, Aguardando aprovação do creator, Prontas para enviar → `/proposals`. Colored count pills; zero rows dimmed (not removed); all zero → "Tudo em dia ✓". `truncated` → counts shown as "200+".
+- **Requer ação**: Mensagens sem triagem → `/inbox`; Ajustes pedidos pelo cliente, Ajustes pedidos pelo creator, Aguardando aprovação do creator, Prontas para enviar → `/proposals`. Colored count pills; zero rows dimmed (not removed); all zero → "Tudo em dia" with the lucide `CircleCheck` icon. `truncated` → counts shown as "200+".
 - **Acompanhamento**: Aguardando resposta do cliente → `/proposals`.
 
 ### 3.4 Loading and errors
@@ -106,7 +107,7 @@ Vitest against the real test Postgres (`withTestDb`, fixtures in `src/test/helpe
 - **Repository/service**: won/lost rules of D5 (reopen cases); conversion of D7 (September message converted in October counts in September); D8 average; zero-filled series; funnel/openNow ignore the period; creators with zero activity; approval rate ignores REQUEST_CHANGES; **org isolation** (another org's data never enters any number); **`creatorScope`** restricts every number to that creator.
 - **Actions**: counts equal a direct `ProposalQueueService.list` count for the same data; client vs creator changes split; `truncated` propagated.
 - **Routes**: 401, 403 (CREATOR), 400 (each period message), 200 shape.
-- **Hooks/components/page**: presets and de/até write the URL; right-column error does not hide the left; "Tudo em dia ✓"; delta tone; creator redirect. The chart component is mocked in page tests (recharts does not render in jsdom); its own test only checks it receives points and labels.
+- **Hooks/components/page**: presets and de/até write the URL; right-column error does not hide the left; "Tudo em dia"; delta tone; creator redirect. The chart component is mocked in page tests (recharts does not render in jsdom); its own test only checks it receives points and labels.
 - **Manual browser check** (user logs in): switch presets and a custom range, compare numbers with `/pipeline` and `/proposals`, mobile layout.
 
 ## 5. Out of scope

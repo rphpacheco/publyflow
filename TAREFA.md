@@ -27,8 +27,16 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-05-dashboard-design.md`
 - [x] Revisão da spec pelo Raphael
 - [x] Achado no planejamento: reabrir oportunidade não voltava `status` p/ OPEN → **corrigir na raiz** (updateStage + migration 0022 só de dados; aplicar 0022 em prod antes do push) — spec D14/D15 atualizada
-- [~] Plano de implementação
+- [x] Plano — `docs/superpowers/plans/2026-10-05-dashboard.md` (8 tasks; regra: sem emoji na UI, só lucide)
 - [ ] Implementação (subagentes) + revisão final
+  - [ ] T1 status OPEN ao reabrir + migration 0022
+  - [ ] T2 period/value/delta
+  - [ ] T3 DashboardRepository
+  - [ ] T4 DashboardService
+  - [ ] T5 actions service + rotas
+  - [ ] T6 hooks + recharts + componentes
+  - [ ] T7 página /dashboard
+  - [ ] T8 verificação + 0022 em test/dev + navegador
 - [ ] Merge + deploy
 
 ## Concluído nesta fase
