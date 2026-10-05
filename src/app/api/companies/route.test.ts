@@ -31,7 +31,11 @@ describe("GET /api/companies", () => {
     expect(response.status).toBe(200);
 
     const json = await response.json();
-    expect(json.some((row: { id: string }) => row.id === company.id)).toBe(true);
+    const row = json.find((r: { id: string }) => r.id === company.id);
+    expect(row).toBeDefined();
+    expect(typeof row.brandCount).toBe("number");
+    expect(typeof row.contactCount).toBe("number");
+    expect(typeof row.openOpportunityCount).toBe("number");
   });
 
   it("returns 401 without a session", async () => {

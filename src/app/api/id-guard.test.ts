@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
+import { BRAND_NOT_FOUND, COMPANY_NOT_FOUND, CONTACT_NOT_FOUND } from "./crm-errors";
 import { INQUIRY_NOT_FOUND } from "./commercial-inquiries/[id]/inquiry-errors";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 import { RateCardNotFoundError, ServiceNotFoundError } from "@/domain/rate-cards/errors";
@@ -14,8 +15,9 @@ const USER = "00000000-0000-4000-8000-000000000002";
 type Handler = (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
 
 const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>; methods: string[]; error: string }> = [
-  { route: "companies/[id]", load: () => import("./companies/[id]/route"), methods: ["GET"], error: `Company ${BAD} not found` },
-  { route: "contacts/[id]", load: () => import("./contacts/[id]/route"), methods: ["GET"], error: `Contact ${BAD} not found` },
+  { route: "companies/[id]", load: () => import("./companies/[id]/route"), methods: ["GET", "PATCH"], error: COMPANY_NOT_FOUND },
+  { route: "contacts/[id]", load: () => import("./contacts/[id]/route"), methods: ["GET", "PATCH"], error: CONTACT_NOT_FOUND },
+  { route: "brands/[id]", load: () => import("./brands/[id]/route"), methods: ["PATCH"], error: BRAND_NOT_FOUND },
   { route: "leads/[id]", load: () => import("./leads/[id]/route"), methods: ["GET"], error: `Lead ${BAD} not found` },
   { route: "opportunities/[id]", load: () => import("./opportunities/[id]/route"), methods: ["GET", "PATCH"], error: new OpportunityNotFoundError(BAD).message },
   { route: "commercial-inquiries/[id]", load: () => import("./commercial-inquiries/[id]/route"), methods: ["PATCH"], error: INQUIRY_NOT_FOUND },

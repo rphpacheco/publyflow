@@ -29,7 +29,9 @@ describe("GET /api/contacts", () => {
     expect(response.status).toBe(200);
 
     const json = await response.json();
-    expect(json.some((row: { id: string }) => row.id === contact.id)).toBe(true);
+    const row = json.find((r: { id: string }) => r.id === contact.id);
+    expect(row).toBeDefined();
+    expect(row.companyName).toBeNull();
   });
 
   it("returns 401 without a session", async () => {
