@@ -18,10 +18,16 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] Seção 2: telas (Mesclar em… + diálogo com prévia e aviso; bloco Apelidos; contatos com campos "(do duplicado)")
   - [x] Seção 3: erros e testes (aprovada)
 - [x] Spec — `docs/superpowers/specs/2026-10-05-merge-duplicates-design.md`
-- [~] Revisão da spec pelo Raphael
-- [ ] Plano
+- [x] Revisão da spec pelo Raphael
+- [x] Plano — `docs/superpowers/plans/2026-10-05-merge-duplicates.md` (6 tasks)
 - [ ] Implementação (subagentes) + revisão final
-- [ ] Merge + deploy
+  - [ ] T1 tabela company_aliases + migration 0023 + RLS
+  - [ ] T2 regras de apelido (conversão, renomear, remover, detalhe)
+  - [ ] T3 CrmMergeService (mesclar + prévia)
+  - [ ] T4 rotas da API
+  - [ ] T5 hooks, diálogos, bloco de apelidos, páginas
+  - [ ] T6 verificação + navegador
+- [ ] Merge + deploy (0023 em produção antes do push)
 
 ## Concluído nesta fase (Dashboard)
 
