@@ -1,15 +1,19 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { seedInquiry } from "@/test/helpers/inquiry-fixtures";
 import { ProposalQueueService } from "./proposal-queue.service";
+import { ProposalService } from "./proposal.service";
 import { ProposalSendingService } from "./proposal-sending.service";
 import { ProposalResponseService } from "./proposal-response.service";
 import { DashboardActionsService } from "./dashboard-actions.service";
 
 describe("DashboardActionsService", () => {
   let cleanup: () => Promise<void>;
-  afterEach(async () => cleanup?.());
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await cleanup?.();
+  });
 
   it("counts match the proposals queue for the same data", async () => {
     const { db, cleanup: c } = await withTestDb();
@@ -26,8 +30,32 @@ describe("DashboardActionsService", () => {
       awaitingCreatorApproval: by("awaiting_creator"),
       readyToSend: by("ready_to_send"),
       awaitingClient: by("awaiting_client"),
-      truncated: queue.truncated,
     });
+  });
+
+  it("counts are exact: the dashboard reads the queue with no row cap", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const a = await seedProposal(db);
+    await ProposalService.create(db, a.organization.id, { opportunityId: a.opportunity.id, title: "Segunda", theme: "PREMIUM", userId: a.owner.id });
+    await ProposalService.create(db, a.organization.id, { opportunityId: a.opportunity.id, title: "Terceira", theme: "PREMIUM", userId: a.owner.id });
+
+    // The option works: a small explicit limit truncates; null loads everything.
+    const capped = await ProposalQueueService.list(db, a.organization.id, { creatorScope: null, includeArchived: false, limit: 2 });
+    expect(capped.items).toHaveLength(2);
+    expect(capped.truncated).toBe(true);
+    const all = await ProposalQueueService.list(db, a.organization.id, { creatorScope: null, includeArchived: false, limit: null });
+    expect(all.items).toHaveLength(3);
+    expect(all.truncated).toBe(false);
+    const byDefault = await ProposalQueueService.list(db, a.organization.id, { creatorScope: null, includeArchived: false });
+    expect(byDefault.items).toHaveLength(3);
+
+    // The dashboard path asks for no cap.
+    const spy = vi.spyOn(ProposalQueueService, "list");
+    const actions = await DashboardActionsService.get(db, a.organization.id, { creatorScope: null });
+    expect(spy).toHaveBeenCalledWith(db, a.organization.id, { creatorScope: null, includeArchived: false, limit: null });
+    const counted = actions.clientChangesRequested + actions.creatorChangesRequested + actions.awaitingCreatorApproval + actions.readyToSend + actions.awaitingClient;
+    expect(counted).toBe(all.items.filter((i) => !["draft", "closed", "archived"].includes(i.situation)).length);
   });
 
   it("counts NEW inquiries of the org, honouring creator scope", async () => {

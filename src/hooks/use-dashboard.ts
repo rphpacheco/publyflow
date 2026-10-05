@@ -18,7 +18,7 @@ export interface DashboardMetricsDto {
 }
 export interface DashboardActionsDto {
   untriagedInquiries: number; clientChangesRequested: number; creatorChangesRequested: number;
-  awaitingCreatorApproval: number; readyToSend: number; awaitingClient: number; truncated: boolean;
+  awaitingCreatorApproval: number; readyToSend: number; awaitingClient: number;
 }
 
 export const dashboardQueryKey = ["dashboard"] as const;

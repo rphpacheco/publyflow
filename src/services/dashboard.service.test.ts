@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { opportunities, opportunityStageHistory } from "@/db/schema";
-import { proposalItems } from "@/db/schema/proposals";
+import { proposalItems, proposals } from "@/db/schema/proposals";
 import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { ProposalVersionService } from "@/services/proposal-version.service";
@@ -11,12 +11,16 @@ import { ProposalService } from "@/services/proposal.service";
 import { ProposalSendingService } from "@/services/proposal-sending.service";
 import { ProposalResponseService } from "@/services/proposal-response.service";
 import { STAGES } from "@/lib/opportunity-stages";
+import { toLocalDate } from "@/lib/dashboard/period";
 import { DashboardService } from "./dashboard.service";
 
 const OCT = { from: "2026-10-01", to: "2026-10-31" };
 // Publications/responses are immutable (published_at/responded_at = now), so tests that need them use a period around today.
-const THIS_YEAR = { from: `${new Date().getUTCFullYear()}-01-01`, to: `${new Date().getUTCFullYear()}-12-31` };
-const NO_SCOPE = { creatorScope: null as string | null };
+const CURRENT_YEAR = toLocalDate(new Date()).slice(0, 4); // São Paulo year, not UTC
+const THIS_YEAR = { from: `${CURRENT_YEAR}-01-01`, to: `${CURRENT_YEAR}-12-31` };
+// Fixed clock after October 2026, so OCT is a closed (past) period and previousPeriod is the whole month.
+const NOW = new Date("2026-11-15T12:00:00Z");
+const NO_SCOPE: { creatorScope: string | null; now?: Date } = { creatorScope: null, now: NOW };
 
 type Seed = Awaited<ReturnType<typeof seedProposal>>;
 type Db = Parameters<typeof OpportunitiesRepository.updateStage>[0];
@@ -119,6 +123,18 @@ describe("DashboardService.getMetrics", () => {
     expect(result.current.wonCount).toBe(0);
   });
 
+  it("while the period is running, previous compares the same elapsed span", async () => {
+    const { db, a, get } = await setup();
+    const other = await addOpportunity(db, a);
+    await closeAt(db, a.organization.id, a.opportunity.id, "FECHADO", "2026-09-03T12:00:00Z");
+    await closeAt(db, a.organization.id, other.opportunity.id, "FECHADO", "2026-09-15T12:00:00Z");
+    const result = await get(a, OCT, { creatorScope: null, now: new Date("2026-10-05T15:00:00Z") });
+    expect(result.period).toEqual(OCT);
+    expect(result.previousPeriod).toEqual({ from: "2026-09-01", to: "2026-09-05" });
+    expect(result.previous.wonCount).toBe(1);
+    expect(result.series.points).toHaveLength(31); // chart stays on the full selected period
+  });
+
   it("series has one point per day and places the win on its São Paulo local day", async () => {
     const { db, a, get } = await setup();
     await db.update(opportunities).set({ estimatedValueCents: 90000 }).where(eq(opportunities.id, a.opportunity.id));
@@ -143,6 +159,16 @@ describe("DashboardService.getMetrics", () => {
     expect(funnel.find((f) => f.stage === "NEGOCIACAO")?.count).toBe(1);
     expect(funnel.reduce((sum, f) => sum + f.count, 0)).toBe(1);
     expect(funnel.some((f) => (f.stage as string) === "FECHADO" || (f.stage as string) === "PERDIDO")).toBe(false);
+  });
+
+  it("openNow falls back to the estimate when the newest proposal has no items", async () => {
+    const { db, a, get } = await setup();
+    await db.update(opportunities).set({ estimatedValueCents: 90000 }).where(eq(opportunities.id, a.opportunity.id));
+    await db.insert(proposalItems).values({ organizationId: a.organization.id, proposalId: a.proposal.id, description: "Reels", quantity: 1, unitPrice: 50000 });
+    await db.update(proposals).set({ createdAt: new Date("2026-01-01T12:00:00Z") }).where(eq(proposals.id, a.proposal.id));
+    await ProposalService.create(db, a.organization.id, { opportunityId: a.opportunity.id, title: "Nova", theme: "PREMIUM", userId: a.owner.id });
+    const { openNow } = await get();
+    expect(openNow).toEqual({ count: 1, valueCents: 90000 });
   });
 
   it("creators: listed with zeros; approvalRate from ACCEPT/REJECT only", async () => {
@@ -181,11 +207,11 @@ describe("DashboardService.getMetrics", () => {
     const other = await addOpportunity(db, a);
     await closeAt(db, a.organization.id, other.opportunity.id, "PERDIDO", "2026-10-12T12:00:00Z");
     const unscoped = await get();
-    const mine = await get(a, OCT, { creatorScope: a.creator.id });
+    const mine = await get(a, OCT, { creatorScope: a.creator.id, now: NOW });
     expect(mine).toEqual(unscoped);
     expect(mine.current.wonCents).toBe(90000);
 
-    const stranger = await get(a, OCT, { creatorScope: "00000000-0000-4000-8000-000000000099" });
+    const stranger = await get(a, OCT, { creatorScope: "00000000-0000-4000-8000-000000000099", now: NOW });
     expect(stranger.creators).toEqual([]);
     expect(stranger.current).toMatchObject({ inquiriesReceived: 0, opportunitiesCreated: 0, wonCount: 0, wonCents: 0, lostCount: 0 });
     expect(stranger.previous.wonCount).toBe(0);

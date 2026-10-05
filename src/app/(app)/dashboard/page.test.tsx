@@ -49,7 +49,7 @@ const metricsData = {
 };
 const actionsData = {
   untriagedInquiries: 2, clientChangesRequested: 0, creatorChangesRequested: 0,
-  awaitingCreatorApproval: 0, readyToSend: 1, awaitingClient: 0, truncated: false,
+  awaitingCreatorApproval: 0, readyToSend: 1, awaitingClient: 0,
 };
 
 describe("DashboardPage", () => {
@@ -88,7 +88,7 @@ describe("DashboardPage", () => {
 
   it("renders the 8 KPI cards with values", () => {
     render(<DashboardPage />);
-    for (const label of ["Fechado", "Taxa de fechamento", "Ticket médio", "Tempo até fechar", "Mensagens recebidas", "Conversão Inbox → Oportunidade", "Oportunidades criadas", "Perdidas"]) {
+    for (const label of ["Fechado", "Taxa de fechamento", "Ticket médio", "Tempo até fechar", "Mensagens recebidas", "Conversão Inbox para oportunidade", "Oportunidades criadas", "Perdidas"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(screen.getByText(brl(1_500_000))).toBeTruthy();
@@ -125,6 +125,6 @@ describe("DashboardPage", () => {
 
   it("renders no emoji or symbol glyphs", () => {
     const { container } = render(<DashboardPage />);
-    expect(container.textContent).not.toMatch(/[▲▼✓📅]/u);
+    expect(container.textContent).not.toMatch(/[\p{Extended_Pictographic}←-⇿▲▼✓✔]/u);
   });
 });

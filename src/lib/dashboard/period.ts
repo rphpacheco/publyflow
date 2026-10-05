@@ -93,6 +93,18 @@ export function previousPeriod(period: Period): Period {
   return { from: addDays(to, -(length - 1)), to };
 }
 
+/**
+ * Comparison window for the "vs previous period" deltas. When the selected period is still running
+ * (from <= today < to), compares against the same elapsed span of the previous period, clamped to its
+ * end (Oct 1–5 vs Sep 1–5); otherwise the full previousPeriod.
+ */
+export function comparisonPeriod(period: Period, today: string): Period {
+  const full = previousPeriod(period);
+  if (!(period.from <= today && today < period.to)) return full;
+  const sameSpanEnd = addDays(full.from, daysInclusive({ from: period.from, to: today }) - 1);
+  return { from: full.from, to: sameSpanEnd < full.to ? sameSpanEnd : full.to };
+}
+
 export function bucketFor(period: Period): Bucket {
   const days = daysInclusive(period);
   if (days <= 31) return "day";

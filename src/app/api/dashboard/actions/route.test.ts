@@ -17,13 +17,13 @@ describe("GET /api/dashboard/actions", () => {
     return GET();
   }
 
-  it("returns all seven action keys", async () => {
+  it("returns all six action keys", async () => {
     const response = await call("owner");
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(Object.keys(json).sort()).toEqual([
       "awaitingClient", "awaitingCreatorApproval", "clientChangesRequested", "creatorChangesRequested",
-      "readyToSend", "truncated", "untriagedInquiries",
+      "readyToSend", "untriagedInquiries",
     ]);
   });
 

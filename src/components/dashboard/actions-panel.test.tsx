@@ -6,7 +6,7 @@ import type { DashboardActionsDto } from "@/hooks/use-dashboard";
 
 const base: DashboardActionsDto = {
   untriagedInquiries: 2, clientChangesRequested: 0, creatorChangesRequested: 1,
-  awaitingCreatorApproval: 3, readyToSend: 4, awaitingClient: 5, truncated: false,
+  awaitingCreatorApproval: 3, readyToSend: 4, awaitingClient: 5,
 };
 
 describe("ActionsPanel", () => {
@@ -29,9 +29,10 @@ describe("ActionsPanel", () => {
     render(<ActionsPanel actions={{ ...base, untriagedInquiries: 0, creatorChangesRequested: 0, awaitingCreatorApproval: 0, readyToSend: 0 }} />);
     expect(screen.getByText("Tudo em dia").closest("p")?.querySelector("svg")).toBeTruthy();
   });
-  it("caps truncated counts at 200+", () => {
-    render(<ActionsPanel actions={{ ...base, readyToSend: 200, awaitingClient: 7, truncated: true }} />);
-    expect(screen.getByText("200+")).toBeTruthy();
+  it("shows exact counts, with no 200+ cap", () => {
+    render(<ActionsPanel actions={{ ...base, readyToSend: 250, awaitingClient: 7 }} />);
+    expect(screen.getByText("250")).toBeTruthy();
+    expect(screen.queryByText("200+")).toBeNull();
     expect(screen.getByText("7")).toBeTruthy();
   });
 });

@@ -91,7 +91,7 @@ export const DashboardRepository = {
       .innerJoin(proposals, and(eq(proposals.id, proposalPublications.proposalId), eq(proposals.organizationId, organizationId)))
       .innerJoin(proposalVersions, and(eq(proposalVersions.id, proposalPublications.versionId), eq(proposalVersions.organizationId, organizationId)))
       .where(and(eq(proposalResponses.organizationId, organizationId), eq(proposalResponses.action, "ACCEPT"), inArray(proposals.opportunityId, opportunityIds)))
-      .orderBy(desc(proposalPublications.publishedAt));
+      .orderBy(desc(proposalPublications.publishedAt), desc(proposalPublications.id));
     const result = new Map<string, unknown>();
     for (const row of rows) if (!result.has(row.opportunityId)) result.set(row.opportunityId, row.snapshot);
     return result;
@@ -103,14 +103,22 @@ export const DashboardRepository = {
       .select({
         opportunityId: proposals.opportunityId,
         total: sql<number>`coalesce(sum(${proposalItems.quantity} * ${proposalItems.unitPrice}), 0)`.mapWith(Number),
+        itemCount: count(proposalItems.id),
       })
       .from(proposals)
       .leftJoin(proposalItems, and(eq(proposalItems.proposalId, proposals.id), eq(proposalItems.organizationId, organizationId)))
       .where(and(eq(proposals.organizationId, organizationId), ne(proposals.status, "ARCHIVED"), inArray(proposals.opportunityId, opportunityIds)))
       .groupBy(proposals.id, proposals.opportunityId, proposals.createdAt)
-      .orderBy(desc(proposals.createdAt));
+      .orderBy(desc(proposals.createdAt), desc(proposals.id));
+    // Only the most recent non-archived proposal counts. When it has no items yet (proposals are
+    // created empty), the opportunity is left out so the value falls back to the estimate (D6).
+    const seen = new Set<string>();
     const result = new Map<string, number>();
-    for (const row of rows) if (!result.has(row.opportunityId)) result.set(row.opportunityId, Number(row.total));
+    for (const row of rows) {
+      if (seen.has(row.opportunityId)) continue;
+      seen.add(row.opportunityId);
+      if (Number(row.itemCount) > 0) result.set(row.opportunityId, Number(row.total));
+    }
     return result;
   },
 

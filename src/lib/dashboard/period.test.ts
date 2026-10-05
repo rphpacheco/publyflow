@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  addDays, bucketFor, bucketKey, bucketStarts, daysInclusive, localMidnightUtc,
+  addDays, bucketFor, bucketKey, bucketStarts, comparisonPeriod, daysInclusive, localMidnightUtc,
   periodBounds, periodQuerySchema, previousPeriod, resolvePreset, toLocalDate,
 } from "./period";
 
@@ -52,6 +52,27 @@ describe("bounds and previous period", () => {
   it("free range → same length right before", () => {
     expect(previousPeriod({ from: "2026-10-11", to: "2026-10-20" })).toEqual({ from: "2026-10-01", to: "2026-10-10" });
     expect(daysInclusive({ from: "2026-10-11", to: "2026-10-20" })).toBe(10);
+  });
+});
+
+describe("comparisonPeriod", () => {
+  it("running month → same elapsed span of the previous month", () => {
+    expect(comparisonPeriod({ from: "2026-10-01", to: "2026-10-31" }, "2026-10-05")).toEqual({ from: "2026-09-01", to: "2026-09-05" });
+  });
+  it("running year → same span of the previous year", () => {
+    expect(comparisonPeriod({ from: "2026-01-01", to: "2026-12-31" }, "2026-10-05")).toEqual({ from: "2025-01-01", to: "2025-10-05" });
+  });
+  it("today on the last day → period not running, full previous period", () => {
+    expect(comparisonPeriod({ from: "2026-03-01", to: "2026-03-31" }, "2026-03-31")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+  });
+  it("span longer than the previous period is clamped to its end", () => {
+    expect(comparisonPeriod({ from: "2026-03-01", to: "2026-03-31" }, "2026-03-30")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+  });
+  it("past period → unchanged previousPeriod", () => {
+    const past = { from: "2026-09-01", to: "2026-09-30" };
+    expect(comparisonPeriod(past, "2026-10-05")).toEqual(previousPeriod(past));
+    const range = { from: "2026-08-11", to: "2026-08-20" };
+    expect(comparisonPeriod(range, "2026-10-05")).toEqual(previousPeriod(range));
   });
 });
 

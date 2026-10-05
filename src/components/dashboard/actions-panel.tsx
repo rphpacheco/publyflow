@@ -13,14 +13,14 @@ const PILL: Record<Tone, string> = {
   gray: "bg-muted text-foreground",
 };
 
-function Row({ label, href, count, tone, truncated }: { label: string; href: string; count: number; tone: Tone; truncated: boolean }) {
+function Row({ label, href, count, tone }: { label: string; href: string; count: number; tone: Tone }) {
   const zero = count === 0;
   return (
     <li>
       <Link href={href} data-zero={zero ? "true" : "false"} className={cn("flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-muted", zero && "opacity-50")}>
         <span>{label}</span>
         <span className={cn("min-w-7 rounded-full px-2 text-center text-xs font-semibold", PILL[tone])}>
-          {truncated && count >= 200 ? "200+" : count}
+          {count}
         </span>
       </Link>
     </li>
@@ -33,7 +33,6 @@ export function ActionsPanel({ actions }: { actions: DashboardActionsDto }) {
     actions.awaitingCreatorApproval, actions.readyToSend,
   ];
   const allClear = pending.every((n) => n === 0);
-  const t = actions.truncated;
   return (
     <div className="flex flex-col gap-3">
       <Card className="p-3">
@@ -44,17 +43,17 @@ export function ActionsPanel({ actions }: { actions: DashboardActionsDto }) {
           </p>
         ) : null}
         <ul>
-          <Row label="Mensagens sem triagem" href="/inbox" count={actions.untriagedInquiries} tone="red" truncated={false} />
-          <Row label="Ajustes pedidos pelo cliente" href="/proposals" count={actions.clientChangesRequested} tone="amber" truncated={t} />
-          <Row label="Ajustes pedidos pelo creator" href="/proposals" count={actions.creatorChangesRequested} tone="amber" truncated={t} />
-          <Row label="Aguardando aprovação do creator" href="/proposals" count={actions.awaitingCreatorApproval} tone="violet" truncated={t} />
-          <Row label="Prontas para enviar" href="/proposals" count={actions.readyToSend} tone="green" truncated={t} />
+          <Row label="Mensagens sem triagem" href="/inbox" count={actions.untriagedInquiries} tone="red" />
+          <Row label="Ajustes pedidos pelo cliente" href="/proposals" count={actions.clientChangesRequested} tone="amber" />
+          <Row label="Ajustes pedidos pelo creator" href="/proposals" count={actions.creatorChangesRequested} tone="amber" />
+          <Row label="Aguardando aprovação do creator" href="/proposals" count={actions.awaitingCreatorApproval} tone="violet" />
+          <Row label="Prontas para enviar" href="/proposals" count={actions.readyToSend} tone="green" />
         </ul>
       </Card>
       <Card className="p-3">
         <h2 className="mb-1 px-2 text-sm font-medium">Acompanhamento</h2>
         <ul>
-          <Row label="Aguardando resposta do cliente" href="/proposals" count={actions.awaitingClient} tone="gray" truncated={t} />
+          <Row label="Aguardando resposta do cliente" href="/proposals" count={actions.awaitingClient} tone="gray" />
         </ul>
       </Card>
     </div>

@@ -4,7 +4,7 @@ import { runInTenantContext } from "@/repositories/tenant-context";
 import { DashboardRepository, type Bounds, type ClosedOpportunityRow } from "@/repositories/dashboard.repository";
 import { STAGES, type OpportunityStage } from "@/lib/opportunity-stages";
 import {
-  bucketFor, bucketKey, bucketStarts, periodBounds, previousPeriod, toLocalDate, type Bucket, type Period,
+  bucketFor, bucketKey, bucketStarts, comparisonPeriod, periodBounds, toLocalDate, type Bucket, type Period,
 } from "@/lib/dashboard/period";
 import { resolveValueCents, snapshotTotalCents } from "@/lib/dashboard/value";
 
@@ -63,9 +63,13 @@ async function periodMetrics(tx: Db, organizationId: string, bounds: Bounds, sco
 }
 
 export const DashboardService = {
-  async getMetrics(db: Db, organizationId: string, period: Period, options: { creatorScope: string | null }): Promise<DashboardMetrics> {
+  async getMetrics(
+    db: Db, organizationId: string, period: Period, options: { creatorScope: string | null; now?: Date },
+  ): Promise<DashboardMetrics> {
     const scope = options.creatorScope;
-    const previous = previousPeriod(period);
+    // Previous metrics compare the same elapsed span while the period is running; the current
+    // period's metrics and the chart stay on the full selected period.
+    const previous = comparisonPeriod(period, toLocalDate(options.now ?? new Date()));
     return runInTenantContext(db, organizationId, async (tx) => {
       const bounds = periodBounds(period);
       // Sequential on purpose (see periodMetrics).

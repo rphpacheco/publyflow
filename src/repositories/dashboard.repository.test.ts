@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { seedInquiry } from "@/test/helpers/inquiry-fixtures";
@@ -19,6 +19,22 @@ async function setHistoryDate(db: Db, opportunityId: string, at: string) {
   await db.update(opportunityStageHistory).set({ changedAt: new Date(at) })
     .where(eq(opportunityStageHistory.opportunityId, opportunityId));
 }
+
+/** Moves the opportunity to `stage` and dates ONLY the history row that move created. */
+async function moveStageAt(db: Db, organizationId: string, opportunityId: string, stage: "FECHADO" | "PERDIDO" | "NEGOCIACAO", at: string) {
+  const before = await db.select({ id: opportunityStageHistory.id }).from(opportunityStageHistory)
+    .where(eq(opportunityStageHistory.opportunityId, opportunityId));
+  await OpportunitiesRepository.updateStage(db, organizationId, opportunityId, stage);
+  const after = await db.select({ id: opportunityStageHistory.id }).from(opportunityStageHistory)
+    .where(eq(opportunityStageHistory.opportunityId, opportunityId));
+  const known = new Set(before.map((r) => r.id));
+  const created = after.filter((r) => !known.has(r.id)).map((r) => r.id);
+  expect(created).toHaveLength(1);
+  await db.update(opportunityStageHistory).set({ changedAt: new Date(at) })
+    .where(inArray(opportunityStageHistory.id, created));
+}
+
+const SEP = { start: new Date("2026-09-01T03:00:00Z"), endExclusive: new Date("2026-10-01T03:00:00Z") };
 
 describe("DashboardRepository", () => {
   let cleanup: () => Promise<void>;
@@ -47,6 +63,29 @@ describe("DashboardRepository", () => {
     expect(rows).toEqual([]);
   });
 
+  it("closed in September, reopened, closed again in October: counted once in October only", async () => {
+    const { db, a, read } = await setup();
+    const id = a.opportunity.id;
+    await moveStageAt(db, a.organization.id, id, "FECHADO", "2026-09-15T12:00:00Z");
+    await moveStageAt(db, a.organization.id, id, "NEGOCIACAO", "2026-09-20T12:00:00Z");
+    await moveStageAt(db, a.organization.id, id, "FECHADO", "2026-10-12T12:00:00Z");
+    const oct = await read((tx) => DashboardRepository.closedOpportunities(tx, a.organization.id, OCT, "FECHADO", null));
+    expect(oct.map((r) => r.id)).toEqual([id]);
+    expect(oct[0].closedAt.toISOString()).toBe("2026-10-12T12:00:00.000Z");
+    expect(await read((tx) => DashboardRepository.closedOpportunities(tx, a.organization.id, SEP, "FECHADO", null))).toEqual([]);
+  });
+
+  it("FECHADO then directly PERDIDO: appears as PERDIDO, not as FECHADO", async () => {
+    const { db, a, read } = await setup();
+    const id = a.opportunity.id;
+    await moveStageAt(db, a.organization.id, id, "FECHADO", "2026-10-03T12:00:00Z");
+    await moveStageAt(db, a.organization.id, id, "PERDIDO", "2026-10-08T12:00:00Z");
+    const lost = await read((tx) => DashboardRepository.closedOpportunities(tx, a.organization.id, OCT, "PERDIDO", null));
+    expect(lost.map((r) => r.id)).toEqual([id]);
+    expect(lost[0].closedAt.toISOString()).toBe("2026-10-08T12:00:00.000Z");
+    expect(await read((tx) => DashboardRepository.closedOpportunities(tx, a.organization.id, OCT, "FECHADO", null))).toEqual([]);
+  });
+
   it("closed outside the period is not returned; scope filters by creator", async () => {
     const { db, a, read } = await setup();
     await OpportunitiesRepository.updateStage(db, a.organization.id, a.opportunity.id, "FECHADO");
@@ -64,6 +103,15 @@ describe("DashboardRepository", () => {
     expect(open.map((o) => o.id)).toEqual([a.opportunity.id]);
     const totals = await read((tx) => DashboardRepository.currentProposalTotals(tx, a.organization.id, [a.opportunity.id]));
     expect(totals.get(a.opportunity.id)).toBeGreaterThanOrEqual(100000);
+  });
+
+  it("currentProposalTotals leaves out an opportunity whose current proposal has no items; zero-sum items count as 0", async () => {
+    const { db, a, read } = await setup();
+    let totals = await read((tx) => DashboardRepository.currentProposalTotals(tx, a.organization.id, [a.opportunity.id]));
+    expect(totals.has(a.opportunity.id)).toBe(false);
+    await db.insert(proposalItems).values({ organizationId: a.organization.id, proposalId: a.proposal.id, description: "Brinde", quantity: 1, unitPrice: 0 });
+    totals = await read((tx) => DashboardRepository.currentProposalTotals(tx, a.organization.id, [a.opportunity.id]));
+    expect(totals.get(a.opportunity.id)).toBe(0);
   });
 
   it("acceptedSnapshots returns the snapshot of the accepted publication", async () => {

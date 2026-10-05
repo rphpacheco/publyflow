@@ -43,8 +43,10 @@ export const ProposalQueueService = {
   async list(
     db: Tx,
     organizationId: string,
-    options: { creatorScope: string | null; includeArchived: boolean },
+    // limit: max rows (default QUEUE_LIMIT); null = no cap (truncated is then always false).
+    options: { creatorScope: string | null; includeArchived: boolean; limit?: number | null },
   ): Promise<QueueResult> {
+    const limit = options.limit === undefined ? QUEUE_LIMIT : options.limit;
     return runInTenantContext(
       db,
       organizationId,
@@ -53,7 +55,7 @@ export const ProposalQueueService = {
         if (options.creatorScope !== null) conditions.push(eq(opportunities.creatorId, options.creatorScope));
         if (!options.includeArchived) conditions.push(ne(proposals.status, "ARCHIVED"));
 
-        const rows = await tx
+        const query = tx
           .select({
             id: proposals.id,
             title: proposals.title,
@@ -70,11 +72,11 @@ export const ProposalQueueService = {
           .leftJoin(brands, and(eq(brands.id, opportunities.brandId), eq(brands.organizationId, organizationId)))
           .leftJoin(companies, and(eq(companies.id, opportunities.companyId), eq(companies.organizationId, organizationId)))
           .where(and(...conditions))
-          .orderBy(desc(proposals.createdAt), desc(proposals.id))
-          .limit(QUEUE_LIMIT + 1);
+          .orderBy(desc(proposals.createdAt), desc(proposals.id));
+        const rows = limit === null ? await query : await query.limit(limit + 1);
 
-        const truncated = rows.length > QUEUE_LIMIT;
-        const loaded = rows.slice(0, QUEUE_LIMIT);
+        const truncated = limit !== null && rows.length > limit;
+        const loaded = limit === null ? rows : rows.slice(0, limit);
         if (loaded.length === 0) return { items: [], closedCount: 0, truncated: false };
         const ids = loaded.map((row) => row.id);
 

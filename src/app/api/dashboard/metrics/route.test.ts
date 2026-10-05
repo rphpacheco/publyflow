@@ -18,13 +18,13 @@ describe("GET /api/dashboard/metrics", () => {
   }
 
   it("returns the metrics shape", async () => {
-    const response = await call("owner", "?from=2026-10-01&to=2026-10-31");
+    const response = await call("owner", "?from=2026-09-01&to=2026-09-30");
     expect(response.status).toBe(200);
     const json = await response.json();
-    expect(json.period).toEqual({ from: "2026-10-01", to: "2026-10-31" });
-    expect(json.previousPeriod).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(json.period).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(json.previousPeriod).toEqual({ from: "2026-08-01", to: "2026-08-31" });
     expect(json.series.bucket).toBe("day");
-    expect(json.series.points).toHaveLength(31);
+    expect(json.series.points).toHaveLength(30);
     expect(Array.isArray(json.creators)).toBe(true);
   });
 

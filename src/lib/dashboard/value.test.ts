@@ -14,6 +14,13 @@ describe("snapshotTotalCents", () => {
   it("returns null for an invalid snapshot", () => {
     expect(snapshotTotalCents({ nope: true })).toBeNull();
   });
+  it("returns null for a snapshot with no items (falls back to the estimate)", () => {
+    expect(snapshotTotalCents(snapshot([]))).toBeNull();
+    expect(resolveValueCents({ preferredCents: snapshotTotalCents(snapshot([])), estimatedValueCents: 90000 })).toBe(90000);
+  });
+  it("returns 0 when items exist but sum to zero", () => {
+    expect(snapshotTotalCents(snapshot([{ quantity: 1, unitPrice: 0 }]))).toBe(0);
+  });
 });
 
 describe("resolveValueCents", () => {

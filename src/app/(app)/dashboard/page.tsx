@@ -41,7 +41,7 @@ function cards(current: PeriodMetricsDto, previous: PeriodMetricsDto) {
     { label: "Ticket médio", value: money(current.averageTicketCents), context: "por oportunidade ganha", delta: computeDelta(current.averageTicketCents, previous.averageTicketCents, "money", true) },
     { label: "Tempo até fechar", value: days(current.averageDaysToClose), context: "média das fechadas", delta: computeDelta(current.averageDaysToClose, previous.averageDaysToClose, "days", false) },
     { label: "Mensagens recebidas", value: String(current.inquiriesReceived), context: plural(current.inquiriesConverted, "convertida", "convertidas"), delta: computeDelta(current.inquiriesReceived, previous.inquiriesReceived, "count", true) },
-    { label: "Conversão Inbox → Oportunidade", value: percent(current.conversionRate), context: "das mensagens do período", delta: computeDelta(current.conversionRate, previous.conversionRate, "rate", true) },
+    { label: "Conversão Inbox para oportunidade", value: percent(current.conversionRate), context: "das mensagens do período", delta: computeDelta(current.conversionRate, previous.conversionRate, "rate", true) },
     { label: "Oportunidades criadas", value: String(current.opportunitiesCreated), context: "no período", delta: computeDelta(current.opportunitiesCreated, previous.opportunitiesCreated, "count", true) },
     { label: "Perdidas", value: String(current.lostCount), context: "no período", delta: computeDelta(current.lostCount, previous.lostCount, "count", false) },
   ];
