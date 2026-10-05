@@ -1,7 +1,7 @@
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
-import { companies } from "@/db/schema/companies-brands-contacts";
+import { companies, companyAliases } from "@/db/schema/companies-brands-contacts";
 import { runInTenantContext } from "./tenant-context";
 
 export type Company = typeof companies.$inferSelect;
@@ -12,11 +12,20 @@ export const CompaniesRepository = {
     organizationId: string,
     name: string,
   ): Promise<Company[]> {
+    // Exact name (existing behavior) OR an alias equal to the guess (case/space-insensitive), deduplicated.
     return runInTenantContext(db, organizationId, async (tx) => {
-      return tx
+      const byName = await tx
         .select()
         .from(companies)
         .where(and(eq(companies.name, name), eq(companies.organizationId, organizationId)));
+      const byAlias = await tx
+        .select({ company: companies })
+        .from(companyAliases)
+        .innerJoin(companies, and(eq(companies.id, companyAliases.companyId), eq(companies.organizationId, organizationId)))
+        .where(and(eq(companyAliases.organizationId, organizationId), sql`lower(trim(${companyAliases.name})) = lower(trim(${name}))`));
+      const result = new Map(byName.map((c) => [c.id, c]));
+      for (const row of byAlias) result.set(row.company.id, row.company);
+      return [...result.values()];
     });
   },
 

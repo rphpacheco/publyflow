@@ -34,3 +34,10 @@ export class CompanyRefNotFoundError extends Error {
     this.name = "CompanyRefNotFoundError";
   }
 }
+
+export class CompanyAliasNotFoundError extends Error {
+  constructor(aliasId: string) {
+    super(`Company alias ${aliasId} not found`);
+    this.name = "CompanyAliasNotFoundError";
+  }
+}

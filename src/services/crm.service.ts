@@ -2,6 +2,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { CompaniesRepository, type Company } from "@/repositories/companies.repository";
+import { CompanyAliasesRepository } from "@/repositories/company-aliases.repository";
 import { ContactsRepository, type Contact } from "@/repositories/contacts.repository";
 import { BrandsRepository, type Brand } from "@/repositories/brands.repository";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/repositories/crm-read.repository";
 import {
   BrandNotFoundError,
+  CompanyAliasNotFoundError,
   CompanyNameTakenError,
   CompanyNotFoundError,
   CompanyRefNotFoundError,
@@ -58,7 +60,18 @@ export const CrmService = {
       if (!company) throw new CompanyNotFoundError(companyId);
       const taken = await CompaniesRepository.findOtherByNameCiWithTx(tx, organizationId, input.name, companyId);
       if (taken) throw new CompanyNameTakenError(input.name);
-      return CompaniesRepository.updateNameWithTx(tx, organizationId, companyId, input.name);
+      const alias = await CompanyAliasesRepository.findOwnerCiWithTx(tx, organizationId, input.name);
+      if (alias && alias.companyId !== companyId) throw new CompanyNameTakenError(input.name);
+      const updated = await CompaniesRepository.updateNameWithTx(tx, organizationId, companyId, input.name);
+      if (alias) await CompanyAliasesRepository.deleteByIdWithTx(tx, organizationId, alias.id); // renamed to its own alias
+      return updated;
+    });
+  },
+
+  async removeCompanyAlias(db: Db, organizationId: string, companyId: string, aliasId: string): Promise<void> {
+    await runInTenantContext(db, organizationId, async (tx) => {
+      const removed = await CompanyAliasesRepository.deleteWithTx(tx, organizationId, companyId, aliasId);
+      if (!removed) throw new CompanyAliasNotFoundError(aliasId);
     });
   },
 
