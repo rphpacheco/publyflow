@@ -1,0 +1,62 @@
+import Link from "next/link";
+import { CircleCheck } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { DashboardActionsDto } from "@/hooks/use-dashboard";
+
+type Tone = "red" | "amber" | "violet" | "green" | "gray";
+const PILL: Record<Tone, string> = {
+  red: "bg-error/10 text-error",
+  amber: "bg-warning/10 text-warning",
+  violet: "bg-info/10 text-info",
+  green: "bg-success/10 text-success",
+  gray: "bg-muted text-foreground",
+};
+
+function Row({ label, href, count, tone, truncated }: { label: string; href: string; count: number; tone: Tone; truncated: boolean }) {
+  const zero = count === 0;
+  return (
+    <li>
+      <Link href={href} data-zero={zero ? "true" : "false"} className={cn("flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-muted", zero && "opacity-50")}>
+        <span>{label}</span>
+        <span className={cn("min-w-7 rounded-full px-2 text-center text-xs font-semibold", PILL[tone])}>
+          {truncated && count >= 200 ? "200+" : count}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+export function ActionsPanel({ actions }: { actions: DashboardActionsDto }) {
+  const pending = [
+    actions.untriagedInquiries, actions.clientChangesRequested, actions.creatorChangesRequested,
+    actions.awaitingCreatorApproval, actions.readyToSend,
+  ];
+  const allClear = pending.every((n) => n === 0);
+  const t = actions.truncated;
+  return (
+    <div className="flex flex-col gap-3">
+      <Card className="p-3">
+        <h2 className="mb-1 px-2 text-sm font-medium">Requer ação</h2>
+        {allClear ? (
+          <p className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+            <CircleCheck className="size-4 text-success" aria-hidden /> Tudo em dia
+          </p>
+        ) : null}
+        <ul>
+          <Row label="Mensagens sem triagem" href="/inbox" count={actions.untriagedInquiries} tone="red" truncated={false} />
+          <Row label="Ajustes pedidos pelo cliente" href="/proposals" count={actions.clientChangesRequested} tone="amber" truncated={t} />
+          <Row label="Ajustes pedidos pelo creator" href="/proposals" count={actions.creatorChangesRequested} tone="amber" truncated={t} />
+          <Row label="Aguardando aprovação do creator" href="/proposals" count={actions.awaitingCreatorApproval} tone="violet" truncated={t} />
+          <Row label="Prontas para enviar" href="/proposals" count={actions.readyToSend} tone="green" truncated={t} />
+        </ul>
+      </Card>
+      <Card className="p-3">
+        <h2 className="mb-1 px-2 text-sm font-medium">Acompanhamento</h2>
+        <ul>
+          <Row label="Aguardando resposta do cliente" href="/proposals" count={actions.awaitingClient} tone="gray" truncated={t} />
+        </ul>
+      </Card>
+    </div>
+  );
+}
