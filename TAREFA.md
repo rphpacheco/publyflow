@@ -8,10 +8,18 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 ### 1. Páginas da sidebar sem tela (Companies, Contacts, Dashboard — hoje 404)
 - [x] Levantar contexto (links na sidebar, APIs existentes: só GET em companies/contacts/brands)
 - [x] Brainstorming — decidido: **A) Companies + Contacts juntas** numa spec; Dashboard fica para spec própria depois
-- [~] Perguntas de esclarecimento (escopo: só leitura ou CRUD, filtros, detalhe)
-- [ ] Propor abordagens e apresentar o design
-- [ ] Escrever spec em `docs/superpowers/specs/` e commitar
-- [ ] Revisão da spec pelo Raphael
+- [~] Perguntas de esclarecimento
+  - [x] Escopo: **consulta + edição** (lista com busca, detalhe com relações, editar dados; criação segue vindo do inbox; sem excluir)
+  - [x] Brands: **dentro do detalhe da company** (listar, renomear, mover de company; grupo "Sem empresa"; sem página /brands)
+  - [x] Duplicatas: **fora desta versão** (vira spec própria — ver "Próximos")
+- [x] Perguntas de esclarecimento concluídas
+- [x] Abordagem: **lista + página de detalhe** (`/companies`, `/companies/[id]`, `/contacts`, `/contacts/[id]`; edição em diálogo)
+- [x] Apresentar o design por seções
+  - [x] Seção 1: API e backend (aprovada, incl. 409 p/ nome de company repetido)
+  - [x] Seção 2: telas (aprovada)
+  - [x] Seção 3: erros e testes (aprovada)
+- [x] Escrever spec — `docs/superpowers/specs/2026-10-04-companies-contacts-design.md`
+- [~] Revisão da spec pelo Raphael
 - [ ] Plano de implementação (`docs/superpowers/plans/`)
 - [ ] Implementação + testes
 - [ ] Revisão final
@@ -22,6 +30,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ### 1b. Página Dashboard (spec própria, depois de Companies + Contacts)
 - [ ] Brainstorming (métricas, backend)
+
+### 1c. Mesclar duplicatas (companies e contacts)
+- [ ] Brainstorming (reapontar leads/opportunities/brands/contacts numa transação)
 
 ### 2. Dívida técnica
 - [ ] Cliente OpenAI lazy (sem `OPENAI_API_KEY` o POST do inbox quebra no load do módulo)
