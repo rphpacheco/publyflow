@@ -19,9 +19,18 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] Seção 2: telas (aprovada)
   - [x] Seção 3: erros e testes (aprovada)
 - [x] Escrever spec — `docs/superpowers/specs/2026-10-04-companies-contacts-design.md`
-- [~] Revisão da spec pelo Raphael
-- [ ] Plano de implementação (`docs/superpowers/plans/`)
-- [ ] Implementação + testes
+- [x] Revisão da spec pelo Raphael
+- [x] Plano de implementação — `docs/superpowers/plans/2026-10-04-companies-contacts.md` (9 tasks)
+- [ ] Implementação + testes (subagent-driven, aprovado pelo Raphael)
+  - [ ] T1 erros, schemas, busca, mapper
+  - [ ] T2 read model (listas c/ contagem, detalhes)
+  - [ ] T3 repositórios de escrita + CrmService
+  - [ ] T4 rotas API + id-guard
+  - [ ] T5 hooks
+  - [ ] T6 componentes (diálogos, tabela de oportunidades)
+  - [ ] T7 páginas /companies
+  - [ ] T8 páginas /contacts
+  - [ ] T9 verificação completa + checagem no navegador
 - [ ] Revisão final
 - [ ] Merge em main
 - [ ] Push/deploy (feito pelo Raphael)
