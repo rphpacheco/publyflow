@@ -22,6 +22,7 @@ const DOMAIN_TABLES = [
   "messages",
   "contacts",
   "brands",
+  "company_aliases",
   "companies",
   "organization_members",
   "conversations",
