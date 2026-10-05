@@ -41,3 +41,11 @@ export class CompanyAliasNotFoundError extends Error {
     this.name = "CompanyAliasNotFoundError";
   }
 }
+
+/** A merge whose duplicate and stays are the same record. */
+export class MergeSameRecordError extends Error {
+  constructor(readonly kind: "company" | "contact") {
+    super(`Cannot merge a ${kind} into itself`);
+    this.name = "MergeSameRecordError";
+  }
+}
