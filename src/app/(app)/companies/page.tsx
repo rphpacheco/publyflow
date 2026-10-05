@@ -102,11 +102,7 @@ export default function CompaniesPage() {
                   <TableCell>
                     <Link
                       href={`/companies/${company.id}`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        router.push(`/companies/${company.id}`);
-                      }}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {company.name}
                     </Link>

@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { crmQueryKey, useCompanies, useCompany, useContact, useUpdateBrand, useUpdateCompany, useUpdateContact } from "./use-crm";
 
 function wrapper(client: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 

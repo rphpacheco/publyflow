@@ -10,10 +10,10 @@ export function toFormErrors<F extends string>(error: unknown, fields: readonly 
   if (!(error instanceof ApiError)) {
     return { fieldErrors: {}, formError: "Não foi possível salvar. Tente novamente." };
   }
-  if (error.status === 409 && conflictField) {
+  const code = (error.body as { code?: string } | null)?.code;
+  if (error.status === 409 && conflictField && code === "COMPANY_NAME_TAKEN") {
     return { fieldErrors: { [conflictField]: error.message } as Partial<Record<F, string>>, formError: null };
   }
-  const code = (error.body as { code?: string } | null)?.code;
   if (code === "COMPANY_NOT_FOUND" && (fields as readonly string[]).includes("companyId")) {
     return { fieldErrors: { companyId: error.message } as Partial<Record<F, string>>, formError: null };
   }

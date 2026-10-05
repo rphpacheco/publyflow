@@ -43,7 +43,8 @@ describe("CompaniesPage", () => {
 
   it("navigates to the detail on row click", async () => {
     render(<CompaniesPage />);
-    await userEvent.click(screen.getByText("Bella Cosméticos"));
+    expect(screen.getByRole("link", { name: "Bella Cosméticos" })).toHaveAttribute("href", "/companies/c1");
+    await userEvent.click(screen.getByText("3"));
     expect(push).toHaveBeenCalledWith("/companies/c1");
   });
 

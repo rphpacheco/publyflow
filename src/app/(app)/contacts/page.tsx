@@ -74,11 +74,7 @@ export default function ContactsPage() {
                   <TableCell>
                     <Link
                       href={`/contacts/${contact.id}`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        router.push(`/contacts/${contact.id}`);
-                      }}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {contact.fullName}
                     </Link>

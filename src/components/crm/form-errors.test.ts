@@ -6,10 +6,15 @@ const FIELDS = ["name", "companyId"] as const;
 
 describe("toFormErrors", () => {
   it("puts a 409 under the conflict field", () => {
-    expect(toFormErrors(new ApiError(409, "Já existe uma empresa com esse nome."), FIELDS, "name")).toEqual({
+    expect(toFormErrors(new ApiError(409, "Já existe uma empresa com esse nome.", { code: "COMPANY_NAME_TAKEN" }), FIELDS, "name")).toEqual({
       fieldErrors: { name: "Já existe uma empresa com esse nome." },
       formError: null,
     });
+  });
+  it("keeps a 409 without COMPANY_NAME_TAKEN (e.g. deadlock) as a form error", () => {
+    expect(
+      toFormErrors(new ApiError(409, "Não foi possível salvar agora. Tente novamente."), FIELDS, "name"),
+    ).toEqual({ fieldErrors: {}, formError: "Não foi possível salvar agora. Tente novamente." });
   });
   it("maps 400 field errors and keeps form-level errors as formError", () => {
     expect(toFormErrors(new ApiError(400, "x", { errors: { name: ["Informe o nome."] } }), FIELDS)).toEqual({

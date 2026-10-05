@@ -59,7 +59,8 @@ describe("ContactsPage", () => {
 
   it("navigates to the detail on row click", async () => {
     render(<ContactsPage />);
-    await userEvent.click(screen.getByText("Maria Fernandes"));
+    expect(screen.getByRole("link", { name: "Maria Fernandes" })).toHaveAttribute("href", "/contacts/p1");
+    await userEvent.click(screen.getByText("maria@bella.com"));
     expect(push).toHaveBeenCalledWith("/contacts/p1");
   });
 

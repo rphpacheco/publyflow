@@ -42,7 +42,7 @@ export function BrandFormDialog({
     try {
       onSaved(await update.mutateAsync(values));
     } catch (error) {
-      const result = toFormErrors(error, FIELDS, "name");
+      const result = toFormErrors(error, FIELDS);
       setErrors(result.fieldErrors);
       setFormError(result.formError);
     }
