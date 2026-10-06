@@ -23,10 +23,12 @@ describe("backfill auth users", () => {
     const manager = await insertUser("Manager@publyflow.test");
     const creator = await insertUser("creator@publyflow.test");
     await insertUser("nomember@publyflow.test");
+    const invited = await insertUser("invited@publyflow.test");
     await db.insert(organizationMembers).values([
       { organizationId: org.id, userId: owner.id, role: "OWNER" },
       { organizationId: org.id, userId: manager.id, role: "MANAGER" },
       { organizationId: org.id, userId: creator.id, role: "CREATOR" },
+      { organizationId: org.id, userId: invited.id, role: "CREATOR" },
     ]);
     return { db, manager, creator };
   }
@@ -41,7 +43,7 @@ describe("backfill auth users", () => {
     );
     const admin: AuthAdmin = {
       ensureAuthUser,
-      listAuthEmails: async () => new Set(["owner@publyflow.test"]),
+      listAuthEmails: async () => new Set(["owner@publyflow.test", "invited@publyflow.test"]),
     };
     return { admin, ensureAuthUser };
   }
@@ -55,7 +57,7 @@ describe("backfill auth users", () => {
 
     expect(result).toEqual({
       missingInAuth: ["creator@publyflow.test", "manager@publyflow.test"],
-      unlinked: 2,
+      unlinked: 3,
     });
     expect(ensureAuthUser).not.toHaveBeenCalled();
     const after = await db.execute(sql`select count(*) as n, count(auth_user_id) as linked from users`);
@@ -85,6 +87,7 @@ describe("backfill auth users", () => {
 
   it("records a failing e-mail and keeps going", async () => {
     const { db, manager } = await seed();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { admin } = fakeAdmin(async (email) => {
       if (email.startsWith("creator")) throw new Error("boom");
       return { authUserId: MANAGER_AUTH_ID, created: true };
@@ -97,6 +100,8 @@ describe("backfill auth users", () => {
       linked: ["manager@publyflow.test"],
       failed: ["creator@publyflow.test"],
     });
+    expect(errorSpy).toHaveBeenCalledWith("backfill failed for creator@publyflow.test:", "boom");
+    errorSpy.mockRestore();
     const [m] = await db.select().from(users).where(eq(users.id, manager.id));
     expect(m.authUserId).toBe(MANAGER_AUTH_ID);
   });

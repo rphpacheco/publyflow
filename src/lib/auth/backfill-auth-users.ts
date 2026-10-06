@@ -36,7 +36,7 @@ export async function checkAuthUsers(db: Db, admin: AuthAdmin): Promise<AuthChec
   const missing = members.filter((m) => !authEmails.has(m.email));
   return {
     missingInAuth: [...new Set(missing.map((m) => m.email))].sort(),
-    unlinked: missing.filter((m) => m.authUserId === null).length,
+    unlinked: members.filter((m) => m.authUserId === null).length,
   };
 }
 
@@ -47,7 +47,10 @@ export async function backfillAuthUsers(db: Db, admin: AuthAdmin): Promise<Backf
   for (const email of missingInAuth) {
     try {
       const { authUserId, created } = await admin.ensureAuthUser(email);
-      if (!created) continue;
+      if (!created) {
+        console.warn(`${email}: already exists in Supabase, not linked`);
+        continue;
+      }
       result.created.push(email);
       if (!authUserId) continue;
 
@@ -65,7 +68,8 @@ export async function backfillAuthUsers(db: Db, admin: AuthAdmin): Promise<Backf
       if (staff && (await UsersRepository.linkAuthUser(db, staff.id, authUserId))) {
         result.linked.push(email);
       }
-    } catch {
+    } catch (error) {
+      console.error(`backfill failed for ${email}:`, (error as Error).message ?? error);
       result.failed.push(email);
     }
   }
