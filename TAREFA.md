@@ -10,8 +10,14 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Decisão item 4: exigir `reopen: true` no servidor quando a proposta está aceita/recusada (409 REOPEN_REQUIRED)
 - [x] Design (aprovado)
 - [x] Spec — `docs/superpowers/specs/2026-10-05-tech-debt-batch-design.md`
-- [~] Revisão da spec + plano
+- [x] Revisão da spec + plano — `docs/superpowers/plans/2026-10-05-tech-debt-batch.md`
 - [ ] Implementação (subagentes) + revisão final
+  - [ ] T1 cliente de IA sob demanda + 503
+  - [ ] T2 migration 0024 (índices + creators único)
+  - [ ] T3 conversão: ids explícitos da org
+  - [ ] T4 reopen exigido no publish
+  - [ ] T5 dica no diálogo Nova Proposta
+  - [ ] T6 verificação + navegador
 - [ ] Merge + deploy (0024 antes do push)
 
 
