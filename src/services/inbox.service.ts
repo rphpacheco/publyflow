@@ -15,6 +15,7 @@ import { runInTenantContext } from "@/repositories/tenant-context";
 import { CreatorsRepository } from "@/repositories/creators.repository";
 import { CreatorNotFoundError } from "@/domain/creators/errors";
 import { MessageClassificationError } from "@/domain/inbox/errors";
+import { AiNotConfiguredError } from "@/lib/ai/errors";
 
 const NON_COMMERCIAL_CATEGORIES = new Set(["FAN", "SPAM"]);
 
@@ -51,6 +52,7 @@ export const InboxService = {
         source: input.source,
       });
     } catch (error) {
+      if (error instanceof AiNotConfiguredError) throw error;
       throw new MessageClassificationError(error);
     }
 

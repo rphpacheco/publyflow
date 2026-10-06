@@ -4,7 +4,7 @@ import type { OpenAIExtractionService } from "./openai-provider";
 import { messageClassificationSchema, type IntentClassification, type MessageClassification } from "./schemas";
 
 export interface CompositeAIServiceDeps {
-  jev: Pick<JevService, "classifyIntent">;
+  jev: Pick<JevService, "classifyIntent"> | null;
   openai: Pick<OpenAIExtractionService, "extractLeadData" | "classifyIntent">;
 }
 
@@ -12,6 +12,7 @@ export function createCompositeAIService(deps: CompositeAIServiceDeps): AIServic
   // Jev is a new, lightly proven vendor on the product's most-used flow; if
   // it fails, OpenAI classifies instead so one provider can't block the inbox.
   async function classifyIntent(input: ClassifyMessageInput): Promise<IntentClassification> {
+    if (!deps.jev) return deps.openai.classifyIntent(input);
     try {
       return await deps.jev.classifyIntent(input);
     } catch (error) {

@@ -6,6 +6,7 @@ import { InboxService } from "@/services/inbox.service";
 import { getSession } from "@/lib/auth/session";
 import { unauthorizedResponse } from "@/lib/auth/http";
 import { MessageClassificationError } from "@/domain/inbox/errors";
+import { AiNotConfiguredError } from "@/lib/ai/errors";
 import { isCreator } from "@/lib/auth/access";
 
 const bodySchema = z.object({
@@ -31,6 +32,13 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof AiNotConfiguredError) {
+      console.error("Inbox message classification unavailable", error);
+      return NextResponse.json(
+        { error: "A classificação por IA não está configurada neste ambiente.", code: "AI_NOT_CONFIGURED" },
+        { status: 503 },
+      );
+    }
     if (error instanceof MessageClassificationError) {
       console.error("Inbox message classification failed", error.cause);
       return NextResponse.json(

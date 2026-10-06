@@ -78,4 +78,13 @@ describe("createCompositeAIService", () => {
 
     await expect(createCompositeAIService({ jev, openai }).classifyMessage(input)).rejects.toThrow("openai down");
   });
+
+  it("classifies with OpenAI only when Jev is not configured", async () => {
+    const openai = openaiDouble();
+
+    const result = await createCompositeAIService({ jev: null, openai }).classifyMessage(input);
+
+    expect(openai.classifyIntent).toHaveBeenCalledOnce();
+    expect(result.commercialScore).toBe(80);
+  });
 });
