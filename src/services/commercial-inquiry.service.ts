@@ -16,6 +16,7 @@ import {
   InquiryAlreadyResolvedError,
   InquiryNotFoundError,
   AmbiguousPartyGuessError,
+  ExplicitPartyNotFoundError,
   InquiryPartyRequiredError,
 } from "@/domain/commercial-flow/errors";
 
@@ -85,7 +86,13 @@ async function resolvePartyIdFromGuess(
   organizationId: string,
   explicitId: string | null | undefined,
   guess: string | null,
+  kind: "company" | "brand",
   repo: {
+    findByIdWithTx: (
+      db: NodePgDatabase<typeof schema>,
+      organizationId: string,
+      id: string,
+    ) => Promise<{ id: string } | null>;
     listByName: (
       db: NodePgDatabase<typeof schema>,
       organizationId: string,
@@ -98,7 +105,12 @@ async function resolvePartyIdFromGuess(
     ) => Promise<{ id: string }>;
   },
 ): Promise<string | null> {
-  if (explicitId !== undefined) return explicitId;
+  if (explicitId !== undefined) {
+    if (explicitId === null) return null;
+    const found = await repo.findByIdWithTx(tx, organizationId, explicitId);
+    if (!found) throw new ExplicitPartyNotFoundError(kind, explicitId);
+    return explicitId;
+  }
   if (!guess) return null;
 
   const matches = await repo.listByName(tx, organizationId, guess);
@@ -187,6 +199,7 @@ export const CommercialInquiryService = {
         organizationId,
         input.companyId,
         inquiry.companyGuess,
+        "company",
         CompaniesRepository,
       );
       const brandId = await resolvePartyIdFromGuess(
@@ -194,6 +207,7 @@ export const CommercialInquiryService = {
         organizationId,
         input.brandId,
         inquiry.brandGuess,
+        "brand",
         BrandsRepository,
       );
 

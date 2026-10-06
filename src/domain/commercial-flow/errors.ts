@@ -59,3 +59,16 @@ export class InquiryPartyRequiredError extends Error {
     this.name = "InquiryPartyRequiredError";
   }
 }
+
+// Thrown by CommercialInquiryService.resolve (via resolvePartyIdFromGuess)
+// when an explicit companyId/brandId does not resolve to a row in the
+// caller's organization (unknown id or an id from another tenant).
+export class ExplicitPartyNotFoundError extends Error {
+  constructor(
+    public readonly kind: "company" | "brand",
+    public readonly id: string,
+  ) {
+    super(`Explicit ${kind} ${id} not found in this organization`);
+    this.name = "ExplicitPartyNotFoundError";
+  }
+}
