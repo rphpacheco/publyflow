@@ -75,3 +75,18 @@ export async function backfillAuthUsers(db: Db, admin: AuthAdmin): Promise<Backf
   }
   return result;
 }
+
+// Credential-free description of what the backfill script is pointed at, so
+// an operator can tell dev from production before trusting the output.
+export function describeTarget(supabaseUrl: string, databaseUrl: string): string {
+  const host = (raw: string, build: (u: URL) => string): string => {
+    try {
+      return build(new URL(raw));
+    } catch {
+      return "invalid-url";
+    }
+  };
+  const supabase = host(supabaseUrl, (u) => u.host);
+  const database = host(databaseUrl, (u) => `${u.host}${u.pathname}`);
+  return `Target: supabase=${supabase} db=${database}`;
+}

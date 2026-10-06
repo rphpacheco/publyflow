@@ -47,20 +47,26 @@ describe("proxy", () => {
   });
 
   it("does not redirect when the auth provider answers a retryable fetch error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { proxy } = await importProxy(null, async () => ({
       data: null,
       error: new AuthRetryableFetchError("fetch failed", 0),
     }));
     const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
     expect(response.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("auth provider unavailable", expect.any(String), expect.anything());
+    warn.mockRestore();
   });
 
   it("does not redirect when getClaims throws a network TypeError", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { proxy } = await importProxy(null, async () => {
       throw new TypeError("fetch failed");
     });
     const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
     expect(response.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("auth provider unavailable", "TypeError", "");
+    warn.mockRestore();
   });
 
   it("still redirects to /login on a 4xx (invalid token) from getClaims", async () => {

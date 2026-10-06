@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { organizations, organizationMembers, users } from "@/db/schema/organizations";
 import type { AuthAdmin } from "./auth-admin";
-import { backfillAuthUsers, checkAuthUsers } from "./backfill-auth-users";
+import { backfillAuthUsers, checkAuthUsers, describeTarget } from "./backfill-auth-users";
 
 const OWNER_AUTH_ID = "11111111-1111-4111-8111-111111111111";
 const MANAGER_AUTH_ID = "22222222-2222-4222-8222-222222222222";
@@ -104,5 +104,22 @@ describe("backfill auth users", () => {
     errorSpy.mockRestore();
     const [m] = await db.select().from(users).where(eq(users.id, manager.id));
     expect(m.authUserId).toBe(MANAGER_AUTH_ID);
+  });
+});
+
+describe("describeTarget", () => {
+  it("prints the supabase host and db host:port/name without credentials", () => {
+    const out = describeTarget(
+      "https://abcd1234.supabase.co",
+      "postgresql://postgres.abcd:S3cr3t%21pw@aws-0-sa.pooler.supabase.com:6543/postgres?sslmode=require",
+    );
+    expect(out).toBe("Target: supabase=abcd1234.supabase.co db=aws-0-sa.pooler.supabase.com:6543/postgres");
+    expect(out).not.toContain("S3cr3t");
+    expect(out).not.toContain("postgres.abcd");
+  });
+
+  it("never echoes an unparseable value (it may embed a password)", () => {
+    const out = describeTarget("not a url", "also not a url S3cr3t");
+    expect(out).toBe("Target: supabase=invalid-url db=invalid-url");
   });
 });

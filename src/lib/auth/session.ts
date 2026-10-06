@@ -2,7 +2,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "./resolve-session";
-import { AuthUnavailableError, UnauthenticatedError, isAuthServiceFailure } from "./errors";
+import { AuthUnavailableError, UnauthenticatedError, isAuthServiceFailure, logAuthUnavailable } from "./errors";
 import type { Session } from "./types";
 
 export type AuthState =
@@ -19,11 +19,17 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
   try {
     result = await supabase.auth.getUser();
   } catch (error) {
-    if (isAuthServiceFailure(error)) throw new AuthUnavailableError();
+    if (isAuthServiceFailure(error)) {
+      logAuthUnavailable(error);
+      throw new AuthUnavailableError();
+    }
     throw error;
   }
   const { data, error } = result;
-  if (error && isAuthServiceFailure(error)) throw new AuthUnavailableError();
+  if (error && isAuthServiceFailure(error)) {
+    logAuthUnavailable(error);
+    throw new AuthUnavailableError();
+  }
   if (error || !data.user) return { status: "anonymous" };
 
   const session = await resolveSessionForAuthUser(db, {

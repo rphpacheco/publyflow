@@ -21,6 +21,18 @@ export class AuthUnavailableError extends Error {
   }
 }
 
+// One-line, secret-free log so a provider outage is distinguishable from a
+// programming bug (any TypeError counts as an outage) in production logs.
+export function logAuthUnavailable(error: unknown): void {
+  const name = (error as { name?: unknown } | null)?.name;
+  const status = (error as { status?: unknown } | null)?.status;
+  console.warn(
+    "auth provider unavailable",
+    typeof name === "string" ? name : "unknown",
+    typeof status === "number" ? status : "",
+  );
+}
+
 // Network failure or 5xx from Supabase Auth. "No session" / invalid token
 // (4xx, AuthSessionMissingError) is NOT a service failure.
 export function isAuthServiceFailure(error: unknown): boolean {

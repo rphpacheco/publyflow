@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
-import { isAuthServiceFailure } from "@/lib/auth/errors";
+import { isAuthServiceFailure, logAuthUnavailable } from "@/lib/auth/errors";
 import { checkRateLimit, PUBLIC_PAGE_LIMIT } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
 
@@ -45,10 +45,16 @@ export async function proxy(request: NextRequest) {
   let hasUser: boolean;
   try {
     const { data, error } = await supabase.auth.getClaims();
-    if (error && isAuthServiceFailure(error)) return response; // provider down: let the page render its unavailable state
+    if (error && isAuthServiceFailure(error)) {
+      logAuthUnavailable(error);
+      return response; // provider down: let the page render its unavailable state
+    }
     hasUser = Boolean(data?.claims);
   } catch (error) {
-    if (isAuthServiceFailure(error)) return response;
+    if (isAuthServiceFailure(error)) {
+      logAuthUnavailable(error);
+      return response;
+    }
     throw error;
   }
 

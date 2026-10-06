@@ -26,6 +26,7 @@ Out of scope (separate specs, in this order): E — manager invite; F — passwo
 - Failure: the route returns **502** `{ error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" }`. The database write already committed. This state ("invite created, auth user not provisioned") is **recoverable**: repeating the invite, sending the reminder or correcting the e-mail all call `ensureAuthUser` again. No state gets stuck.
 - Magic link (`src/app/(auth)/login/actions.ts`): `shouldCreateUser: false`. The answer stays identical for any e-mail (never reveals who has access).
 - Backfill script `pnpm backfill-auth-users` (`scripts/backfill-auth-users.ts`): creates the Supabase user for every member e-mail missing from `auth.users`; links only what it created for OWNER/MANAGER members (creators link on first login). `--check` mode is read-only and prints: (a) **blocking** — member e-mails that do not exist in `auth.users` (must be 0 before sign-up is turned off); (b) informational — `users` with a membership and no `auth_user_id` (invited creators who never logged in are expected here).
+- With sign-up off, a Google login for an e-mail missing from `auth.users` comes back to `/auth/callback` without a `code` (`error_code=signup_disabled`); the callback routes that case to `/sem-acesso` (every other missing-code case stays `/login?error=oauth`).
 - The creator invite instructions text is unchanged (Google or e-mail link still work for a provisioned e-mail).
 
 ## 2. Logout is POST-only
@@ -85,8 +86,9 @@ Org predicate on every query; no `Promise.all` inside one transaction; external 
 
 1. Add `SUPABASE_SERVICE_ROLE_KEY` to Vercel (production).
 2. Read-only duplicate e-mail check (§4) in production; apply 0025.
-3. Push `main`; confirm the deployment.
-4. `pnpm backfill-auth-users` against production, then `pnpm backfill-auth-users --check` → blocking count 0 (mandatory checkpoint).
-5. User turns off "Allow new users to sign up" in the Supabase dashboard (prod and dev).
-6. Verify with an already-provisioned e-mail: Google login and magic link still work; a non-provisioned e-mail gets no account.
-7. Check signing keys (§5) and report.
+3. Run the backfill against production (old code is unaffected): `set -a; . ./.env.production.local; set +a; pnpm exec tsx scripts/backfill-auth-users.ts` -- confirm the printed `Target:` line is production.
+4. Push `main`; confirm the deployment.
+5. Run the backfill again (catches invites created by the old code in between), then `... scripts/backfill-auth-users.ts --check` -> blocking count 0 (mandatory checkpoint; confirm the `Target:` line).
+6. User turns off "Allow new users to sign up" in the Supabase dashboard (prod and dev).
+7. Verify with already-provisioned e-mails: Google login and magic link still work; also Google login with an e-mail created by the server that has no Google identity yet (the invited-creator path -- confirms Supabase links the identity with sign-up off); a non-provisioned Google login lands on `/sem-acesso`; a non-provisioned e-mail gets no magic link.
+8. Check signing keys (§5) and report.

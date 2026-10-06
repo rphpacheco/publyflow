@@ -172,13 +172,19 @@ describe("getAuthState", () => {
 
     for (const [label, getUser] of outages) {
       it(`${label}: getAuthState and getSession reject with AuthUnavailableError`, async () => {
-        const { db, cleanup: c } = await withTestDb();
-        cleanup = c;
-        const { getAuthState, getSession, requireSession } = await importSessionModule({ db, getUser });
-        const { AuthUnavailableError } = await import("./errors");
-        await expect(getAuthState()).rejects.toBeInstanceOf(AuthUnavailableError);
-        await expect(getSession()).rejects.toBeInstanceOf(AuthUnavailableError);
-        await expect(requireSession()).rejects.toBeInstanceOf(AuthUnavailableError);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        try {
+          const { db, cleanup: c } = await withTestDb();
+          cleanup = c;
+          const { getAuthState, getSession, requireSession } = await importSessionModule({ db, getUser });
+          const { AuthUnavailableError } = await import("./errors");
+          await expect(getAuthState()).rejects.toBeInstanceOf(AuthUnavailableError);
+          expect(warn).toHaveBeenCalledWith("auth provider unavailable", expect.any(String), expect.anything());
+          await expect(getSession()).rejects.toBeInstanceOf(AuthUnavailableError);
+          await expect(requireSession()).rejects.toBeInstanceOf(AuthUnavailableError);
+        } finally {
+          warn.mockRestore();
+        }
       });
     }
 

@@ -5,7 +5,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../src/db/schema";
 import { getDb } from "../src/db/client";
 import { createAuthAdmin } from "../src/lib/auth/auth-admin";
-import { backfillAuthUsers, checkAuthUsers } from "../src/lib/auth/backfill-auth-users";
+import { backfillAuthUsers, checkAuthUsers, describeTarget } from "../src/lib/auth/backfill-auth-users";
 
 const USAGE = `Usage:
   pnpm backfill-auth-users [--check]
@@ -29,6 +29,8 @@ async function main() {
     console.error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and DATABASE_URL must be set in .env.local.\n\n" + USAGE);
     process.exit(1);
   }
+
+  console.log(describeTarget(supabaseUrl, databaseUrl));
 
   const admin = createAuthAdmin(
     createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } }),

@@ -60,3 +60,24 @@ describe("createAuthAdmin.listAuthEmails", () => {
     expect(listUsers).toHaveBeenNthCalledWith(2, { page: 2, perPage: 1000 });
   });
 });
+
+describe("getAuthAdmin", () => {
+  it("throws AuthProvisioningError(missing_service_role_key) when the key is unset", async () => {
+    vi.resetModules();
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+    try {
+      const { getAuthAdmin } = await import("./auth-admin");
+      const { AuthProvisioningError: Err } = await import("./errors");
+      let thrown: unknown;
+      try {
+        getAuthAdmin();
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(Err);
+      expect((thrown as { reason: string }).reason).toBe("missing_service_role_key");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
