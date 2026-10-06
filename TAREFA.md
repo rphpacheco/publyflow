@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+_(nada — próximo: 2 dívida técnica)_
+
+## Concluído nesta fase (Mesclar duplicatas)
+
 ### 1c. Mesclar duplicatas
 - [x] Contexto: company ← brands, contacts, leads, opportunities; contact ← leads (restrict); brand ← leads, opportunities; textos congelados das publicações não mudam
 - [x] P1: escopo = **empresas e contatos** (brands fora)
@@ -27,7 +31,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] T4 rotas da API
   - [x] T5 hooks, diálogos, bloco de apelidos, páginas
   - [x] T6 verificação: tsc ok, lint sem novidades, 0023 em test/dev, suíte 1324 verde (3 falhas ambientais de disco reexecutadas e verdes), build ok, revisão final (opus) + correções, navegador ok (mesclar empresa/contato, apelido, conversão do inbox pelo apelido, sem transbordar)
-- [ ] Merge + deploy (0023 em produção antes do push)
+- [x] Merge + deploy (`7264882`; suíte 1331 verde no main; 0023 aplicada em produção antes do push — só cria a tabela, RLS ativo; rota confirmada em publyflow.vercel.app, 2026-10-05)
 
 ## Concluído nesta fase (Dashboard)
 
