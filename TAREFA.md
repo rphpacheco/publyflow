@@ -11,13 +11,13 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Design (aprovado)
 - [x] Spec — `docs/superpowers/specs/2026-10-05-tech-debt-batch-design.md`
 - [x] Revisão da spec + plano — `docs/superpowers/plans/2026-10-05-tech-debt-batch.md`
-- [ ] Implementação (subagentes) + revisão final
-  - [ ] T1 cliente de IA sob demanda + 503
-  - [ ] T2 migration 0024 (índices + creators único)
-  - [ ] T3 conversão: ids explícitos da org
-  - [ ] T4 reopen exigido no publish
-  - [ ] T5 dica no diálogo Nova Proposta
-  - [ ] T6 verificação + navegador
+- [x] Implementação (subagentes) + revisão final
+  - [x] T1 cliente de IA sob demanda + 503
+  - [x] T2 migration 0024 (índices + creators único)
+  - [x] T3 conversão: ids explícitos da org
+  - [x] T4 reopen exigido no publish
+  - [x] T5 dica no diálogo Nova Proposta
+  - [x] T6 verificação: tsc ok, lint = base, 0024 em test/dev, suíte 1353 verde, build ok, revisão final (opus: pronto) + ajustes, navegador ok (503 sem chave da OpenAI; dica do Nova Proposta)
 - [ ] Merge + deploy (0024 antes do push)
 
 
