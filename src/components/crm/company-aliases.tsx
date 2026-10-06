@@ -51,7 +51,7 @@ export function CompanyAliases({ companyId, aliases }: { companyId: string; alia
               aria-label={`Remover apelido ${alias.name}`}
               onClick={() => setTarget(alias)}
             >
-              <X className="size-4" />
+              <X className="size-4" aria-hidden="true" />
             </Button>
           </li>
         ))}

@@ -41,11 +41,13 @@ const norm = (s: string) => s.trim().toLowerCase();
 type CompanyRefTable = typeof brands | typeof contacts | typeof leads | typeof opportunities;
 
 // Lock both rows in ascending id order so two merges of the same pair never deadlock.
-async function lockCompanies(tx: Db, organizationId: string, duplicateId: string, staysId: string) {
+// Previews pass lock=false and read without FOR UPDATE.
+async function lockCompanies(tx: Db, organizationId: string, duplicateId: string, staysId: string, lock = true) {
   if (duplicateId === staysId) throw new MergeSameRecordError("company");
   const [first, second] = [duplicateId, staysId].sort();
-  const a = await CompaniesRepository.lockByIdWithTx(tx, organizationId, first);
-  const b = await CompaniesRepository.lockByIdWithTx(tx, organizationId, second);
+  const read = lock ? CompaniesRepository.lockByIdWithTx : CompaniesRepository.findByIdWithTx;
+  const a = await read(tx, organizationId, first);
+  const b = await read(tx, organizationId, second);
   const duplicate = [a, b].find((c) => c?.id === duplicateId);
   const stays = [a, b].find((c) => c?.id === staysId);
   if (!duplicate) throw new CompanyNotFoundError(duplicateId);
@@ -59,11 +61,31 @@ async function countWhere(tx: Db, table: CompanyRefTable, organizationId: string
   return Number(row.n);
 }
 
-async function companyImpact(tx: Db, organizationId: string, duplicate: Company, stays: Company) {
+/** Alias to add to stays and aliases of the duplicate; shared by preview and merge so they agree (spec §3.1). */
+async function companyAliasPlan(tx: Db, organizationId: string, duplicate: Company, stays: Company) {
   const aliases = await CompanyAliasesRepository.listByCompanyWithTx(tx, organizationId, duplicate.id);
   const staysAliases = await CompanyAliasesRepository.listByCompanyWithTx(tx, organizationId, stays.id);
-  const nameIsNew =
+  let nameIsNew =
     norm(duplicate.name) !== norm(stays.name) && !staysAliases.some((a) => norm(a.name) === norm(duplicate.name));
+  if (nameIsNew) {
+    const owner = await CompanyAliasesRepository.findOwnerCiWithTx(tx, organizationId, duplicate.name);
+    if (owner && owner.companyId !== duplicate.id) nameIsNew = false;
+  }
+  if (nameIsNew) {
+    const other = await CompaniesRepository.findOtherByNameCiExcludingWithTx(
+      tx, organizationId, duplicate.name, [duplicate.id, stays.id],
+    );
+    if (other) nameIsNew = false;
+  }
+  return {
+    aliasToAdd: nameIsNew ? duplicate.name : null,
+    aliasesMoved: aliases.filter((a) => norm(a.name) !== norm(stays.name)).length,
+    aliases,
+  };
+}
+
+async function companyImpact(tx: Db, organizationId: string, duplicate: Company, stays: Company) {
+  const plan = await companyAliasPlan(tx, organizationId, duplicate, stays);
   return {
     impact: {
       brands: await countWhere(tx, brands, organizationId, duplicate.id),
@@ -71,9 +93,8 @@ async function companyImpact(tx: Db, organizationId: string, duplicate: Company,
       leads: await countWhere(tx, leads, organizationId, duplicate.id),
       opportunities: await countWhere(tx, opportunities, organizationId, duplicate.id),
     },
-    aliasToAdd: nameIsNew ? duplicate.name : null,
-    aliasesMoved: aliases.filter((a) => norm(a.name) !== norm(stays.name)).length,
-    aliases,
+    aliasToAdd: plan.aliasToAdd,
+    aliasesMoved: plan.aliasesMoved,
   };
 }
 
@@ -87,13 +108,15 @@ async function repoint(tx: Db, table: CompanyRefTable, organizationId: string, f
 const CONTACT_FILLABLE = ["email", "phone", "instagramHandle", "companyId"] as const;
 type Fillable = (typeof CONTACT_FILLABLE)[number];
 
-async function lockContacts(tx: Db, organizationId: string, duplicateId: string, staysId: string) {
+async function lockContacts(tx: Db, organizationId: string, duplicateId: string, staysId: string, lock = true) {
   if (duplicateId === staysId) throw new MergeSameRecordError("contact");
   const [first, second] = [duplicateId, staysId].sort();
-  const lock = (id: string) =>
-    tx.select().from(contacts).where(and(eq(contacts.id, id), eq(contacts.organizationId, organizationId))).for("update");
-  const [a] = await lock(first);
-  const [b] = await lock(second);
+  const read = (id: string) => {
+    const q = tx.select().from(contacts).where(and(eq(contacts.id, id), eq(contacts.organizationId, organizationId)));
+    return lock ? q.for("update") : q;
+  };
+  const [a] = await read(first);
+  const [b] = await read(second);
   const duplicate = [a, b].find((c) => c?.id === duplicateId);
   const stays = [a, b].find((c) => c?.id === staysId);
   if (!duplicate) throw new ContactNotFoundError(duplicateId);
@@ -115,7 +138,7 @@ function fillValues(duplicate: Contact, fill: Fillable[]): Partial<Pick<Contact,
 export const CrmMergeService = {
   async previewCompanyMerge(db: Db, organizationId: string, duplicateId: string, staysId: string): Promise<CompanyMergePreview> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const { duplicate, stays } = await lockCompanies(tx, organizationId, duplicateId, staysId);
+      const { duplicate, stays } = await lockCompanies(tx, organizationId, duplicateId, staysId, false);
       const { impact, aliasToAdd, aliasesMoved } = await companyImpact(tx, organizationId, duplicate, stays);
       return {
         duplicate: { id: duplicate.id, name: duplicate.name },
@@ -137,7 +160,7 @@ export const CrmMergeService = {
   ): Promise<Company> {
     return runInTenantContext(db, organizationId, async (tx) => {
       const { duplicate, stays } = await lockCompanies(tx, organizationId, duplicateId, staysId);
-      const { aliasToAdd, aliases } = await companyImpact(tx, organizationId, duplicate, stays);
+      const { aliasToAdd, aliases } = await companyAliasPlan(tx, organizationId, duplicate, stays);
       const moved = {
         brandIds: await repoint(tx, brands, organizationId, duplicate.id, stays.id),
         contactIds: await repoint(tx, contacts, organizationId, duplicate.id, stays.id),
@@ -169,7 +192,7 @@ export const CrmMergeService = {
 
   async previewContactMerge(db: Db, organizationId: string, duplicateId: string, staysId: string): Promise<ContactMergePreview> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const { duplicate, stays } = await lockContacts(tx, organizationId, duplicateId, staysId);
+      const { duplicate, stays } = await lockContacts(tx, organizationId, duplicateId, staysId, false);
       const fill = filledFields(duplicate, stays);
       const merged: Contact = { ...stays, ...fillValues(duplicate, fill) };
       let company: { id: string; name: string } | null = null;

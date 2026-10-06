@@ -80,8 +80,9 @@ export function MergeContactDialog({
               placeholder="Selecionar contato"
               aria-label="Contato que fica"
               aria-invalid={intoError || sameRecordFromPreview ? true : undefined}
+              aria-describedby={intoError || sameRecordFromPreview ? "merge-contact-error" : undefined}
             />
-            {intoError || sameRecordFromPreview ? <p className="text-xs text-error">{intoError ?? sameRecordFromPreview}</p> : null}
+            {intoError || sameRecordFromPreview ? <p id="merge-contact-error" className="text-xs text-error">{intoError ?? sameRecordFromPreview}</p> : null}
           </div>
 
           {into !== null && preview.isError && !sameRecordFromPreview ? <PreviewError onRetry={() => void preview.refetch()} /> : null}

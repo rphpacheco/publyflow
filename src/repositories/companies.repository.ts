@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, notInArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { companies, companyAliases } from "@/db/schema/companies-brands-contacts";
@@ -106,6 +106,27 @@ export const CompaniesRepository = {
         and(
           eq(companies.organizationId, organizationId),
           ne(companies.id, excludeId),
+          sql`lower(trim(${companies.name})) = lower(trim(${name}))`,
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  // Same comparison as findOtherByNameCiWithTx, excluding several ids.
+  async findOtherByNameCiExcludingWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    name: string,
+    excludeIds: string[],
+  ): Promise<Company | null> {
+    const [row] = await tx
+      .select()
+      .from(companies)
+      .where(
+        and(
+          eq(companies.organizationId, organizationId),
+          notInArray(companies.id, excludeIds),
           sql`lower(trim(${companies.name})) = lower(trim(${name}))`,
         ),
       )

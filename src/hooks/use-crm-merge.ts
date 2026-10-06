@@ -60,17 +60,21 @@ export function useContactMergePreview(duplicateId: string, into: string | null)
 }
 
 export function useMergeCompany(duplicateId: string) {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateCrm();
   return useMutation({
     mutationFn: (values: { into: string }) => apiFetch<CompanyDto>(`/api/companies/${duplicateId}/merge`, post(values)),
+    onSuccess: () => queryClient.removeQueries({ queryKey: [...crmQueryKey, "company", duplicateId] }),
     onSettled: invalidate,
   });
 }
 
 export function useMergeContact(duplicateId: string) {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateCrm();
   return useMutation({
     mutationFn: (values: { into: string }) => apiFetch<ContactDto>(`/api/contacts/${duplicateId}/merge`, post(values)),
+    onSuccess: () => queryClient.removeQueries({ queryKey: [...crmQueryKey, "contact", duplicateId] }),
     onSettled: invalidate,
   });
 }

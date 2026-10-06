@@ -104,6 +104,32 @@ describe("CrmMergeService", () => {
     expect(await aliasNames(s.db, s.staysId)).toEqual([]);
   });
 
+  it("skips the alias when a third company owns an alias equal to the duplicate's name (preview and merge agree)", async () => {
+    const s = await setup();
+    const [third] = await s.db.insert(companies).values({ organizationId: s.orgId, name: "Terceira Ltda" }).returning();
+    await s.db.insert(companyAliases).values({ organizationId: s.orgId, companyId: third.id, name: "  bella cosméticos " });
+    const preview = await CrmMergeService.previewCompanyMerge(s.db, s.orgId, s.duplicateId, s.staysId);
+    expect(preview.aliasToAdd).toBeNull();
+    await CrmMergeService.mergeCompany(s.db, s.orgId, s.duplicateId, s.staysId, { userId: s.userId });
+    expect(await aliasNames(s.db, s.staysId)).toEqual([]);
+    expect(await aliasNames(s.db, third.id)).toHaveLength(1);
+    const [event] = await s.db.select().from(domainEvents)
+      .where(and(eq(domainEvents.organizationId, s.orgId), eq(domainEvents.eventType, "company.merged")));
+    expect((event.payload as { aliasesAdded: string[] }).aliasesAdded).toEqual([]);
+  });
+
+  it("skips the alias when a third company is named like the duplicate (case/space)", async () => {
+    const s = await setup();
+    await s.db.insert(companies).values({ organizationId: s.orgId, name: " bella cosméticos" });
+    const preview = await CrmMergeService.previewCompanyMerge(s.db, s.orgId, s.duplicateId, s.staysId);
+    expect(preview.aliasToAdd).toBeNull();
+    await CrmMergeService.mergeCompany(s.db, s.orgId, s.duplicateId, s.staysId, { userId: s.userId });
+    expect(await aliasNames(s.db, s.staysId)).toEqual([]);
+    const [event] = await s.db.select().from(domainEvents)
+      .where(and(eq(domainEvents.organizationId, s.orgId), eq(domainEvents.eventType, "company.merged")));
+    expect((event.payload as { aliasesAdded: string[] }).aliasesAdded).toEqual([]);
+  });
+
   it("records a company.merged event with the exact moved ids", async () => {
     const s = await setup();
     await CrmMergeService.mergeCompany(s.db, s.orgId, s.duplicateId, s.staysId, { userId: s.userId });
@@ -237,6 +263,21 @@ describe("CrmMergeService", () => {
       staysId: s.contactStaysId,
       filledFields: ["phone", "instagramHandle", "companyId"],
     });
+  });
+
+  it("is atomic: a failing event append rolls back the whole contact merge", async () => {
+    const s = await setupContacts();
+    const before = await rowCounts(s.db);
+    const [staysBefore] = await s.db.select().from(contacts).where(eq(contacts.id, s.contactStaysId));
+    vi.spyOn(DomainEventsRepository, "appendWithTx").mockRejectedValueOnce(new Error("boom"));
+    await expect(CrmMergeService.mergeContact(s.db, s.orgId, s.contactDuplicateId, s.contactStaysId, { userId: s.userId }))
+      .rejects.toThrow("boom");
+    expect(await rowCounts(s.db)).toEqual(before);
+    const leadsNow = await s.db.select().from(leads).where(inArray(leads.id, s.leadIds));
+    expect(leadsNow.every((l) => l.contactId === s.contactDuplicateId)).toBe(true);
+    const [staysAfter] = await s.db.select().from(contacts).where(eq(contacts.id, s.contactStaysId));
+    expect(staysAfter).toEqual(staysBefore);
+    expect(await s.db.select().from(contacts).where(eq(contacts.id, s.contactDuplicateId))).toHaveLength(1);
   });
 
   it("previewContactMerge returns final fields, filled list and impact; writes nothing; rejects bad ids", async () => {

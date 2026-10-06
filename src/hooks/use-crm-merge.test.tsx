@@ -62,6 +62,21 @@ describe("crm merge hooks", () => {
     });
   });
 
+  it("removes the deleted record's detail query after a merge (company and contact)", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok({ id: "s1" }));
+    const client = new QueryClient();
+    client.setQueryData([...crmQueryKey, "company", "d1"], { id: "d1" });
+    client.setQueryData([...crmQueryKey, "contact", "d1"], { id: "d1" });
+    client.setQueryData([...crmQueryKey, "company", "s1"], { id: "s1" });
+    const company = renderHook(() => useMergeCompany("d1"), { wrapper: wrapper(client) });
+    await company.result.current.mutateAsync({ into: "s1" });
+    const contact = renderHook(() => useMergeContact("d1"), { wrapper: wrapper(client) });
+    await contact.result.current.mutateAsync({ into: "s1" });
+    expect(client.getQueryData([...crmQueryKey, "company", "d1"])).toBeUndefined();
+    expect(client.getQueryData([...crmQueryKey, "contact", "d1"])).toBeUndefined();
+    expect(client.getQueryData([...crmQueryKey, "company", "s1"])).toEqual({ id: "s1" });
+  });
+
   it("merges contacts by POST", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok({ id: "s1" }));
     const { result } = renderHook(() => useMergeContact("d1"), { wrapper: wrapper(new QueryClient()) });
