@@ -25,7 +25,12 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe("PATCH /api/creators/[id]", () => {
   let cleanup: () => Promise<void>;
-  afterEach(async () => cleanup?.());
+  afterEach(async () => {
+    // Per-test vi.doMock registrations must not leak into later tests.
+    vi.doUnmock("@/services/creator.service");
+    vi.resetModules();
+    await cleanup?.();
+  });
   beforeEach(() => {
     ensureAuthUserMock.mockReset().mockResolvedValue({ authUserId: null, created: true });
   });
@@ -80,24 +85,6 @@ describe("PATCH /api/creators/[id]", () => {
     expect(await response.json()).toEqual({ error: "Não é possível alterar o e-mail de quem já acessou o app." });
   });
 
-  // Keep before the deadlock test: its vi.doMock of CreatorService leaks into later tests.
-  it("409 when the new e-mail only differs in case from another creator's e-mail in the same organization", async () => {
-    const { a, db, creator, route } = await setup();
-    await CreatorService.register(db, a.organization.id, {
-      fullName: "Outra Pessoa",
-      displayName: "Outra",
-      email: "Outra@Publyflow.test",
-      instagramHandle: null,
-    });
-    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
-    const response = await PATCH(
-      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "outra@publyflow.test" }),
-      params(creator.id),
-    );
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ error: "Já existe um creator com este e-mail." });
-  });
-
   it("409 with a retry message when changeEmail hits a Postgres deadlock (40P01)", async () => {
     const { db, a, creator } = await setup();
     const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
@@ -117,6 +104,26 @@ describe("PATCH /api/creators/[id]", () => {
     );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
+  });
+
+  // Covers the case-insensitive transfer path (findByEmail is case-insensitive, so the other
+  // creator is found as target and findByUserIdWithTx rejects). The index itself is covered by
+  // src/db/users-email-unique.test.ts.
+  it("409 via the transfer path when the new e-mail differs only in case from another creator's e-mail in the same organization", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorService.register(db, a.organization.id, {
+      fullName: "Outra Pessoa",
+      displayName: "Outra",
+      email: "Outra@Publyflow.test",
+      instagramHandle: null,
+    });
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "outra@publyflow.test" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "Já existe um creator com este e-mail." });
   });
 
   it("404 for another organization's creator", async () => {
@@ -144,8 +151,6 @@ describe("PATCH /api/creators/[id]", () => {
   it("502 when provisioning the new e-mail's Supabase user fails", async () => {
     const { a, db, creator, route } = await setup();
     await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
-    // The deadlock case above leaves a doMock of the service registered.
-    vi.doUnmock("@/services/creator.service");
     const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
     ensureAuthUserMock.mockImplementationOnce(async () => {
       // Resolved at call time: the route module was re-imported after vi.resetModules().
@@ -165,7 +170,6 @@ describe("PATCH /api/creators/[id]", () => {
   it("retrying the same PATCH after a provisioning failure re-provisions and returns 200", async () => {
     const { a, db, creator, route } = await setup();
     await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
-    vi.doUnmock("@/services/creator.service");
     const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
     ensureAuthUserMock.mockClear();
     ensureAuthUserMock.mockImplementationOnce(async () => {
