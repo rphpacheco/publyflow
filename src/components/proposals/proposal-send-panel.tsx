@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { isApiErrorCode } from "@/lib/api-client";
 import { useProposalSendState, usePublishProposal, useRequestApproval, type SendStateDto } from "@/hooks/use-proposal-sending";
 import { formatDateTime, formatIssuedAt } from "@/lib/presentation/format";
 import { ProposalStatusBadge } from "./proposal-status-badge";
@@ -63,10 +64,25 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const creatorName = approval.creatorName ?? "O creator";
   const busy = publish.isPending || requestApproval.isPending || checking;
 
-  function send(options?: { withoutApproval?: boolean }) {
-    publish.mutate(options?.withoutApproval ? { withoutApproval: true } : undefined, {
+  function send(options?: { withoutApproval?: boolean; reopen?: boolean }) {
+    const variables = options?.withoutApproval || options?.reopen ? { ...(options.withoutApproval ? { withoutApproval: true } : {}), ...(options.reopen ? { reopen: true } : {}) } : undefined;
+    publish.mutate(variables, {
       onSuccess: (result) => setSentPath(result.publicPath),
+      onError: (error) => {
+        // The proposal was answered after this page loaded: ask for the explicit reopen instead of failing.
+        if (isApiErrorCode(error, 409, "REOPEN_REQUIRED")) void openReopenConfirm(options?.withoutApproval === true);
+      },
     });
+  }
+
+  async function openReopenConfirm(withoutApproval: boolean) {
+    const result = await sendStateQuery.refetch();
+    const fresh = result.data;
+    if (!result.isError && fresh && CONFIRM_COPY[fresh.status]) {
+      setConfirm({ status: fresh.status, withoutApproval });
+    } else {
+      toast.error("Esta proposta já foi respondida pelo cliente. Confirme para abrir uma nova rodada.");
+    }
   }
 
   // Decide on the server's current state, not the one loaded with the page:
@@ -203,7 +219,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
             <AlertDialogAction asChild>
               <Button
                 onClick={() => {
-                  const options = confirm ? { withoutApproval: confirm.withoutApproval } : undefined;
+                  const options = { withoutApproval: confirm?.withoutApproval === true, reopen: true };
                   setConfirm(null);
                   send(options);
                 }}

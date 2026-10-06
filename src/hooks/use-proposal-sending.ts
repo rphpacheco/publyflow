@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, isApiErrorCode } from "@/lib/api-client";
 import type { ProposalStatus } from "@/lib/proposal-themes";
 import { proposalQueryKey } from "./use-proposal";
 import { proposalSendStateQueryKey, proposalPublicationsQueryKey } from "./proposal-sending-keys";
@@ -80,13 +80,18 @@ export function useProposalPublications(proposalId: string): UseQueryResult<Publ
   });
 }
 
-export function usePublishProposal(proposalId: string): UseMutationResult<PublishResultDto, ApiError, { withoutApproval?: boolean } | void> {
+export type PublishVariables = { withoutApproval?: boolean; reopen?: boolean };
+
+export function usePublishProposal(proposalId: string): UseMutationResult<PublishResultDto, ApiError, PublishVariables | void> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { withoutApproval?: boolean } | void) =>
+    mutationFn: (variables: PublishVariables | void) =>
       apiFetch<PublishResultDto>(
         `/api/proposals/${proposalId}/publications`,
-        json("POST", { withoutApproval: variables?.withoutApproval === true }),
+        json("POST", {
+          withoutApproval: variables?.withoutApproval === true,
+          ...(variables?.reopen === true ? { reopen: true } : {}),
+        }),
       ),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: proposalSendStateQueryKey(proposalId) });
@@ -96,6 +101,7 @@ export function usePublishProposal(proposalId: string): UseMutationResult<Publis
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     },
     onError: (error) => {
+      if (isApiErrorCode(error, 409, "REOPEN_REQUIRED")) return; // the send panel opens its reopen confirmation
       toast.error(error instanceof ApiError && error.status === 409 ? error.message : "Não foi possível enviar a proposta. Tente novamente.");
     },
   });

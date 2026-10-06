@@ -19,6 +19,16 @@ export class ApiError extends Error {
 // provided") when present, otherwise surface the first message of the
 // first field so the toast reads as "what's wrong" instead of a generic
 // "could not complete the action (400)".
+export function isApiErrorCode(error: unknown, status: number, code: string): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === status &&
+    typeof error.body === "object" &&
+    error.body !== null &&
+    (error.body as { code?: unknown }).code === code
+  );
+}
+
 function firstFieldErrorMessage(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const errors = (body as { errors?: unknown }).errors;

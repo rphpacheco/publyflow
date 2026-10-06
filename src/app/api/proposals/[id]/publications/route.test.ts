@@ -3,6 +3,8 @@ import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { ProposalService } from "@/services/proposal.service";
+import { ProposalSendingService } from "@/services/proposal-sending.service";
+import { ProposalResponseService } from "@/services/proposal-response.service";
 import { organizationMembers } from "@/db/schema/organizations";
 
 const scheduleEventDrain = vi.fn();
@@ -106,5 +108,31 @@ describe("/api/proposals/:id/publications", () => {
 
     const response = await POST(post(proposal.id), params(proposal.id));
     expect(response.status).toBe(201);
+  });
+
+  it("POST 409 REOPEN_REQUIRED for an answered proposal with a new version; reopen:true passes through", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    const first = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    await ProposalResponseService.respond(db, first.publicPath.split("/").pop()!, {
+      publicationId: first.publication.id,
+      action: "ACCEPT",
+      name: "Cliente",
+      email: "c@x.com",
+      message: null,
+    });
+    await ProposalService.update(db, organization.id, proposal.id, { title: "v2", userId: owner.id });
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: ownerSession(organization.id, owner.id) });
+
+    const blocked = await POST(post(proposal.id), params(proposal.id));
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toEqual({
+      error: "Esta proposta já foi respondida pelo cliente. Confirme para abrir uma nova rodada.",
+      code: "REOPEN_REQUIRED",
+    });
+
+    const reopened = await POST(post(proposal.id, { reopen: true }), params(proposal.id));
+    expect(reopened.status).toBe(201);
   });
 });

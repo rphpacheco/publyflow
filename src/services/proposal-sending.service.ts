@@ -13,7 +13,7 @@ import { moveOpportunityIfOpenWithTx } from "./proposal-pipeline";
 import { toPublicationContextJson } from "@/lib/presentation/snapshot-schema";
 import { publicPathFor, SENT_STAGE } from "@/lib/proposal-sharing";
 import { PUBLIC_PROPOSAL_STATUSES, type ProposalStatus } from "@/lib/proposal-themes";
-import { ApprovalRequiredError, OpportunityNotFoundError, ProposalArchivedError, ProposalNotFoundError } from "@/domain/proposals/errors";
+import { ApprovalRequiredError, OpportunityNotFoundError, ProposalArchivedError, ProposalNotFoundError, ReopenRequiredError } from "@/domain/proposals/errors";
 import { DomainEventsRepository } from "@/repositories/domain-events.repository";
 import { PROPOSAL_EVENT, proposalApprovalEvent, proposalSentEvent } from "@/lib/events/proposal-events";
 import { ProposalApprovalsRepository } from "@/repositories/proposal-approvals.repository";
@@ -97,7 +97,7 @@ export const ProposalSendingService = {
     organizationId: string,
     proposalId: string,
     userId: string,
-    options: { withoutApproval?: boolean } = {},
+    options: { withoutApproval?: boolean; reopen?: boolean } = {},
   ): Promise<{ publication: ProposalPublication; publicPath: string; created: boolean }> {
     return runInTenantContext(db, organizationId, async (tx) => {
       await assertMember(tx, organizationId, userId);
@@ -123,6 +123,11 @@ export const ProposalSendingService = {
         latestPublication.versionNumber === latestVersion.versionNumber
       ) {
         return { publication: latestPublication, publicPath: publicPathFor(token), created: false };
+      }
+
+      // Answered by the client: a new round must be confirmed explicitly.
+      if ((proposal.status === "APPROVED" || proposal.status === "REJECTED") && !options.reopen) {
+        throw new ReopenRequiredError(proposalId);
       }
 
       // Spec D §4.5: approval gate (after the idempotent no-op, so re-sending an already-published version never asks).
