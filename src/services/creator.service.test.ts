@@ -185,6 +185,17 @@ describe("CreatorService.register / update", () => {
     await expect(CreatorService.register(db, organization.id, input)).rejects.toBeInstanceOf(CreatorEmailTakenError);
   });
 
+  it("maps the creators (org, user) unique violation to CreatorEmailTakenError when the pre-check is bypassed", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner } = await org(db);
+    await CreatorService.register(db, organization.id, { ...input, email: owner.email });
+    vi.spyOn(CreatorsRepository, "findByUserIdWithTx").mockResolvedValueOnce(null);
+    await expect(CreatorService.register(db, organization.id, { ...input, email: owner.email })).rejects.toBeInstanceOf(
+      CreatorEmailTakenError,
+    );
+  });
+
   it("updates only display fields and never another organization's creator", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;
