@@ -1,0 +1,73 @@
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
+import { organizationMembers, users } from "@/db/schema/organizations";
+import { UsersRepository } from "@/repositories/users.repository";
+import type { AuthAdmin } from "./auth-admin";
+
+// Operator-script logic: reads across organizations on purpose (like
+// provisioning). Not tenant-scoped app code. Supabase calls are sequential and
+// never run inside a DB transaction.
+
+type Db = NodePgDatabase<typeof schema>;
+
+export interface AuthCheckResult {
+  missingInAuth: string[];
+  unlinked: number;
+}
+
+export interface BackfillResult {
+  created: string[];
+  linked: string[];
+  failed: string[];
+}
+
+async function memberUsers(db: Db) {
+  const email = sql<string>`lower(${users.email})`;
+  return db
+    .selectDistinct({ id: users.id, email, authUserId: users.authUserId })
+    .from(organizationMembers)
+    .innerJoin(users, eq(users.id, organizationMembers.userId));
+}
+
+export async function checkAuthUsers(db: Db, admin: AuthAdmin): Promise<AuthCheckResult> {
+  const members = await memberUsers(db);
+  const authEmails = await admin.listAuthEmails();
+  const missing = members.filter((m) => !authEmails.has(m.email));
+  return {
+    missingInAuth: [...new Set(missing.map((m) => m.email))].sort(),
+    unlinked: missing.filter((m) => m.authUserId === null).length,
+  };
+}
+
+export async function backfillAuthUsers(db: Db, admin: AuthAdmin): Promise<BackfillResult> {
+  const { missingInAuth } = await checkAuthUsers(db, admin);
+  const result: BackfillResult = { created: [], linked: [], failed: [] };
+
+  for (const email of missingInAuth) {
+    try {
+      const { authUserId, created } = await admin.ensureAuthUser(email);
+      if (!created) continue;
+      result.created.push(email);
+      if (!authUserId) continue;
+
+      const [staff] = await db
+        .selectDistinct({ id: users.id })
+        .from(users)
+        .innerJoin(organizationMembers, eq(organizationMembers.userId, users.id))
+        .where(
+          and(
+            sql`lower(${users.email}) = ${email}`,
+            isNull(users.authUserId),
+            inArray(organizationMembers.role, ["OWNER", "MANAGER"]),
+          ),
+        );
+      if (staff && (await UsersRepository.linkAuthUser(db, staff.id, authUserId))) {
+        result.linked.push(email);
+      }
+    } catch {
+      result.failed.push(email);
+    }
+  }
+  return result;
+}
