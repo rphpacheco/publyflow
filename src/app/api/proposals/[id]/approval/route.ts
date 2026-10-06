@@ -7,16 +7,15 @@ import {
   ProposalNotFoundError,
   UserNotOrganizationMemberError,
 } from "@/domain/proposals/errors";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { denyCreatorWrite } from "@/lib/auth/access";
 import { scheduleEventDrain } from "@/lib/events/schedule-drain";
 import { isUuid } from "@/lib/uuid";
 import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   const notFound = () => NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });

@@ -3,14 +3,13 @@ import { z } from "zod";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
 import { creatorScope, denyCreatorWrite } from "@/lib/auth/access";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) {
@@ -45,8 +44,8 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) {

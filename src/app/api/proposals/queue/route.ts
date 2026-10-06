@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { creatorScope, isCreator } from "@/lib/auth/access";
 import { ProposalQueueService } from "@/services/proposal-queue.service";
 
 export async function GET(request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const scope = creatorScope(session);
   if (isCreator(session) && scope === null) {

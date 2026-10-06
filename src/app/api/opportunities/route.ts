@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { creatorScope } from "@/lib/auth/access";
 
 const stageEnum = z.enum([
@@ -25,8 +24,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
   const payload = querySchema.parse({

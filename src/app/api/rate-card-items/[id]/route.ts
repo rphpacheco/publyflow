@@ -7,8 +7,7 @@ import {
   RateCardItemNotFoundError,
   RateCardNotFoundError,
 } from "@/domain/rate-cards/errors";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { isUuid } from "@/lib/uuid";
 import { denyCreatorWrite } from "@/lib/auth/access";
 
@@ -20,8 +19,8 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) {
@@ -53,8 +52,8 @@ const deleteSchema = z.object({
 });
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) {
