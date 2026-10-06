@@ -8,8 +8,7 @@ import {
   NotProposalCreatorError,
   ProposalNotFoundError,
 } from "@/domain/proposals/errors";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { isCreator } from "@/lib/auth/access";
 import { proposalOutOfScope } from "@/lib/auth/proposal-scope";
 import { scheduleEventDrain } from "@/lib/events/schedule-drain";
@@ -33,8 +32,8 @@ export async function handleCreatorDecision(
   schema: typeof approveSchema | typeof requestChangesSchema,
   run: (organizationId: string, proposalId: string, userId: string, approvalId: string, message: string | null) => Promise<ProposalApproval>,
 ): Promise<NextResponse> {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   const notFound = () => NextResponse.json({ error: new ProposalNotFoundError(id).message }, { status: 404 });
