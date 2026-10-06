@@ -35,9 +35,25 @@ const post = (body: unknown): RequestInit => ({
 
 function useInvalidateCrm() {
   const queryClient = useQueryClient();
-  return () => {
-    void queryClient.invalidateQueries({ queryKey: crmQueryKey });
-    for (const queryKey of OPTION_KEYS) void queryClient.invalidateQueries({ queryKey });
+  return (options?: { refetchType: "none" }) => {
+    void queryClient.invalidateQueries({ queryKey: crmQueryKey, ...options });
+    for (const queryKey of OPTION_KEYS) void queryClient.invalidateQueries({ queryKey, ...options });
+  };
+}
+
+// The merged-away record no longer exists: drop its detail and preview queries
+// and only mark everything else stale, so the still-mounted page of the deleted
+// record does not refetch (and 404) before navigation.
+function useSettleMerge(kind: "company" | "contact", duplicateId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateCrm();
+  return {
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: [...crmQueryKey, "merge-preview", kind, duplicateId] });
+      queryClient.removeQueries({ queryKey: [...crmQueryKey, kind, duplicateId] });
+      invalidate({ refetchType: "none" });
+    },
+    onError: () => invalidate(),
   };
 }
 
@@ -60,22 +76,18 @@ export function useContactMergePreview(duplicateId: string, into: string | null)
 }
 
 export function useMergeCompany(duplicateId: string) {
-  const queryClient = useQueryClient();
-  const invalidate = useInvalidateCrm();
+  const settle = useSettleMerge("company", duplicateId);
   return useMutation({
     mutationFn: (values: { into: string }) => apiFetch<CompanyDto>(`/api/companies/${duplicateId}/merge`, post(values)),
-    onSuccess: () => queryClient.removeQueries({ queryKey: [...crmQueryKey, "company", duplicateId] }),
-    onSettled: invalidate,
+    ...settle,
   });
 }
 
 export function useMergeContact(duplicateId: string) {
-  const queryClient = useQueryClient();
-  const invalidate = useInvalidateCrm();
+  const settle = useSettleMerge("contact", duplicateId);
   return useMutation({
     mutationFn: (values: { into: string }) => apiFetch<ContactDto>(`/api/contacts/${duplicateId}/merge`, post(values)),
-    onSuccess: () => queryClient.removeQueries({ queryKey: [...crmQueryKey, "contact", duplicateId] }),
-    onSettled: invalidate,
+    ...settle,
   });
 }
 
@@ -85,6 +97,6 @@ export function useRemoveCompanyAlias(companyId: string) {
   return useMutation({
     mutationFn: ({ aliasId }: { aliasId: string }) =>
       apiFetch<void>(`/api/companies/${companyId}/aliases/${aliasId}`, { method: "DELETE" }),
-    onSettled: invalidate,
+    onSettled: () => invalidate(),
   });
 }

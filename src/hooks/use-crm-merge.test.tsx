@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { crmQueryKey } from "./use-crm";
 import {
   useCompanyMergePreview,
@@ -55,10 +55,10 @@ describe("crm merge hooks", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(init?.body as string)).toEqual({ into: "s1" });
     await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: crmQueryKey });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["company-options"] });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["brand-options"] });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["contact-options"] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: crmQueryKey, refetchType: "none" });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["company-options"], refetchType: "none" });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["brand-options"], refetchType: "none" });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["contact-options"], refetchType: "none" });
     });
   });
 
@@ -75,6 +75,54 @@ describe("crm merge hooks", () => {
     expect(client.getQueryData([...crmQueryKey, "company", "d1"])).toBeUndefined();
     expect(client.getQueryData([...crmQueryKey, "contact", "d1"])).toBeUndefined();
     expect(client.getQueryData([...crmQueryKey, "company", "s1"])).toEqual({ id: "s1" });
+  });
+
+  it.each([
+    ["company", "companies", useCompanyMergePreview, useMergeCompany],
+    ["contact", "contacts", useContactMergePreview, useMergeContact],
+  ] as const)("does not refetch the deleted %s's mounted detail/preview after merge", async (kind, path, usePreview, useMerge) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (String(url).endsWith("/merge")) return ok({ id: "s1" });
+      return ok({ id: "x" });
+    });
+    const client = new QueryClient();
+    const detailKey = [...crmQueryKey, kind, "d1"];
+    const listKey = [...crmQueryKey, `${kind}-list`];
+    client.setQueryData([...crmQueryKey, kind, "s1"], { id: "s1" });
+    client.setQueryData(listKey, []);
+    const detailFetch = vi.fn(async () => ({ id: "d1" }));
+    const wrap = wrapper(client);
+    renderHook(() => useQuery({ queryKey: detailKey, queryFn: detailFetch }), { wrapper: wrap });
+    renderHook(() => usePreview("d1", "s1"), { wrapper: wrap });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/${path}/d1/merge-preview?into=s1`, undefined));
+    await waitFor(() => expect(detailFetch).toHaveBeenCalledTimes(1));
+    const callsBefore = fetchMock.mock.calls.length;
+
+    const merge = renderHook(() => useMerge("d1"), { wrapper: wrap });
+    await act(async () => {
+      await merge.result.current.mutateAsync({ into: "s1" });
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    const newUrls = fetchMock.mock.calls.slice(callsBefore).map(([u]) => String(u));
+    expect(newUrls).toEqual([`/api/${path}/d1/merge`]);
+    expect(detailFetch).toHaveBeenCalledTimes(1);
+    expect(client.getQueryData(detailKey)).toBeUndefined();
+    expect(client.getQueryData([...crmQueryKey, "merge-preview", kind, "d1", "s1"])).toBeUndefined();
+    expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryData([...crmQueryKey, kind, "s1"])).toEqual({ id: "s1" });
+    expect(client.getQueryState([...crmQueryKey, kind, "s1"])?.isInvalidated).toBe(true);
+  });
+
+  it("invalidates normally (refetching) when the merge fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 409 }));
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useMergeCompany("d1"), { wrapper: wrapper(client) });
+    await act(async () => {
+      await result.current.mutateAsync({ into: "s1" }).catch(() => undefined);
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: crmQueryKey });
   });
 
   it("merges contacts by POST", async () => {
