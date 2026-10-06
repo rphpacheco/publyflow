@@ -15,14 +15,17 @@ Out of scope (separate specs, in this order): E — manager invite; F — passwo
   - created → `{ authUserId: <id>, created: true }`;
   - e-mail already registered in Supabase → `{ authUserId: null, created: false }` (success, idempotent);
   - any other failure (network, 5xx, misconfiguration) → throws `AuthProvisioningError`.
-- When `created`, the caller links immediately with the existing conditional `UsersRepository.linkAuthUser(db, userId, authUserId)`. When the e-mail already existed, linking stays with the first login (`resolve-session` links by verified e-mail, unchanged) — known gap, tracked in TAREFA as tech debt: "Investigar lookup administrativo por e-mail no Supabase para vincular `auth_user_id` imediatamente quando o usuário já existir em `auth.users`."
+- Linking (decided 2026-10-06 after finding that `users.auth_user_id` locks creator e-mail editing — `isEmailEditable` in `creator.service.ts` and `emailEditable` in `creators.repository.ts`):
+  - **provisioning (OWNER/MANAGER):** when `created`, link immediately with the existing conditional `UsersRepository.linkAuthUser(db, userId, authUserId)`;
+  - **creator invite / remind / e-mail change:** only ensure the Supabase user exists, never link. Linking stays with the first login (`resolve-session` links by verified e-mail, unchanged), so the creator's e-mail stays editable until they log in. Linking at invite would lock the e-mail, and changing an e-mail with a linked auth user would leave the old mailbox's Supabase user attached to the creator.
+  - When the e-mail already existed in Supabase, linking also stays with the first login — known gap, tracked in TAREFA as tech debt: "Investigar lookup administrativo por e-mail no Supabase para vincular `auth_user_id` imediatamente quando o usuário já existir em `auth.users`."
 - Called **after** the database transaction commits, never inside it, at:
   - provisioning (`src/lib/auth/provision-user.ts`, always; `--password` stays optional and is passed through);
   - creator invite and remind (`CreatorAccessService.invite` / `remind`);
-  - creator e-mail change (`CreatorService.changeEmail`, for the new e-mail).
+  - creator e-mail change (`CreatorService.changeEmail`), for the new e-mail, only when the creator has a CREATOR membership in the organization (not yet invited → the later invite provisions it).
 - Failure: the route returns **502** `{ error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" }`. The database write already committed. This state ("invite created, auth user not provisioned") is **recoverable**: repeating the invite, sending the reminder or correcting the e-mail all call `ensureAuthUser` again. No state gets stuck.
 - Magic link (`src/app/(auth)/login/actions.ts`): `shouldCreateUser: false`. The answer stays identical for any e-mail (never reveals who has access).
-- Backfill script `pnpm backfill-auth-users` (`scripts/backfill-auth-users.ts`): for each `users` row without `auth_user_id` that has a membership, `ensureAuthUser` + link when created. `--check` mode is read-only and prints two counts: (a) `users` without `auth_user_id`; (b) member e-mails that do not exist in `auth.users`. Both must be 0 before sign-up is turned off.
+- Backfill script `pnpm backfill-auth-users` (`scripts/backfill-auth-users.ts`): creates the Supabase user for every member e-mail missing from `auth.users`; links only what it created for OWNER/MANAGER members (creators link on first login). `--check` mode is read-only and prints: (a) **blocking** — member e-mails that do not exist in `auth.users` (must be 0 before sign-up is turned off); (b) informational — `users` with a membership and no `auth_user_id` (invited creators who never logged in are expected here).
 - The creator invite instructions text is unchanged (Google or e-mail link still work for a provisioned e-mail).
 
 ## 2. Logout is POST-only
@@ -37,7 +40,7 @@ Out of scope (separate specs, in this order): E — manager invite; F — passwo
   - session with access → `redirect("/pipeline")`;
   - Supabase user without PublyFlow access → stays on `/login`, but above the form shows the no-access notice: "Você está conectado como {email}, mas essa conta não tem acesso ao PublyFlow." plus the POST button "Sair e entrar com outra conta" — never a login screen that looks normal to someone already authenticated;
   - no Supabase user → login form as today.
-- Auth unavailable (§6) → the same error page as the app (no redirect).
+- Auth unavailable (§6) → the same `SessionUnavailable` state as the app (no redirect).
 
 ## 4. Case-insensitive unique e-mail
 
@@ -58,7 +61,7 @@ Out of scope (separate specs, in this order): E — manager invite; F — passwo
 - New `AuthUnavailableError` (`src/lib/auth/errors.ts`) for network failures and 5xx from Supabase (including `AuthRetryableFetchError`). "No session" is still `null`, never this error.
 - `getSession()` throws `AuthUnavailableError` when `getUser()` fails that way.
 - **Proxy:** on such a failure it lets the request through (no redirect to `/login`).
-- **Pages:** `requireAppSession()` lets the error propagate; an error boundary for the authenticated app (and `/login`) shows "Não foi possível verificar sua sessão agora. Tente novamente em instantes." with a "Tentar novamente" button (lucide `RefreshCw`). The UI copy never mentions Supabase or authentication services. Never signs out, never goes to `/sem-acesso`.
+- **Pages:** `requireAppSession()` returns `{ status: "unavailable" }` instead of throwing, and the authenticated layouts (and `/login`) render a `SessionUnavailable` state — not a Next error boundary, because production strips server error messages, so a boundary could not tell this case from any other error. It shows "Não foi possível verificar sua sessão agora. Tente novamente em instantes." with a "Tentar novamente" button (lucide `RefreshCw`, reloads the page). The UI copy never mentions Supabase or authentication services. Never signs out, never goes to `/sem-acesso`.
 - **API:** new `getRouteSession()` in `src/lib/auth/http.ts` returns `Session` or a `NextResponse`: 401 `unauthorizedResponse()` when there is no session, **503** `{ error: "Serviço de autenticação indisponível. Tente novamente em instantes.", code: "AUTH_UNAVAILABLE" }` on `AuthUnavailableError`. All 49 API routes that call `getSession()` switch to it (mechanical change); a guard test (pattern of `src/app/api/write-guard.test.ts`) fails if a route under `src/app/api` calls `getSession()` directly.
 
 ## Constraints
@@ -67,7 +70,7 @@ Org predicate on every query; no `Promise.all` inside one transaction; external 
 
 ## Tests
 
-- `ensureAuthUser`: created / already exists / failure → `AuthProvisioningError` (admin client mocked); links when created.
+- `ensureAuthUser`: created / already exists / failure → `AuthProvisioningError` (admin client mocked). Provisioning links when created; invite/remind/e-mail change never link (e-mail stays editable).
 - Provisioning, invite, remind, e-mail change: call `ensureAuthUser` after commit; failure → 502 with the DB write kept; retry succeeds.
 - Magic link uses `shouldCreateUser: false`.
 - Backfill: creates/links missing users; `--check` writes nothing and reports both counts.
@@ -76,14 +79,14 @@ Org predicate on every query; no `Promise.all` inside one transaction; external 
 - `/login`: with access → redirect `/pipeline`; no-access notice; no user → form.
 - 0025: second user with the same e-mail in different case fails at the DB; invite/e-mail change → 409.
 - `getSession` cached per render (one `getUser` call for layout + page).
-- Outage: mocked network error → route 503 `AUTH_UNAVAILABLE`; page error boundary; proxy does not redirect; guard test for `getRouteSession`.
+- Outage: mocked network error → route 503 `AUTH_UNAVAILABLE`; layouts and `/login` render `SessionUnavailable`; proxy does not redirect; guard test for `getRouteSession`.
 
 ## Deploy (in order)
 
 1. Add `SUPABASE_SERVICE_ROLE_KEY` to Vercel (production).
 2. Read-only duplicate e-mail check (§4) in production; apply 0025.
 3. Push `main`; confirm the deployment.
-4. `pnpm backfill-auth-users` against production, then `pnpm backfill-auth-users --check` → both counts 0 (mandatory checkpoint).
+4. `pnpm backfill-auth-users` against production, then `pnpm backfill-auth-users --check` → blocking count 0 (mandatory checkpoint).
 5. User turns off "Allow new users to sign up" in the Supabase dashboard (prod and dev).
 6. Verify with an already-provisioned e-mail: Google login and magic link still work; a non-provisioned e-mail gets no account.
 7. Check signing keys (§5) and report.

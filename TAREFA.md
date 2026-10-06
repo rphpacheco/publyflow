@@ -10,8 +10,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Decisão: servidor cria usuário do Supabase confirmado (service-role) + backfill; signup público desligado depois do checkpoint
 - [x] Design (aprovado, com ajustes do usuário: vínculo imediato quando criado, estado recuperável, checkpoint `--check`, logout só POST / GET 405, aviso de sem acesso no /login, texto da UI sem citar autenticação)
 - [x] Spec — `docs/superpowers/specs/2026-10-06-auth-hardening-design.md`
-- [ ] Revisão da spec pelo usuário
-- [ ] Plano de implementação
+- [x] Revisão da spec pelo usuário (ajuste: creator não vincula `auth_user_id` no convite — travaria a edição de e-mail; só provisionamento vincula; `--check` bloqueia só e-mail ausente no Supabase)
+- [x] Plano — `docs/superpowers/plans/2026-10-06-auth-hardening.md` (T1 admin+provisionamento, T2 convite/lembrete/e-mail + magic link, T3 0025, T4 backfill, T5 sessão/proxy/indisponível, T6 49 rotas + guarda, T7 logout/sem-acesso/login, T8 verificação)
 - [ ] Implementação (subagentes) + revisão final
 - [ ] Merge + deploy (chave na Vercel → 0025 → push → backfill → `--check` = 0 → desligar signup → verificar logins)
 
