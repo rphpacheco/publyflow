@@ -173,7 +173,12 @@ export const CreatorService = {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.emailLocked);
       }
 
-      if (current.email.toLowerCase() === newEmail.toLowerCase()) return null;
+      if (current.email.toLowerCase() === newEmail.toLowerCase()) {
+        // Unchanged e-mail still re-provisions for an invited creator: a retry
+        // after a failed ensureAuthUser (e-mail already committed) must recover.
+        const unchangedMembership = await OrganizationMembersRepository.findCreatorMembershipWithTx(tx, organizationId, current.id);
+        return unchangedMembership ? current.email : null;
+      }
 
       // Re-validate against the freshly locked row: the plain lookup above
       // could be stale by the time both locks are held (the target user's

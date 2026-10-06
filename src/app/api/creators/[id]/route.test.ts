@@ -143,4 +143,25 @@ describe("PATCH /api/creators/[id]", () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual(PROVISIONING_BODY);
   });
+
+  it("retrying the same PATCH after a provisioning failure re-provisions and returns 200", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
+    vi.doUnmock("@/services/creator.service");
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    ensureAuthUserMock.mockClear();
+    ensureAuthUserMock.mockImplementationOnce(async () => {
+      const { AuthProvisioningError } = await import("@/lib/auth/errors");
+      throw new AuthProvisioningError("x");
+    });
+    const body = { displayName: "Thais", instagramHandle: null, email: "novo@x.com" };
+
+    const first = await PATCH(patch(creator.id, body), params(creator.id));
+    expect(first.status).toBe(502);
+
+    const second = await PATCH(patch(creator.id, body), params(creator.id));
+    expect(second.status).toBe(200);
+    expect(ensureAuthUserMock).toHaveBeenCalledTimes(2);
+    expect(ensureAuthUserMock).toHaveBeenLastCalledWith("novo@x.com");
+  });
 });
