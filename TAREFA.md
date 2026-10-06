@@ -20,13 +20,13 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-05-merge-duplicates-design.md`
 - [x] Revisão da spec pelo Raphael
 - [x] Plano — `docs/superpowers/plans/2026-10-05-merge-duplicates.md` (6 tasks)
-- [ ] Implementação (subagentes) + revisão final
-  - [ ] T1 tabela company_aliases + migration 0023 + RLS
-  - [ ] T2 regras de apelido (conversão, renomear, remover, detalhe)
-  - [ ] T3 CrmMergeService (mesclar + prévia)
-  - [ ] T4 rotas da API
-  - [ ] T5 hooks, diálogos, bloco de apelidos, páginas
-  - [ ] T6 verificação + navegador
+- [x] Implementação (subagentes) + revisão final
+  - [x] T1 tabela company_aliases + migration 0023 + RLS
+  - [x] T2 regras de apelido (conversão, renomear, remover, detalhe)
+  - [x] T3 CrmMergeService (mesclar + prévia)
+  - [x] T4 rotas da API
+  - [x] T5 hooks, diálogos, bloco de apelidos, páginas
+  - [x] T6 verificação: tsc ok, lint sem novidades, 0023 em test/dev, suíte 1324 verde (3 falhas ambientais de disco reexecutadas e verdes), build ok, revisão final (opus) + correções, navegador ok (mesclar empresa/contato, apelido, conversão do inbox pelo apelido, sem transbordar)
 - [ ] Merge + deploy (0023 em produção antes do push)
 
 ## Concluído nesta fase (Dashboard)
@@ -124,6 +124,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Mesclagem: 1 busca 404 do detalhe do registro excluído entre a mesclagem e a navegação (invisível); prévia não lista leads na empresa
 - [ ] Dashboard: somar itens do snapshot aceito no SQL (DISTINCT ON + jsonb) em vez de carregar o JSON inteiro; staleTime ~60s nas queries
 - [ ] Dashboard: contagem de "Requer ação" carrega a fila inteira (limit null) — agregar no SQL se o volume crescer
 - [ ] Dashboard: hooks disparam p/ creator antes do redirect (403); ErrorBox sem role=alert; gráfico sem texto alternativo
