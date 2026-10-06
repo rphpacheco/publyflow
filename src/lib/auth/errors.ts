@@ -4,3 +4,10 @@ export class UnauthenticatedError extends Error {
     this.name = "UnauthenticatedError";
   }
 }
+
+export class AuthProvisioningError extends Error {
+  constructor(public readonly reason: string) {
+    super(`Supabase admin call failed: ${reason}`);
+    this.name = "AuthProvisioningError";
+  }
+}

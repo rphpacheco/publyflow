@@ -4,14 +4,15 @@ import { createClient } from "@supabase/supabase-js";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../src/db/schema";
 import { getDb } from "../src/db/client";
-import { provisionUser, type AuthAdmin, type ProvisionUserInput } from "../src/lib/auth/provision-user";
+import { createAuthAdmin } from "../src/lib/auth/auth-admin";
+import { provisionUser, type ProvisionUserInput } from "../src/lib/auth/provision-user";
 
 const USAGE = `Usage:
   pnpm provision-user --email <e-mail> --name <nome> --role OWNER|MANAGER
                       (--org <organization-uuid> | --new-org <nome da organização>)
                       [--password <senha>]
 
-Without --password, the user signs in with Google (same e-mail) and is linked on first login.
+A confirmed Supabase user is always created. Without --password, the user signs in with Google or an e-mail link (same e-mail). --password is applied only when the Supabase user is created now; an existing user's password is never changed.
 CREATOR is not accepted here: use the creator invite flow in the app instead.`;
 
 async function main() {
@@ -47,15 +48,7 @@ async function main() {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const admin: AuthAdmin = {
-    async createUser({ email, password }) {
-      const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
-      if (error || !data.user) {
-        throw new Error(`Supabase could not create ${email}: ${error?.message ?? "unknown error"}`);
-      }
-      return { id: data.user.id };
-    },
-  };
+  const admin = createAuthAdmin(supabase);
 
   const input: ProvisionUserInput = {
     email: values.email,
@@ -72,6 +65,9 @@ async function main() {
   const db = getDb(databaseUrl) as NodePgDatabase<typeof schema> & { $client: Pool };
   const result = await provisionUser(db, admin, input);
   console.log(JSON.stringify(result, null, 2));
+  if (values.password && !result.createdAuthUser && result.authUserId === null) {
+    console.error("Note: this e-mail already existed in Supabase; --password was not applied.");
+  }
   await db.$client.end();
 }
 
