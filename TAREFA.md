@@ -5,7 +5,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-_(nada — próximo: 2 dívida técnica)_
+### 2. Dívida técnica (spec única, 6 itens)
+- [x] Investigação: 1 cliente OpenAI criado no load; 2 índices faltando; 3 ids explícitos sem checagem de org na conversão; 4 concorrência de publish já coberta, falta exigir confirmação de reabertura no servidor; 5 prod sem duplicatas (org,user) em creators; 6 Criar desabilitado sem dica
+- [x] Decisão item 4: exigir `reopen: true` no servidor quando a proposta está aceita/recusada (409 REOPEN_REQUIRED)
+- [x] Design (aprovado)
+- [x] Spec — `docs/superpowers/specs/2026-10-05-tech-debt-batch-design.md`
+- [~] Revisão da spec + plano
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy (0024 antes do push)
+
 
 ## Concluído nesta fase (Mesclar duplicatas)
 
