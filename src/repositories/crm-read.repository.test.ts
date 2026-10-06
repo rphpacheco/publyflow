@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
-import { brands, companies, contacts } from "@/db/schema/companies-brands-contacts";
+import { brands, companies, companyAliases, contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
 import { CrmReadRepository } from "./crm-read.repository";
 
@@ -58,6 +58,19 @@ describe("CrmReadRepository", () => {
     const open = detail!.opportunities.find((o) => o.status === "OPEN")!;
     expect(open).toMatchObject({ brandName: "Linha Verão", creatorName: "Thais", estimatedValueCents: 150000 });
     expect(open.proposals).toEqual([{ id: a.proposal.id, title: "Campanha Verão", status: "DRAFT" }]);
+  });
+
+  it("lists the company aliases as { id, name } ordered by name", async () => {
+    const { db, a, companyId } = await setup();
+    await db.insert(companyAliases).values([
+      { organizationId: a.organization.id, companyId, name: "Zeta" },
+      { organizationId: a.organization.id, companyId, name: "Alfa" },
+    ]);
+    const detail = await CrmReadRepository.companyDetail(db, a.organization.id, companyId);
+    expect(detail?.aliases).toEqual([
+      { id: expect.any(String), name: "Alfa" },
+      { id: expect.any(String), name: "Zeta" },
+    ]);
   });
 
   it("returns the contact detail with company and opportunities reached through leads", async () => {

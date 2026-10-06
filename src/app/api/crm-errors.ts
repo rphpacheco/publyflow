@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   BrandNotFoundError,
+  CompanyAliasNotFoundError,
   CompanyNameTakenError,
   CompanyNotFoundError,
   CompanyRefNotFoundError,
   ContactNotFoundError,
+  MergeSameRecordError,
 } from "@/domain/crm/errors";
 import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
@@ -27,6 +29,11 @@ export function crmErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof CompanyRefNotFoundError) {
     return NextResponse.json({ error: "Empresa selecionada não encontrada.", code: "COMPANY_NOT_FOUND" }, { status: 422 });
   }
+  if (error instanceof MergeSameRecordError) {
+    const message = error.kind === "company" ? "Escolha outra empresa." : "Escolha outro contato.";
+    return NextResponse.json({ error: message, code: "SAME_RECORD" }, { status: 422 });
+  }
+  if (error instanceof CompanyAliasNotFoundError) return notFoundResponse("Apelido não encontrado.");
   if (isDeadlockError(error)) return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
   return null;
 }

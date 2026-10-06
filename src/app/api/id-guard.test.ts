@@ -12,10 +12,15 @@ const BAD = "not-a-uuid";
 const ORG = "00000000-0000-4000-8000-000000000001";
 const USER = "00000000-0000-4000-8000-000000000002";
 
-type Handler = (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+type Handler = (request: Request, context: { params: Promise<{ id: string; aliasId?: string }> }) => Promise<Response>;
 
 const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>; methods: string[]; error: string }> = [
   { route: "companies/[id]", load: () => import("./companies/[id]/route"), methods: ["GET", "PATCH"], error: COMPANY_NOT_FOUND },
+  { route: "companies/[id]/merge-preview", load: () => import("./companies/[id]/merge-preview/route"), methods: ["GET"], error: COMPANY_NOT_FOUND },
+  { route: "companies/[id]/merge", load: () => import("./companies/[id]/merge/route"), methods: ["POST"], error: COMPANY_NOT_FOUND },
+  { route: "contacts/[id]/merge-preview", load: () => import("./contacts/[id]/merge-preview/route"), methods: ["GET"], error: CONTACT_NOT_FOUND },
+  { route: "contacts/[id]/merge", load: () => import("./contacts/[id]/merge/route"), methods: ["POST"], error: CONTACT_NOT_FOUND },
+  { route: "companies/[id]/aliases/[aliasId]", load: () => import("./companies/[id]/aliases/[aliasId]/route"), methods: ["DELETE"], error: COMPANY_NOT_FOUND },
   { route: "contacts/[id]", load: () => import("./contacts/[id]/route"), methods: ["GET", "PATCH"], error: CONTACT_NOT_FOUND },
   { route: "brands/[id]", load: () => import("./brands/[id]/route"), methods: ["PATCH"], error: BRAND_NOT_FOUND },
   { route: "leads/[id]", load: () => import("./leads/[id]/route"), methods: ["GET"], error: `Lead ${BAD} not found` },
@@ -67,8 +72,8 @@ describe("malformed [id] returns the route's 404, never a 500", () => {
           init.headers = { "content-type": "application/json" };
           init.body = "not json";
         }
-        const response = await handler(new Request(`http://localhost/api/${route.replace("[id]", BAD)}`, init), {
-          params: Promise.resolve({ id: BAD }),
+        const response = await handler(new Request(`http://localhost/api/${route.replace("[id]", BAD).replace("[aliasId]", BAD)}`, init), {
+          params: Promise.resolve({ id: BAD, aliasId: BAD }),
         });
 
         expect(response.status).toBe(404);

@@ -10,7 +10,7 @@ import { CommercialInquiryService } from "./commercial-inquiry.service";
 import { OpportunityService } from "./opportunity.service";
 import type { AIService } from "@/lib/ai/ai-service";
 import type { MessageClassification } from "@/lib/ai/schemas";
-import { companies, contacts, brands } from "@/db/schema/companies-brands-contacts";
+import { companies, companyAliases, contacts, brands } from "@/db/schema/companies-brands-contacts";
 import { leads } from "@/db/schema/commercial-flow";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import {
@@ -638,6 +638,52 @@ describe("CommercialInquiryService", () => {
       // "rolls back the Lead insert if the Opportunity create fails" test.
       const stillNew = await CommercialInquiryService.findById(db, organization.id, inquiry!.id);
       expect(stillNew?.status).toBe("NEW");
+    });
+
+    async function ingestWithGuess(db: NodePgDatabase<typeof schema>, organization: { id: string }, creator: { id: string }, guess: string) {
+      const ai = fakeAI({
+        category: "COMMERCIAL_LEAD",
+        commercialScore: 90,
+        intent: "Pedido de mídia kit",
+        extracted: { companyName: guess, brandName: null, contactName: "Maria", email: null, phone: null, budget: null, deliverables: null },
+      });
+      const { inquiry } = await InboxService.ingestManualMessage(db, ai, organization.id, {
+        creatorId: creator.id,
+        source: "INSTAGRAM",
+        externalContactLabel: "Maria",
+        body: "Olá",
+        receivedAt: new Date(),
+      });
+      return inquiry!;
+    }
+
+    it("converts into the existing company when the guess matches one of its aliases", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+      const [company] = await db.insert(companies).values({ organizationId: organization.id, name: "Bella Cosméticos" }).returning();
+      await db.insert(companyAliases).values({ organizationId: organization.id, companyId: company.id, name: "Bella" });
+
+      const inquiry = await ingestWithGuess(db, organization, creator, " bella ");
+      const resolution = await CommercialInquiryService.resolve(db, organization.id, inquiry.id, { contact: { fullName: "Maria" } });
+
+      expect(resolution.opportunity.companyId).toBe(company.id);
+      const all = await db.select().from(companies).where(eq(companies.organizationId, organization.id));
+      expect(all).toHaveLength(1);
+    });
+
+    it("throws AmbiguousPartyGuessError when the guess is the name of one company and an alias of another", async () => {
+      const { db, cleanup: c } = await withTestDb();
+      cleanup = c;
+      const { organization, creator } = await setupOrgAndCreator(db);
+      await db.insert(companies).values({ organizationId: organization.id, name: "Bella" });
+      const [y] = await db.insert(companies).values({ organizationId: organization.id, name: "Outra Marca" }).returning();
+      await db.insert(companyAliases).values({ organizationId: organization.id, companyId: y.id, name: "Bella" });
+
+      const inquiry = await ingestWithGuess(db, organization, creator, "Bella");
+      await expect(
+        CommercialInquiryService.resolve(db, organization.id, inquiry.id, { contact: { fullName: "Maria" } }),
+      ).rejects.toThrow(AmbiguousPartyGuessError);
     });
   });
 });

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
-import { brands, companies, contacts } from "@/db/schema/companies-brands-contacts";
+import { brands, companies, companyAliases, contacts } from "@/db/schema/companies-brands-contacts";
 import { leads, opportunities } from "@/db/schema/commercial-flow";
 import { proposals } from "@/db/schema/proposals";
 import { creators } from "@/db/schema/creators";
@@ -49,6 +49,7 @@ export interface CrmOpportunityRow {
 export interface CompanyDetail {
   company: Company;
   brands: Array<{ id: string; name: string }>;
+  aliases: Array<{ id: string; name: string }>;
   contacts: Array<{ id: string; fullName: string; email: string | null; phone: string | null; instagramHandle: string | null }>;
   opportunities: CrmOpportunityRow[];
 }
@@ -147,6 +148,11 @@ export const CrmReadRepository = {
         .from(brands)
         .where(and(eq(brands.companyId, companyId), eq(brands.organizationId, organizationId)))
         .orderBy(asc(brands.name));
+      const aliasRows = await tx
+        .select({ id: companyAliases.id, name: companyAliases.name })
+        .from(companyAliases)
+        .where(and(eq(companyAliases.companyId, companyId), eq(companyAliases.organizationId, organizationId)))
+        .orderBy(asc(companyAliases.name));
       const contactRows = await tx
         .select({
           id: contacts.id,
@@ -159,7 +165,7 @@ export const CrmReadRepository = {
         .where(and(eq(contacts.companyId, companyId), eq(contacts.organizationId, organizationId)))
         .orderBy(asc(contacts.fullName));
       const opportunityList = await opportunityRows(tx, organizationId, eq(opportunities.companyId, companyId));
-      return { company, brands: brandRows, contacts: contactRows, opportunities: opportunityList };
+      return { company, brands: brandRows, aliases: aliasRows, contacts: contactRows, opportunities: opportunityList };
     });
   },
 
