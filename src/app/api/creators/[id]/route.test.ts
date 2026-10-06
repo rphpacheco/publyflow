@@ -80,6 +80,24 @@ describe("PATCH /api/creators/[id]", () => {
     expect(await response.json()).toEqual({ error: "Não é possível alterar o e-mail de quem já acessou o app." });
   });
 
+  // Keep before the deadlock test: its vi.doMock of CreatorService leaks into later tests.
+  it("409 when the new e-mail only differs in case from another creator's e-mail in the same organization", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorService.register(db, a.organization.id, {
+      fullName: "Outra Pessoa",
+      displayName: "Outra",
+      email: "Outra@Publyflow.test",
+      instagramHandle: null,
+    });
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "outra@publyflow.test" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "Já existe um creator com este e-mail." });
+  });
+
   it("409 with a retry message when changeEmail hits a Postgres deadlock (40P01)", async () => {
     const { db, a, creator } = await setup();
     const deadlock = Object.assign(new Error("deadlock detected"), { code: "40P01" });
