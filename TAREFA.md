@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+- (nada — próximo: 3. Auth — subprojetos 2 a 4, aguardando ok)
+
+## Concluído nesta fase (Dívida técnica)
+
 ### 2. Dívida técnica (spec única, 6 itens)
 - [x] Investigação: 1 cliente OpenAI criado no load; 2 índices faltando; 3 ids explícitos sem checagem de org na conversão; 4 concorrência de publish já coberta, falta exigir confirmação de reabertura no servidor; 5 prod sem duplicatas (org,user) em creators; 6 Criar desabilitado sem dica
 - [x] Decisão item 4: exigir `reopen: true` no servidor quando a proposta está aceita/recusada (409 REOPEN_REQUIRED)
@@ -18,8 +22,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
   - [x] T4 reopen exigido no publish
   - [x] T5 dica no diálogo Nova Proposta
   - [x] T6 verificação: tsc ok, lint = base, 0024 em test/dev, suíte 1353 verde, build ok, revisão final (opus: pronto) + ajustes, navegador ok (503 sem chave da OpenAI; dica do Nova Proposta)
-- [ ] Merge + deploy (0024 antes do push)
-
+- [x] Merge + deploy (`3d7b919`; suíte 1353 verde no main; 0 duplicatas (org,user) em creators re-checado; 0024 aplicada em produção antes do push — 3 índices criados; Vercel "Deployment has completed", 2026-10-06)
 
 ## Concluído nesta fase (Mesclar duplicatas)
 
@@ -116,16 +119,6 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Push/deploy em produção (2026-10-05, sem migration; rota nova confirmada em publyflow.vercel.app)
 
 ## Próximos (na ordem combinada)
-
-
-
-### 2. Dívida técnica
-- [ ] Cliente OpenAI lazy (sem `OPENAI_API_KEY` o POST do inbox quebra no load do módulo)
-- [ ] Índices `proposals(organization_id, created_at)` e `proposal_items(proposal_id)`
-- [ ] Convert do inbox: validar que `companyId`/`brandId` explícitos são da mesma org
-- [ ] Publish sem guarda de status esperado (race check-then-act)
-- [ ] `UNIQUE(organization_id, user_id)` em creators
-- [ ] Diálogo "Nova Proposta": botão Criar desabilitado sem dica quando não há tema
 
 ### 3. Auth — subprojetos 2 a 4
 - [ ] Provisionamento sempre cria auth user confirmado (para desligar sign-up público)
