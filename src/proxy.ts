@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
+import { isAuthServiceFailure } from "@/lib/auth/errors";
 import { checkRateLimit, PUBLIC_PAGE_LIMIT } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/client-ip";
 
@@ -37,9 +38,21 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally when the project uses asymmetric
+  // signing keys (falls back to a network call otherwise). It only decides
+  // this redirect and refreshes cookies -- authorization still comes from
+  // getSession() (getUser + membership).
+  let hasUser: boolean;
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    if (error && isAuthServiceFailure(error)) return response; // provider down: let the page render its unavailable state
+    hasUser = Boolean(data?.claims);
+  } catch (error) {
+    if (isAuthServiceFailure(error)) return response;
+    throw error;
+  }
 
-  if (!data.user && !isPublicPath(request.nextUrl.pathname)) {
+  if (!hasUser && !isPublicPath(request.nextUrl.pathname)) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
