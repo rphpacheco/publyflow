@@ -12,6 +12,16 @@ export class ApiError extends Error {
   }
 }
 
+export function isApiErrorCode(error: unknown, status: number, code: string): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === status &&
+    typeof error.body === "object" &&
+    error.body !== null &&
+    (error.body as { code?: unknown }).code === code
+  );
+}
+
 // F6: zod's `errors` (via z.flattenError().fieldErrors) has no top-level
 // `error` string, only per-field arrays -- e.g. { companyName: ["Use no
 // máximo 200 caracteres."] } or { form: ["Informe ao menos um campo."] }.

@@ -19,6 +19,7 @@ import {
   AmbiguousPartyGuessError,
   InquiryPartyRequiredError,
   InvalidOpportunityPartyError,
+  ExplicitPartyNotFoundError,
 } from "@/domain/commercial-flow/errors";
 
 function fakeAI(classification: MessageClassification): AIService {
@@ -762,6 +763,91 @@ describe("inquiry without company/brand (production bug 2026-09-30)", () => {
     expect(await db.select().from(leads).where(eq(leads.organizationId, organization.id))).toHaveLength(0);
     expect(await db.select().from(contacts).where(eq(contacts.organizationId, organization.id))).toHaveLength(0);
     expect((await CommercialInquiryService.findById(db, organization.id, inquiryId))?.status).toBe("NEW");
+  });
+
+  describe("explicit company/brand ids must belong to the org", () => {
+    async function foreignParties(db: NodePgDatabase<typeof schema>) {
+      const other = await setupOrgAndCreator(db);
+      const [company] = await runInTenantContext(db, other.organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: other.organization.id, name: "Foreign Co" }).returning(),
+      );
+      const [brand] = await runInTenantContext(db, other.organization.id, (tx) =>
+        tx.insert(brands).values({ organizationId: other.organization.id, name: "Foreign Brand" }).returning(),
+      );
+      return { company: company!, brand: brand! };
+    }
+
+    async function expectNothingInserted(
+      db: NodePgDatabase<typeof schema>,
+      organizationId: string,
+      inquiryId: string,
+    ) {
+      expect(await db.select().from(leads).where(eq(leads.organizationId, organizationId))).toHaveLength(0);
+      expect(await db.select().from(contacts).where(eq(contacts.organizationId, organizationId))).toHaveLength(0);
+      expect((await CommercialInquiryService.findById(db, organizationId, inquiryId))?.status).toBe("NEW");
+    }
+
+    it("rejects a companyId from another org", async () => {
+      const { db, organization, inquiryId } = await setupInquiry();
+      const { company } = await foreignParties(db);
+      const err = await CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+        contact: { fullName: "Rodolfo" },
+        companyId: company.id,
+      }).catch((e) => e);
+      expect(err).toBeInstanceOf(ExplicitPartyNotFoundError);
+      expect(err).toMatchObject({ kind: "company", id: company.id });
+      await expectNothingInserted(db, organization.id, inquiryId);
+    });
+
+    it("rejects a brandId from another org", async () => {
+      const { db, organization, inquiryId } = await setupInquiry();
+      const { brand } = await foreignParties(db);
+      const [own] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Own Co" }).returning(),
+      );
+      const err = await CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+        contact: { fullName: "Rodolfo" },
+        companyId: own!.id,
+        brandId: brand.id,
+      }).catch((e) => e);
+      expect(err).toBeInstanceOf(ExplicitPartyNotFoundError);
+      expect(err).toMatchObject({ kind: "brand", id: brand.id });
+      await expectNothingInserted(db, organization.id, inquiryId);
+    });
+
+    it("rejects unknown company and brand uuids", async () => {
+      const { db, organization, inquiryId } = await setupInquiry();
+      await expect(
+        CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+          contact: { fullName: "Rodolfo" },
+          companyId: crypto.randomUUID(),
+        }),
+      ).rejects.toBeInstanceOf(ExplicitPartyNotFoundError);
+      await expect(
+        CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+          contact: { fullName: "Rodolfo" },
+          brandId: crypto.randomUUID(),
+        }),
+      ).rejects.toBeInstanceOf(ExplicitPartyNotFoundError);
+      await expectNothingInserted(db, organization.id, inquiryId);
+    });
+
+    it("still converts with own-org company and brand ids", async () => {
+      const { db, organization, inquiryId } = await setupInquiry();
+      const [company] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(companies).values({ organizationId: organization.id, name: "Own Co" }).returning(),
+      );
+      const [brand] = await runInTenantContext(db, organization.id, (tx) =>
+        tx.insert(brands).values({ organizationId: organization.id, name: "Own Brand", companyId: company!.id }).returning(),
+      );
+      const result = await CommercialInquiryService.resolve(db, organization.id, inquiryId, {
+        contact: { fullName: "Rodolfo" },
+        companyId: company!.id,
+        brandId: brand!.id,
+      });
+      expect(result.opportunity.companyId).toBe(company!.id);
+      expect(result.opportunity.brandId).toBe(brand!.id);
+    });
   });
 
   it("updateGuesses sets only the provided keys, trims, and null clears", async () => {

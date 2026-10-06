@@ -4,10 +4,11 @@ import { withTestDb } from "@/test/helpers/db";
 import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { expectProposalInvariants } from "@/test/helpers/proposal-invariants";
 import { ProposalService } from "./proposal.service";
+import { ProposalResponseService } from "./proposal-response.service";
 import { ProposalApprovalService } from "./proposal-approval.service";
 import { ProposalSendingService, computeSendFlags } from "./proposal-sending.service";
 import { ProposalVersionsRepository } from "@/repositories/proposal-versions.repository";
-import { ApprovalRequiredError, ProposalArchivedError } from "@/domain/proposals/errors";
+import { ApprovalRequiredError, ProposalArchivedError, ReopenRequiredError } from "@/domain/proposals/errors";
 import { opportunities, opportunityStageHistory } from "@/db/schema/commercial-flow";
 import { creators } from "@/db/schema/creators";
 import { organizationMembers } from "@/db/schema/organizations";
@@ -284,5 +285,58 @@ describe("approval gate (spec D §4.5)", () => {
       required: true,
       current: { versionNumber: 1, requestedByName: "Owner", decision: "CHANGES_REQUESTED", message: "Ajustar preço" },
     });
+  });
+});
+
+describe("reopen guard (accepted/rejected proposals)", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  async function answered(action: "ACCEPT" | "REJECT") {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const seeded = await seedProposal(db);
+    const first = await ProposalSendingService.publish(db, seeded.organization.id, seeded.proposal.id, seeded.owner.id);
+    await ProposalResponseService.respond(db, first.publicPath.split("/").pop()!, {
+      publicationId: first.publication.id,
+      action,
+      name: "Cliente",
+      email: "c@x.com",
+      message: null,
+    });
+    return { db, ...seeded, first };
+  }
+
+  it.each([
+    ["ACCEPT", "APPROVED"],
+    ["REJECT", "REJECTED"],
+  ] as const)("%s then a new version: publish without reopen throws, with reopen publishes and goes SENT", async (action, status) => {
+    const { db, organization, owner, proposal } = await answered(action);
+    await ProposalService.update(db, organization.id, proposal.id, { title: "Campanha v2", userId: owner.id });
+    expect((await ProposalSendingService.getSendState(db, organization.id, proposal.id))?.status).toBe(status);
+
+    await expect(ProposalSendingService.publish(db, organization.id, proposal.id, owner.id)).rejects.toBeInstanceOf(ReopenRequiredError);
+    expect(await ProposalSendingService.listPublications(db, organization.id, proposal.id)).toHaveLength(1);
+
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { reopen: true });
+    expect(result.created).toBe(true);
+    expect((await ProposalSendingService.getSendState(db, organization.id, proposal.id))?.status).toBe("SENT");
+  });
+
+  it("re-sending the already-published version needs no reopen", async () => {
+    const { db, organization, owner, proposal, first } = await answered("ACCEPT");
+    const again = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    expect(again.created).toBe(false);
+    expect(again.publication.id).toBe(first.publication.id);
+  });
+
+  it("SENT with a new version publishes without reopen", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, proposal } = await seedProposal(db);
+    await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    await ProposalService.update(db, organization.id, proposal.id, { title: "v2", userId: owner.id });
+    const result = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    expect(result.created).toBe(true);
   });
 });

@@ -67,6 +67,36 @@ describe("proposal sending hooks", () => {
     });
   });
 
+  it("publishes with reopen:true when requested", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ publication: { id: "pub1" }, publicPath: "/p/x", created: true }), { status: 201 }),
+    );
+    const client = new QueryClient();
+    const { result } = renderHook(() => usePublishProposal("p1"), { wrapper: wrapperWith(client) });
+
+    result.current.mutate({ reopen: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMock).toHaveBeenCalledWith("/api/proposals/p1/publications", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ withoutApproval: false, reopen: true }),
+    });
+  });
+
+  it("does not toast on a REOPEN_REQUIRED 409 (the panel opens its confirmation instead)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Esta proposta já foi respondida.", code: "REOPEN_REQUIRED" }), { status: 409 }),
+    );
+    const toastMod = await import("sonner");
+    vi.mocked(toastMod.toast.error).mockClear();
+    const client = new QueryClient();
+    const { result } = renderHook(() => usePublishProposal("p1"), { wrapper: wrapperWith(client) });
+
+    result.current.mutate();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toastMod.toast.error).not.toHaveBeenCalled();
+  });
+
   it("shows the server message on a 409 publish error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "Aguardando aprovação do creator.", code: "APPROVAL_REQUIRED" }), { status: 409 }),

@@ -178,4 +178,31 @@ describe("OpportunitySidePanel", () => {
     expect(screen.getByRole("combobox", { name: "Stage" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Nova Proposta" })).not.toBeInTheDocument();
   });
+
+  it("shows theme hint and disables Criar until a theme is chosen", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }));
+    const user = userEvent.setup();
+
+    renderWithClient(
+      <OpportunitySidePanel opportunity={opportunity} open onOpenChange={() => {}} onMoveToStage={() => {}} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Nova Proposta" }));
+
+    // Verify hint is visible and Criar is disabled with aria-describedby
+    expect(screen.getByText("Escolha um tema para criar a proposta.")).toBeInTheDocument();
+    const criarButton = screen.getByRole("button", { name: "Criar" });
+    expect(criarButton).toBeDisabled();
+    expect(criarButton).toHaveAttribute("aria-describedby", "new-proposal-theme-hint");
+
+    // Select a theme
+    await user.type(screen.getByLabelText("Título"), "Test Proposal");
+    await user.click(screen.getByRole("combobox", { name: "Tema" }));
+    await user.click(await screen.findByRole("option", { name: "Premium" }));
+
+    // Verify hint is gone and Criar is enabled
+    expect(screen.queryByText("Escolha um tema para criar a proposta.")).not.toBeInTheDocument();
+    expect(criarButton).toBeEnabled();
+    expect(criarButton).not.toHaveAttribute("aria-describedby");
+  });
 });

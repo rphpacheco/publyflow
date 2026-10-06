@@ -91,13 +91,14 @@ export const CreatorService = {
         let userId: string;
         if (existing) {
           // Lock the existing user's row before re-checking for a duplicate
-          // creator. Without this, two concurrent registrations for the
-          // same existing user + organization (double-click, two staff
-          // members) could both read "no creator yet" and each insert one,
-          // since there's no DB unique constraint backing this check. Under
-          // READ COMMITTED, the second transaction blocks here until the
-          // first commits, then its own findByUserIdWithTx (a fresh
-          // statement) sees the first transaction's committed creator row.
+          // creator. The row lock serializes two concurrent registrations
+          // for the same existing user + organization (double-click, two
+          // staff members): under READ COMMITTED, the second transaction
+          // blocks here until the first commits, then its own
+          // findByUserIdWithTx (a fresh statement) sees the first
+          // transaction's committed creator row. The creators_org_user_unique
+          // constraint is the backstop; the outer catch maps its violation
+          // to CreatorEmailTakenError.
           await UsersRepository.lockByIdWithTx(tx, existing.id);
           if (await CreatorsRepository.findByUserIdWithTx(tx, organizationId, existing.id)) {
             throw new CreatorEmailTakenError();
@@ -206,10 +207,15 @@ export const CreatorService = {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.team);
       }
 
-      await tx
-        .update(creators)
-        .set({ userId: target.id })
-        .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)));
+      try {
+        await tx
+          .update(creators)
+          .set({ userId: target.id })
+          .where(and(eq(creators.id, creatorId), eq(creators.organizationId, organizationId)));
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new CreatorEmailTakenError();
+        throw error;
+      }
 
       const membership = await OrganizationMembersRepository.findCreatorMembershipWithTx(tx, organizationId, current.id);
       if (membership) {

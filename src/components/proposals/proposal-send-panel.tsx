@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { isApiErrorCode } from "@/lib/api-client";
 import { useProposalSendState, usePublishProposal, useRequestApproval, type SendStateDto } from "@/hooks/use-proposal-sending";
 import { formatDateTime, formatIssuedAt } from "@/lib/presentation/format";
 import { ProposalStatusBadge } from "./proposal-status-badge";
@@ -52,6 +53,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const [confirm, setConfirm] = React.useState<{ status: SendStateDto["status"]; withoutApproval: boolean } | null>(null);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
+  const [reopening, setReopening] = React.useState(false);
   const [confirmWithoutApproval, setConfirmWithoutApproval] = React.useState(false);
 
   if (!state || state.status === "ARCHIVED") return null;
@@ -61,12 +63,32 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const approval = state.approval;
   const gated = approval.required && state.canSend && approval.state !== "approved";
   const creatorName = approval.creatorName ?? "O creator";
-  const busy = publish.isPending || requestApproval.isPending || checking;
+  const busy = publish.isPending || requestApproval.isPending || checking || reopening;
 
-  function send(options?: { withoutApproval?: boolean }) {
-    publish.mutate(options?.withoutApproval ? { withoutApproval: true } : undefined, {
+  function send(options?: { withoutApproval?: boolean; reopen?: boolean }) {
+    const variables = options?.withoutApproval || options?.reopen ? { ...(options.withoutApproval ? { withoutApproval: true } : {}), ...(options.reopen ? { reopen: true } : {}) } : undefined;
+    publish.mutate(variables, {
       onSuccess: (result) => setSentPath(result.publicPath),
+      onError: (error) => {
+        // The proposal was answered after this page loaded: ask for the explicit reopen instead of failing.
+        if (isApiErrorCode(error, 409, "REOPEN_REQUIRED")) void openReopenConfirm(options?.withoutApproval === true);
+      },
     });
+  }
+
+  async function openReopenConfirm(withoutApproval: boolean) {
+    setReopening(true);
+    try {
+      const result = await sendStateQuery.refetch();
+      const fresh = result.data;
+      if (!result.isError && fresh && CONFIRM_COPY[fresh.status]) {
+        setConfirm({ status: fresh.status, withoutApproval });
+      } else {
+        toast.error("O estado da proposta mudou. Tente novamente.");
+      }
+    } finally {
+      setReopening(false);
+    }
   }
 
   // Decide on the server's current state, not the one loaded with the page:
@@ -168,7 +190,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
 
       <div className="flex flex-wrap items-center gap-2">
         {gated ? null : (
-          <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
+          <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || busy}>
             {checking ? "Verificando…" : publication ? "Reenviar" : "Enviar proposta"}
           </Button>
         )}
@@ -203,7 +225,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
             <AlertDialogAction asChild>
               <Button
                 onClick={() => {
-                  const options = confirm ? { withoutApproval: confirm.withoutApproval } : undefined;
+                  const options = { withoutApproval: confirm?.withoutApproval === true, reopen: true };
                   setConfirm(null);
                   send(options);
                 }}

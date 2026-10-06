@@ -22,36 +22,44 @@ export const proposalStatusEnum = pgEnum("proposal_status", [
   "REJECTED",
 ]);
 
-export const proposals = pgTable("proposals", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  opportunityId: uuid("opportunity_id")
-    .notNull()
-    .references(() => opportunities.id, { onDelete: "restrict" }),
-  title: text("title").notNull(),
-  theme: proposalThemeEnum("theme").notNull(),
-  status: proposalStatusEnum("status").notNull().default("DRAFT"),
-  publicToken: text("public_token").unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const proposals = pgTable(
+  "proposals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    opportunityId: uuid("opportunity_id")
+      .notNull()
+      .references(() => opportunities.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    theme: proposalThemeEnum("theme").notNull(),
+    status: proposalStatusEnum("status").notNull().default("DRAFT"),
+    publicToken: text("public_token").unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("proposals_org_created_at_idx").on(table.organizationId, table.createdAt)],
+);
 
-export const proposalItems = pgTable("proposal_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  proposalId: uuid("proposal_id")
-    .notNull()
-    .references(() => proposals.id, { onDelete: "cascade" }),
-  rateCardItemId: uuid("rate_card_item_id").references(() => rateCardItems.id, { onDelete: "restrict" }),
-  description: text("description").notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  unitPrice: integer("unit_price").notNull(),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const proposalItems = pgTable(
+  "proposal_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    proposalId: uuid("proposal_id")
+      .notNull()
+      .references(() => proposals.id, { onDelete: "cascade" }),
+    rateCardItemId: uuid("rate_card_item_id").references(() => rateCardItems.id, { onDelete: "restrict" }),
+    description: text("description").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    unitPrice: integer("unit_price").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("proposal_items_proposal_idx").on(table.proposalId)],
+);
 
 export const proposalBlockTypeEnum = pgEnum("proposal_block_type", [
   "COVER",

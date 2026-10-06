@@ -143,4 +143,56 @@ describe("POST /api/inbox/messages", () => {
       error: "Não foi possível classificar a mensagem agora. Tente novamente em instantes.",
     });
   });
+
+  it("returns 503 with code AI_NOT_CONFIGURED when the AI provider is not configured", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization, owner } = await OrganizationService.createWithOwner(db, {
+      organizationName: "Org",
+      ownerEmail: "owner@publyflow.test",
+      ownerFullName: "Owner",
+    });
+    const creator = await CreatorService.onboardCreator(db, organization.id, {
+      email: "thais@publyflow.test",
+      fullName: "Thais",
+      displayName: "Thais",
+    });
+
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+      extraMocks: () => {
+        vi.doMock("@/lib/ai", async () => {
+          const { AiNotConfiguredError } = await import("@/lib/ai/errors");
+          return {
+            ai: {
+              classifyMessage: async () => {
+                throw new AiNotConfiguredError("OPENAI_API_KEY");
+              },
+            },
+          };
+        });
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/inbox/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          creatorId: creator.id,
+          source: "INSTAGRAM",
+          externalContactLabel: "Maria",
+          body: "Olá, gostaríamos de saber os valores para uma campanha.",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "A classificação por IA não está configurada neste ambiente.",
+      code: "AI_NOT_CONFIGURED",
+    });
+  });
 });

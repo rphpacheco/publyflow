@@ -153,6 +153,34 @@ describe("POST /api/commercial-inquiries/:id/convert", () => {
     });
   });
 
+  it("returns 422 COMPANY_NOT_FOUND / BRAND_NOT_FOUND for ids that do not belong to the org", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { organization, owner, inquiry } = await setupOrgCreatorAndInquiry(db);
+    const { POST } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: ownerSession(organization.id, owner.id),
+    });
+    const call = (body: object) =>
+      POST(
+        new Request(`http://localhost/api/commercial-inquiries/${inquiry.id}/convert`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        { params: Promise.resolve({ id: inquiry.id }) },
+      );
+
+    const companyRes = await call({ contact: { fullName: "Maria" }, companyId: crypto.randomUUID() });
+    expect(companyRes.status).toBe(422);
+    expect(await companyRes.json()).toEqual({ error: "Empresa selecionada não encontrada.", code: "COMPANY_NOT_FOUND" });
+
+    const brandRes = await call({ contact: { fullName: "Maria" }, brandId: crypto.randomUUID() });
+    expect(brandRes.status).toBe(422);
+    expect(await brandRes.json()).toEqual({ error: "Marca selecionada não encontrada.", code: "BRAND_NOT_FOUND" });
+  });
+
   it("returns 422 with PARTY_REQUIRED when the inquiry has no company or brand guess", async () => {
     const { db, cleanup: c } = await withTestDb();
     cleanup = c;

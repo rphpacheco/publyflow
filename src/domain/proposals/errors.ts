@@ -126,6 +126,15 @@ export class ApprovalRequiredError extends Error {
   }
 }
 
+// Thrown when publishing a new round of a proposal the client already
+// accepted or rejected without the caller explicitly confirming the reopen.
+export class ReopenRequiredError extends Error {
+  constructor(proposalId: string) {
+    super(`Proposal ${proposalId} was already answered by the client; reopen must be confirmed`);
+    this.name = "ReopenRequiredError";
+  }
+}
+
 export class NoPendingApprovalError extends Error {
   constructor() {
     super("Não há pedido de aprovação pendente.");

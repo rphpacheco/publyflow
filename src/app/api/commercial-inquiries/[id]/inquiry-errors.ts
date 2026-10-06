@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   AmbiguousPartyGuessError,
+  ExplicitPartyNotFoundError,
   InquiryAlreadyResolvedError,
   InquiryNotFoundError,
   InquiryPartyRequiredError,
@@ -32,6 +33,11 @@ export function inquiryErrorResponse(error: unknown): NextResponse | null {
   }
   if (error instanceof InvalidOpportunityPartyError) {
     return NextResponse.json({ error: INVALID_PARTY, code: "INVALID_PARTY" }, { status: 422 });
+  }
+  if (error instanceof ExplicitPartyNotFoundError) {
+    return error.kind === "company"
+      ? NextResponse.json({ error: "Empresa selecionada não encontrada.", code: "COMPANY_NOT_FOUND" }, { status: 422 })
+      : NextResponse.json({ error: "Marca selecionada não encontrada.", code: "BRAND_NOT_FOUND" }, { status: 422 });
   }
   return null;
 }

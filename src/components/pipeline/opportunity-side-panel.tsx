@@ -177,10 +177,11 @@ export function OpportunitySidePanel({
                           ))}
                         </SelectContent>
                       </Select>
+                      {!theme ? <p id="new-proposal-theme-hint" className="text-xs text-muted-foreground">Escolha um tema para criar a proposta.</p> : null}
                     </div>
                   </div>
                   <div className="mt-4 flex justify-end gap-2">
-                    <Button onClick={handleCreate} disabled={!title.trim() || !theme || createProposal.isPending}>
+                    <Button onClick={handleCreate} disabled={!title.trim() || !theme || createProposal.isPending} aria-describedby={!theme ? "new-proposal-theme-hint" : undefined}>
                       Criar
                     </Button>
                   </div>

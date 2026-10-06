@@ -5,6 +5,7 @@ import {
   ApprovalRequiredError,
   ProposalArchivedError,
   ProposalNotFoundError,
+  ReopenRequiredError,
   UserNotOrganizationMemberError,
 } from "@/domain/proposals/errors";
 import { getSession } from "@/lib/auth/session";
@@ -26,11 +27,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const body = (await request.json().catch(() => null)) as { withoutApproval?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { withoutApproval?: unknown; reopen?: unknown } | null;
   const withoutApproval = body?.withoutApproval === true;
+  const reopen = body?.reopen === true;
 
   try {
-    const result = await ProposalSendingService.publish(db, session.organizationId, id, session.userId, { withoutApproval });
+    const result = await ProposalSendingService.publish(db, session.organizationId, id, session.userId, { withoutApproval, reopen });
     if (result.created) scheduleEventDrain();
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
@@ -45,6 +47,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     if (error instanceof ApprovalRequiredError) {
       return NextResponse.json({ error: error.message, code: "APPROVAL_REQUIRED" }, { status: 409 });
+    }
+    if (error instanceof ReopenRequiredError) {
+      return NextResponse.json(
+        { error: "Esta proposta já foi respondida pelo cliente. Confirme para abrir uma nova rodada.", code: "REOPEN_REQUIRED" },
+        { status: 409 },
+      );
     }
     throw error;
   }

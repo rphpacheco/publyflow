@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ApiError } from "@/lib/api-client";
 import type { SendStateDto } from "@/hooks/use-proposal-sending";
 
 let sendState: SendStateDto | undefined;
@@ -116,7 +117,51 @@ describe("ProposalSendPanel", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Esta proposta já foi aceita. Reenviar abre uma nova rodada e o status volta para Enviada.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Reenviar" }));
-    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ reopen: true }, expect.any(Object)));
+  });
+
+  it("a REOPEN_REQUIRED rejection opens the reopen confirmation instead of an error", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+    // The pre-check still sees SENT and publishes; meanwhile the client answered, so the server rejects.
+    mutateMock.mockImplementationOnce((_vars: unknown, options: { onError?: (error: unknown) => void }) => {
+      freshState = state({ status: "APPROVED", publicPath: "/p/tok", latestPublication: accepted, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+      options.onError?.(new ApiError(409, "Esta proposta já foi respondida pelo cliente.", { code: "REOPEN_REQUIRED" }));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Abrir nova rodada?")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reenviar" }));
+    await vi.waitFor(() => expect(mutateMock).toHaveBeenLastCalledWith({ reopen: true }, expect.any(Object)));
+  });
+
+  it("disables the send button while the REOPEN_REQUIRED refetch runs", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+    mutateMock.mockImplementationOnce((_vars: unknown, options: { onError?: (error: unknown) => void }) => {
+      options.onError?.(new ApiError(409, "Esta proposta já foi respondida pelo cliente.", { code: "REOPEN_REQUIRED" }));
+    });
+    let release!: () => void;
+    refetchMock.mockImplementationOnce(() => Promise.resolve({ data: sendState, isError: false })); // pre-check
+    refetchMock.mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve({ data: sendState, isError: false }))),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Reenviar" })).toBeDisabled());
+    release();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Reenviar" })).toBeEnabled());
+  });
+
+  it("a REOPEN_REQUIRED rejection whose refetch shows a non-answered state toasts that the state changed", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+    mutateMock.mockImplementationOnce((_vars: unknown, options: { onError?: (error: unknown) => void }) => {
+      options.onError?.(new ApiError(409, "Esta proposta já foi respondida pelo cliente.", { code: "REOPEN_REQUIRED" }));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("O estado da proposta mudou. Tente novamente."));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("REJECTED with changes asks for confirmation with the rejected copy", async () => {
@@ -342,7 +387,7 @@ describe("ProposalSendPanel", () => {
       expect(mutateMock).not.toHaveBeenCalled();
 
       await userEvent.click(within(reopenDialog).getByRole("button", { name: "Reenviar" }));
-      await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true }, expect.any(Object)));
+      await vi.waitFor(() => expect(mutateMock).toHaveBeenCalledWith({ withoutApproval: true, reopen: true }, expect.any(Object)));
     });
 
     it("Enviar sem aprovação on a fresh DRAFT/SENT state publishes withoutApproval:true directly (no second dialog)", async () => {
