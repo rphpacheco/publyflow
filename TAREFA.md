@@ -5,7 +5,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-- (nada — próximo: 3. Auth — subprojetos 2 a 4, aguardando ok)
+### 3. Auth hardening (follow-ups da revisão do Auth v1)
+- [x] Escopo: só os 6 follow-ups (opção A); manager/reset/RLS viram specs E, F, G
+- [x] Decisão: servidor cria usuário do Supabase confirmado (service-role) + backfill; signup público desligado depois do checkpoint
+- [x] Design (aprovado, com ajustes do usuário: vínculo imediato quando criado, estado recuperável, checkpoint `--check`, logout só POST / GET 405, aviso de sem acesso no /login, texto da UI sem citar autenticação)
+- [x] Spec — `docs/superpowers/specs/2026-10-06-auth-hardening-design.md`
+- [ ] Revisão da spec pelo usuário
+- [ ] Plano de implementação
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy (chave na Vercel → 0025 → push → backfill → `--check` = 0 → desligar signup → verificar logins)
 
 ## Concluído nesta fase (Dívida técnica)
 
@@ -120,13 +128,11 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Próximos (na ordem combinada)
 
-### 3. Auth — subprojetos 2 a 4
-- [ ] Provisionamento sempre cria auth user confirmado (para desligar sign-up público)
-- [ ] Logout CSRF via GET em `/auth/signout`
-- [ ] Usuário logado ainda vê `/login`
-- [ ] `users.email` sem índice único case-insensitive
-- [ ] `getUser()` chamado 2x por página (avaliar `getClaims()`)
-- [ ] Queda do Supabase aparece como "sem acesso"
+### E. Convite de Manager (spec própria)
+### F. Reset de senha (spec própria)
+### G. RLS valendo em runtime (spec própria)
+### Não priorizado
+- [ ] Signup self-service que cria organização
 
 ### 4. Omnichannel — pré-requisitos da Fase 1 (WhatsApp Cloud API)
 - [ ] Visibilidade de eventos mortos (dead events)
@@ -135,6 +141,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Investigar lookup administrativo por e-mail no Supabase para vincular `auth_user_id` imediatamente quando o usuário já existir em `auth.users`
 - [ ] Mesclagem: 1 busca 404 do detalhe do registro excluído entre a mesclagem e a navegação (invisível); prévia não lista leads na empresa
 - [ ] Dashboard: somar itens do snapshot aceito no SQL (DISTINCT ON + jsonb) em vez de carregar o JSON inteiro; staleTime ~60s nas queries
 - [ ] Dashboard: contagem de "Requer ação" carrega a fila inteira (limit null) — agregar no SQL se o volume crescer
