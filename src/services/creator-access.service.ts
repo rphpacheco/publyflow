@@ -8,6 +8,7 @@ import { OrganizationMembersRepository } from "@/repositories/organization-membe
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { ACCESS_ERRORS, CreatorAccessConflictError, CreatorNotFoundError } from "@/domain/creators/errors";
 import { buildAccessInstructions } from "@/lib/creators/access-instructions";
+import { getAuthAdmin } from "@/lib/auth/auth-admin";
 
 // Loads the creator and locks its current `users` row -- the same lock
 // CreatorService.register/changeEmail take -- before this transaction reads
@@ -50,7 +51,7 @@ export const CreatorAccessService = {
     creatorId: string,
     origin: string,
   ): Promise<{ loginUrl: string; message: string }> {
-    return runInTenantContext(db, orgId, async (tx) => {
+    const { instructions, email } = await runInTenantContext(db, orgId, async (tx) => {
       const { creator, email } = await loadLockedCreator(tx, orgId, creatorId);
 
       const memberships = await OrganizationMembersRepository.listForUser(tx, creator.userId);
@@ -76,8 +77,14 @@ export const CreatorAccessService = {
           .onConflictDoNothing();
       }
 
-      return buildAccessInstructions({ displayName: creator.displayName, email, origin });
+      return { instructions: buildAccessInstructions({ displayName: creator.displayName, email, origin }), email };
     });
+    // After commit, never inside the transaction. Never links auth_user_id:
+    // linking would lock e-mail editing (see isEmailEditable); the first
+    // login links by verified e-mail. A failure here leaves the invite
+    // committed and is recovered by inviting/reminding again.
+    await getAuthAdmin().ensureAuthUser(email);
+    return instructions;
   },
 
   async revoke(db: NodePgDatabase<typeof schema>, orgId: string, creatorId: string): Promise<void> {
@@ -108,7 +115,7 @@ export const CreatorAccessService = {
     creatorId: string,
     origin: string,
   ): Promise<{ loginUrl: string; message: string }> {
-    return runInTenantContext(db, orgId, async (tx) => {
+    const { instructions, email } = await runInTenantContext(db, orgId, async (tx) => {
       const { creator, email } = await loadLockedCreator(tx, orgId, creatorId);
 
       const memberships = await OrganizationMembersRepository.listForUser(tx, creator.userId);
@@ -117,7 +124,13 @@ export const CreatorAccessService = {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.notInvited);
       }
 
-      return buildAccessInstructions({ displayName: creator.displayName, email, origin });
+      return { instructions: buildAccessInstructions({ displayName: creator.displayName, email, origin }), email };
     });
+    // After commit, never inside the transaction. Never links auth_user_id:
+    // linking would lock e-mail editing (see isEmailEditable); the first
+    // login links by verified e-mail. A failure here leaves the invite
+    // committed and is recovered by inviting/reminding again.
+    await getAuthAdmin().ensureAuthUser(email);
+    return instructions;
   },
 };

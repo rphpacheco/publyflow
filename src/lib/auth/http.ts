@@ -7,3 +7,10 @@ export function unauthorizedResponse(): NextResponse {
 export function forbiddenResponse(): NextResponse {
   return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 }
+
+export function authProvisioningFailedResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" },
+    { status: 502 },
+  );
+}

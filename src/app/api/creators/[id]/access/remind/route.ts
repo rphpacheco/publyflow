@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { CreatorAccessService } from "@/services/creator-access.service";
 import { getSession } from "@/lib/auth/session";
-import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { authProvisioningFailedResponse, forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { AuthProvisioningError } from "@/lib/auth/errors";
 import { canManageOrganization } from "@/lib/auth/access";
 import { CreatorAccessConflictError, CreatorNotFoundError } from "@/domain/creators/errors";
 import { isUuid } from "@/lib/uuid";
@@ -27,6 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error instanceof CreatorAccessConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    if (error instanceof AuthProvisioningError) return authProvisioningFailedResponse();
     if (isDeadlockError(error)) return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
     throw error;
   }

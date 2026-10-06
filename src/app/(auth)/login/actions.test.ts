@@ -132,7 +132,7 @@ describe("sendMagicLink", () => {
     expect(await sendMagicLink({ sent: false, error: null }, form)).toEqual({ sent: true, error: null });
     expect(signInWithOtpMock).toHaveBeenCalledWith({
       email: "thais@example.com",
-      options: { emailRedirectTo: "http://localhost:3000/auth/callback", shouldCreateUser: true },
+      options: { emailRedirectTo: "http://localhost:3000/auth/callback", shouldCreateUser: false },
     });
   });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
@@ -7,6 +7,13 @@ import { CreatorService } from "@/services/creator.service";
 import { CreatorAccessService } from "@/services/creator-access.service";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { users } from "@/db/schema/organizations";
+
+const ensureAuthUserMock = vi.hoisted(() => vi.fn(async (_email: string) => ({ authUserId: null as string | null, created: true })));
+vi.mock("@/lib/auth/auth-admin", () => ({
+  getAuthAdmin: () => ({ ensureAuthUser: ensureAuthUserMock, listAuthEmails: vi.fn() }),
+}));
+
+const PROVISIONING_BODY = { error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" };
 
 const patch = (id: string, body: unknown) =>
   new Request(`http://localhost/api/creators/${id}`, {
@@ -19,6 +26,9 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 describe("PATCH /api/creators/[id]", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
+  beforeEach(() => {
+    ensureAuthUserMock.mockReset().mockResolvedValue({ authUserId: null, created: true });
+  });
 
   async function setup(role: "OWNER" | "CREATOR" = "OWNER") {
     const { db, cleanup: c } = await withTestDb();
@@ -111,5 +121,26 @@ describe("PATCH /api/creators/[id]", () => {
       displayName: ["Informe o nome de exibição."],
       instagramHandle: ["Use só letras, números, ponto e sublinhado (até 30)."],
     });
+  });
+
+  it("502 when provisioning the new e-mail's Supabase user fails", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
+    // The deadlock case above leaves a doMock of the service registered.
+    vi.doUnmock("@/services/creator.service");
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    ensureAuthUserMock.mockImplementationOnce(async () => {
+      // Resolved at call time: the route module was re-imported after vi.resetModules().
+      const { AuthProvisioningError } = await import("@/lib/auth/errors");
+      throw new AuthProvisioningError("x");
+    });
+
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "novo@x.com" }),
+      params(creator.id),
+    );
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual(PROVISIONING_BODY);
   });
 });

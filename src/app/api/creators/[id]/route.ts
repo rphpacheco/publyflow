@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
 import { getSession } from "@/lib/auth/session";
-import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { authProvisioningFailedResponse, forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { AuthProvisioningError } from "@/lib/auth/errors";
 import { canManageOrganization } from "@/lib/auth/access";
 import { updateCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
@@ -33,6 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof CreatorAccessConflictError || error instanceof CreatorEmailTakenError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    if (error instanceof AuthProvisioningError) return authProvisioningFailedResponse();
     if (isDeadlockError(error)) {
       return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
     }
