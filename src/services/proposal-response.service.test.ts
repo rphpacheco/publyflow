@@ -12,6 +12,7 @@ import {
   PublicProposalNotFoundError,
   PublicationAlreadyRespondedError,
   PublicationSupersededError,
+  ReopenRequiredError,
 } from "@/domain/proposals/errors";
 import { opportunities, opportunityStageHistory } from "@/db/schema/commercial-flow";
 
@@ -147,7 +148,11 @@ describe("ProposalResponseService.respond", () => {
     expect(edited).toMatchObject({ status: "APPROVED", hasUnsentChanges: true, canSend: true });
     expect(edited?.latestPublication?.response?.action).toBe("ACCEPT");
 
-    const v2 = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id);
+    await expect(ProposalSendingService.publish(db, organization.id, proposal.id, owner.id)).rejects.toBeInstanceOf(ReopenRequiredError);
+    const afterRejected = await ProposalSendingService.listPublications(db, organization.id, proposal.id);
+    expect(afterRejected).toHaveLength(1);
+
+    const v2 = await ProposalSendingService.publish(db, organization.id, proposal.id, owner.id, { reopen: true });
     const resent = await ProposalSendingService.getSendState(db, organization.id, proposal.id);
     expect(resent).toMatchObject({ status: "SENT", hasUnsentChanges: false });
     expect(resent?.latestPublication?.versionNumber).toBe(v2.publication.versionNumber);

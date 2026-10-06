@@ -327,6 +327,21 @@ describe("CreatorService.changeEmail", () => {
     );
   });
 
+  it("maps the creators (org, user) unique violation on the transfer to CreatorEmailTakenError when the pre-check is bypassed", async () => {
+    const { db, organization, creator } = await setup();
+    await CreatorService.register(db, organization.id, {
+      fullName: "Other Creator",
+      displayName: "Other Creator",
+      email: "other@publyflow.test",
+      instagramHandle: null,
+    });
+    vi.spyOn(CreatorsRepository, "findByUserIdWithTx").mockResolvedValueOnce(null);
+
+    await expect(CreatorService.changeEmail(db, organization.id, creator.id, "other@publyflow.test")).rejects.toBeInstanceOf(
+      CreatorEmailTakenError,
+    );
+  });
+
   it("throws CreatorEmailTakenError (not team) when the target is an invited creator here, before the team check", async () => {
     const { db, organization, creator } = await setup();
     const targetCreator = await CreatorService.register(db, organization.id, {

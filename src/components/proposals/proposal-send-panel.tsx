@@ -53,6 +53,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const [confirm, setConfirm] = React.useState<{ status: SendStateDto["status"]; withoutApproval: boolean } | null>(null);
   const [sentPath, setSentPath] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState(false);
+  const [reopening, setReopening] = React.useState(false);
   const [confirmWithoutApproval, setConfirmWithoutApproval] = React.useState(false);
 
   if (!state || state.status === "ARCHIVED") return null;
@@ -62,7 +63,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   const approval = state.approval;
   const gated = approval.required && state.canSend && approval.state !== "approved";
   const creatorName = approval.creatorName ?? "O creator";
-  const busy = publish.isPending || requestApproval.isPending || checking;
+  const busy = publish.isPending || requestApproval.isPending || checking || reopening;
 
   function send(options?: { withoutApproval?: boolean; reopen?: boolean }) {
     const variables = options?.withoutApproval || options?.reopen ? { ...(options.withoutApproval ? { withoutApproval: true } : {}), ...(options.reopen ? { reopen: true } : {}) } : undefined;
@@ -76,12 +77,17 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
   }
 
   async function openReopenConfirm(withoutApproval: boolean) {
-    const result = await sendStateQuery.refetch();
-    const fresh = result.data;
-    if (!result.isError && fresh && CONFIRM_COPY[fresh.status]) {
-      setConfirm({ status: fresh.status, withoutApproval });
-    } else {
-      toast.error("Esta proposta já foi respondida pelo cliente. Confirme para abrir uma nova rodada.");
+    setReopening(true);
+    try {
+      const result = await sendStateQuery.refetch();
+      const fresh = result.data;
+      if (!result.isError && fresh && CONFIRM_COPY[fresh.status]) {
+        setConfirm({ status: fresh.status, withoutApproval });
+      } else {
+        toast.error("O estado da proposta mudou. Tente novamente.");
+      }
+    } finally {
+      setReopening(false);
     }
   }
 
@@ -184,7 +190,7 @@ export function ProposalSendPanel({ proposalId }: { proposalId: string }) {
 
       <div className="flex flex-wrap items-center gap-2">
         {gated ? null : (
-          <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || publish.isPending || checking}>
+          <Button type="button" size="sm" onClick={onSendClick} disabled={!state.canSend || busy}>
             {checking ? "Verificando…" : publication ? "Reenviar" : "Enviar proposta"}
           </Button>
         )}

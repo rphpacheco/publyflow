@@ -136,6 +136,34 @@ describe("ProposalSendPanel", () => {
     await vi.waitFor(() => expect(mutateMock).toHaveBeenLastCalledWith({ reopen: true }, expect.any(Object)));
   });
 
+  it("disables the send button while the REOPEN_REQUIRED refetch runs", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+    mutateMock.mockImplementationOnce((_vars: unknown, options: { onError?: (error: unknown) => void }) => {
+      options.onError?.(new ApiError(409, "Esta proposta já foi respondida pelo cliente.", { code: "REOPEN_REQUIRED" }));
+    });
+    let release!: () => void;
+    refetchMock.mockImplementationOnce(() => Promise.resolve({ data: sendState, isError: false })); // pre-check
+    refetchMock.mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve({ data: sendState, isError: false }))),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Reenviar" })).toBeDisabled());
+    release();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Reenviar" })).toBeEnabled());
+  });
+
+  it("a REOPEN_REQUIRED rejection whose refetch shows a non-answered state toasts that the state changed", async () => {
+    sendState = state({ status: "SENT", publicPath: "/p/tok", latestPublication: published, latestVersionNumber: 4, hasUnsentChanges: true, canSend: true });
+    render(<ProposalSendPanel proposalId="p1" />);
+    mutateMock.mockImplementationOnce((_vars: unknown, options: { onError?: (error: unknown) => void }) => {
+      options.onError?.(new ApiError(409, "Esta proposta já foi respondida pelo cliente.", { code: "REOPEN_REQUIRED" }));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("O estado da proposta mudou. Tente novamente."));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("REJECTED with changes asks for confirmation with the rejected copy", async () => {
     sendState = state({
       status: "REJECTED",
