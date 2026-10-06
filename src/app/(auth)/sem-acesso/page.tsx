@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 export default function NoAccessPage() {
   return (
@@ -8,9 +8,7 @@ export default function NoAccessPage() {
         Este e-mail não está cadastrado em nenhuma organização do PublyFlow. Peça para o
         responsável pela sua organização liberar seu acesso.
       </p>
-      <Link href="/login" className="text-sm font-medium text-primary">
-        Voltar ao login
-      </Link>
+      <SignOutButton label="Sair e entrar com outra conta" />
     </main>
   );
 }
