@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
+import {
+  RESET_GRANT_COOKIE,
+  createResetGrant,
+  resetGrantCookieOptions,
+} from "@/lib/auth/password-reset-grant";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const next = url.searchParams.get("next");
   if (!code) {
     // With sign-up off, Google for an e-mail missing from auth.users comes
     // back without a code; retrying never helps, so show the no-access page.
@@ -38,6 +44,16 @@ export async function GET(request: Request) {
   } catch (e) {
     // Never let a login-tracking failure block the login itself.
     console.error("recordLogin failed", (e as { code?: string })?.code ?? "unknown");
+  }
+  if (next === "reset") {
+    const response = NextResponse.redirect(new URL("/reset-password", url.origin));
+    try {
+      response.cookies.set(RESET_GRANT_COOKIE, createResetGrant(session.userId), resetGrantCookieOptions());
+    } catch (e) {
+      // Without the key no grant is possible; the reset page shows "expired".
+      console.error("reset grant unavailable", (e as Error).message);
+    }
+    return response;
   }
   return NextResponse.redirect(new URL("/pipeline", url.origin));
 }
