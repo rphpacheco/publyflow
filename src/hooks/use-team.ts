@@ -38,11 +38,9 @@ export function useInviteManager() {
 }
 
 export function useRemindManager() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ memberId }: { memberId: string }) =>
       apiFetch<TeamAccessInstructionsDto>(`/api/team/members/${memberId}/remind`, { method: "POST" }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: teamQueryKey }),
   });
 }
 

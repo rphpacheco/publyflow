@@ -5,13 +5,14 @@ import userEvent from "@testing-library/user-event";
 
 let list: unknown[] | undefined;
 let isError = false;
+let isLoading = false;
 let role: "OWNER" | "MANAGER" | "CREATOR" = "OWNER";
 const replaceMock = vi.fn();
 const refetchMock = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: replaceMock }) }));
 vi.mock("@/components/shell/session-role-context", () => ({ useSessionRole: () => role }));
 vi.mock("@/hooks/use-team", () => ({
-  useTeam: () => ({ data: list, isLoading: false, isError, refetch: refetchMock }),
+  useTeam: () => ({ data: list, isLoading, isError, refetch: refetchMock }),
 }));
 vi.mock("@/components/team/invite-manager-dialog", () => ({
   InviteManagerDialog: ({ open, onInvited }: { open: boolean; onInvited: (a: { email: string; message: string }) => void }) =>
@@ -55,6 +56,7 @@ describe("TeamPage", () => {
   beforeEach(() => {
     list = team;
     isError = false;
+    isLoading = false;
     role = "OWNER";
     replaceMock.mockReset();
     refetchMock.mockReset();
@@ -108,6 +110,33 @@ describe("TeamPage", () => {
     render(<TeamPage />);
     await userEvent.click(screen.getAllByRole("button", { name: "Ações de Bia Gestora" })[0]);
     expect(await screen.findByText(/msg-reenvio/)).toBeInTheDocument();
+  });
+
+  it("renders the loading state", () => {
+    isLoading = true;
+    list = undefined;
+    render(<TeamPage />);
+    expect(screen.getByText("Carregando...")).toBeInTheDocument();
+  });
+
+  it("OWNER with no managers sees the empty state with the invite hint", () => {
+    list = [team[0]];
+    render(<TeamPage />);
+    expect(
+      screen.getByText("Nenhum gestor na equipe ainda. Use Convidar gestor para adicionar o primeiro."),
+    ).toBeInTheDocument();
+  });
+
+  it("MANAGER role with no managers listed sees the empty line without the invite hint", () => {
+    role = "MANAGER";
+    list = [team[0]];
+    render(<TeamPage />);
+    expect(screen.getByText("Nenhum gestor na equipe ainda.")).toBeInTheDocument();
+  });
+
+  it("hides the empty state when there are managers", () => {
+    render(<TeamPage />);
+    expect(screen.queryByText(/Nenhum gestor na equipe ainda/)).toBeNull();
   });
 
   it("renders no emoji or symbol glyphs", () => {

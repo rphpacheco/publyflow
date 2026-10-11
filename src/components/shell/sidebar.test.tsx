@@ -62,5 +62,6 @@ describe("SidebarDesktop under CREATOR", () => {
 
     const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(links).toEqual(["/inbox", "/pipeline", "/proposals"]);
+    expect(screen.queryByRole("link", { name: /Equipe/ })).toBeNull();
   });
 });

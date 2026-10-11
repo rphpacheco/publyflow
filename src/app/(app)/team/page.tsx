@@ -117,6 +117,11 @@ export default function TeamPage() {
               </li>
             ))}
           </ul>
+          {(team ?? []).some((member) => member.role === "MANAGER") ? null : (
+            <p className="text-sm text-muted-foreground">
+              Nenhum gestor na equipe ainda.{isOwner ? " Use Convidar gestor para adicionar o primeiro." : ""}
+            </p>
+          )}
         </>
       )}
 
