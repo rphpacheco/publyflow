@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { ProposalShareService } from "@/services/proposal-share.service";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
 import { isUuid } from "@/lib/uuid";
 import { proposalOutOfScope } from "@/lib/auth/proposal-scope";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) {

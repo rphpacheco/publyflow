@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { LeadService } from "@/services/lead.service";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse, forbiddenResponse } from "@/lib/auth/http";
+import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
 import { canManageOrganization } from "@/lib/auth/access";
 
 const querySchema = z.object({
@@ -11,8 +10,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 

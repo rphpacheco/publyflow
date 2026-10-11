@@ -1,27 +1,27 @@
-import { describe, it, expect, vi } from "vitest";
+// @vitest-environment node
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-async function importSignout() {
-  const signOut = vi.fn(async () => ({ error: null }));
-  vi.resetModules();
-  vi.doMock("@/lib/supabase/server", () => ({
-    createSupabaseServerClient: async () => ({ auth: { signOut } }),
-  }));
-  const route = await import("./route");
-  return { ...route, signOut };
-}
+const signOut = vi.fn(async () => ({ error: null }));
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: async () => ({ auth: { signOut } }),
+}));
+
+import { GET, POST } from "./route";
 
 describe("/auth/signout", () => {
-  it("signs out and redirects to /login (POST, from the header)", async () => {
-    const { POST, signOut } = await importSignout();
-    const response = await POST(new Request("http://localhost:3000/auth/signout", { method: "POST" }));
-    expect(signOut).toHaveBeenCalled();
-    expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("http://localhost:3000/login");
+  beforeEach(() => signOut.mockClear());
+
+  it("POST signs out and redirects to /login with 303", async () => {
+    const res = await POST(new Request("http://localhost:3000/auth/signout", { method: "POST" }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("http://localhost:3000/login");
   });
 
-  it("redirects to /sem-acesso when reason=no-access (GET, from the app layout)", async () => {
-    const { GET } = await importSignout();
-    const response = await GET(new Request("http://localhost:3000/auth/signout?reason=no-access"));
-    expect(response.headers.get("location")).toBe("http://localhost:3000/sem-acesso");
+  it("GET is 405 with Allow: POST and does not sign out", () => {
+    const res = GET();
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("POST");
+    expect(signOut).not.toHaveBeenCalled();
   });
 });

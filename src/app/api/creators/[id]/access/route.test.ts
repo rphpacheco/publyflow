@@ -1,12 +1,31 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession, creatorSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
 import { CreatorService } from "@/services/creator.service";
 
+const ensureAuthUserMock = vi.hoisted(() => vi.fn(async (_email: string) => ({ authUserId: null as string | null, created: true })));
+vi.mock("@/lib/auth/auth-admin", () => ({
+  getAuthAdmin: () => ({ ensureAuthUser: ensureAuthUserMock, listAuthEmails: vi.fn() }),
+}));
+
+// Route modules are re-imported after vi.resetModules(), so the error class must be
+// resolved at call time to be the same one the route checks with instanceof.
+function failProvisioningOnce() {
+  ensureAuthUserMock.mockImplementationOnce(async () => {
+    const { AuthProvisioningError } = await import("@/lib/auth/errors");
+    throw new AuthProvisioningError("x");
+  });
+}
+
+const PROVISIONING_BODY = { error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" };
+
 describe("/api/creators/:id/access", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
+  beforeEach(() => {
+    ensureAuthUserMock.mockReset().mockResolvedValue({ authUserId: null, created: true });
+  });
 
   async function setup() {
     const { db, cleanup: c } = await withTestDb();
@@ -127,5 +146,18 @@ describe("/api/creators/:id/access", () => {
       expect(response.status).toBe(409);
       expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
     }
+  });
+
+  it("POST 502 when provisioning the Supabase user fails; the invite stays committed", async () => {
+    const { db, organization, owner, creator } = await setup();
+    // The deadlock case above leaves a doMock of the service registered.
+    vi.doUnmock("@/services/creator-access.service");
+    const { POST } = await importRouteWithSession(() => import("./route"), { db, session: ownerSession(organization.id, owner.id) });
+    failProvisioningOnce();
+
+    const response = await POST(post(creator.id), { params: Promise.resolve({ id: creator.id }) });
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual(PROVISIONING_BODY);
   });
 });

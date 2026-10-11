@@ -5,12 +5,15 @@ import { CreatorProvider } from "@/components/shell/creator-context";
 import { SessionRoleProvider } from "@/components/shell/session-role-context";
 import { SidebarDesktop } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
+import { SessionUnavailable } from "@/components/auth/session-unavailable";
 
 // Reads the session cookie and the organization's creators on every request.
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireAppSession();
+  const result = await requireAppSession();
+  if (result.status === "unavailable") return <SessionUnavailable />;
+  const { session } = result;
 
   const allCreators = await CreatorService.listByOrganization(db, session.organizationId);
   const creators = allCreators

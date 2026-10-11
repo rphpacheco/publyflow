@@ -8,6 +8,7 @@ import { UsersRepository, type User } from "@/repositories/users.repository";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { runInTenantContext } from "@/repositories/tenant-context";
 import { ACCESS_ERRORS, CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
+import { getAuthAdmin } from "@/lib/auth/auth-admin";
 import type { CreateCreatorInput, UpdateCreatorInput } from "@/lib/creators/creator-input";
 
 function isUniqueViolation(error: unknown): boolean {
@@ -142,7 +143,7 @@ export const CreatorService = {
     creatorId: string,
     newEmail: string,
   ): Promise<void> {
-    await runInTenantContext(db, organizationId, async (tx) => {
+    const emailToProvision = await runInTenantContext(db, organizationId, async (tx): Promise<string | null> => {
       const creator = await CreatorsRepository.findByIdWithTx(tx, organizationId, creatorId);
       if (!creator) throw new CreatorNotFoundError(creatorId);
 
@@ -172,7 +173,12 @@ export const CreatorService = {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.emailLocked);
       }
 
-      if (current.email.toLowerCase() === newEmail.toLowerCase()) return;
+      if (current.email.toLowerCase() === newEmail.toLowerCase()) {
+        // Unchanged e-mail still re-provisions for an invited creator: a retry
+        // after a failed ensureAuthUser (e-mail already committed) must recover.
+        const unchangedMembership = await OrganizationMembersRepository.findCreatorMembershipWithTx(tx, organizationId, current.id);
+        return unchangedMembership ? current.email : null;
+      }
 
       // Re-validate against the freshly locked row: the plain lookup above
       // could be stale by the time both locks are held (the target user's
@@ -184,7 +190,8 @@ export const CreatorService = {
           if (isUniqueViolation(error)) throw new CreatorEmailTakenError();
           throw error;
         }
-        return;
+        const sameUserMembership = await OrganizationMembersRepository.findCreatorMembershipWithTx(tx, organizationId, current.id);
+        return sameUserMembership ? newEmail : null;
       }
 
       const targetMemberships = await OrganizationMembersRepository.listForUser(tx, target.id);
@@ -221,7 +228,11 @@ export const CreatorService = {
       if (membership) {
         await OrganizationMembersRepository.moveMembershipWithTx(tx, membership.id, target.id);
       }
+      return membership ? newEmail : null;
     });
+    // After commit, never inside the transaction; never links auth_user_id
+    // (that would lock e-mail editing -- see isEmailEditable).
+    if (emailToProvision) await getAuthAdmin().ensureAuthUser(emailToProvision);
   },
 
   async listWithEmail(db: NodePgDatabase<typeof schema>, organizationId: string): Promise<CreatorWithEmail[]> {

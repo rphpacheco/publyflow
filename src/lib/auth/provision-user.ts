@@ -4,9 +4,9 @@ import type * as schema from "@/db/schema";
 import { organizations, organizationMembers, users } from "@/db/schema/organizations";
 import { UsersRepository } from "@/repositories/users.repository";
 
-export interface AuthAdmin {
-  createUser(input: { email: string; password: string }): Promise<{ id: string }>;
-}
+import type { AuthAdmin } from "./auth-admin";
+
+export type { AuthAdmin } from "./auth-admin";
 
 export interface ProvisionUserInput {
   email: string;
@@ -25,6 +25,7 @@ export interface ProvisionUserResult {
   authUserId: string | null;
   createdUser: boolean;
   createdMembership: boolean;
+  createdAuthUser: boolean;
 }
 
 export async function provisionUser(
@@ -75,16 +76,20 @@ export async function provisionUser(
     });
 
   let authUserId = existingAuthUserId;
-  if (input.password && !authUserId) {
-    const authUser = await admin.createUser({ email: input.email, password: input.password });
-    const linked = await UsersRepository.linkAuthUser(db, userId, authUser.id);
-    if (!linked) {
-      throw new Error(
-        `Could not link auth user ${authUser.id} to user ${userId}: the row was linked concurrently to a different auth user.`,
-      );
+  let createdAuthUser = false;
+  if (!authUserId) {
+    const ensured = await admin.ensureAuthUser(input.email, { password: input.password });
+    if (ensured.created && ensured.authUserId) {
+      const linked = await UsersRepository.linkAuthUser(db, userId, ensured.authUserId);
+      if (!linked) {
+        throw new Error(
+          `Could not link auth user ${ensured.authUserId} to user ${userId}: the row was linked concurrently to a different auth user.`,
+        );
+      }
+      authUserId = ensured.authUserId;
+      createdAuthUser = true;
     }
-    authUserId = authUser.id;
   }
 
-  return { organizationId, userId, authUserId, createdUser, createdMembership };
+  return { organizationId, userId, authUserId, createdUser, createdMembership, createdAuthUser };
 }

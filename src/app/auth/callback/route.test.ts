@@ -84,4 +84,24 @@ describe("GET /auth/callback", () => {
     const failed = await GET(new Request("http://localhost:3000/auth/callback?code=abc"));
     expect(failed.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
   });
+
+  it("redirects to /sem-acesso when Supabase reports signup_disabled (no code)", async () => {
+    const { GET } = await importCallback({ exchange: { data: { user: null }, error: null }, session: null });
+    const byCode = await GET(
+      new Request("http://localhost:3000/auth/callback?error=access_denied&error_code=signup_disabled"),
+    );
+    expect(byCode.headers.get("location")).toBe("http://localhost:3000/sem-acesso");
+    const byDescription = await GET(
+      new Request("http://localhost:3000/auth/callback?error=access_denied&error_description=Signups+not+allowed+for+this+instance"),
+    );
+    expect(byDescription.headers.get("location")).toBe("http://localhost:3000/sem-acesso");
+  });
+
+  it("keeps /login?error=oauth for any other error without a code", async () => {
+    const { GET } = await importCallback({ exchange: { data: { user: null }, error: null }, session: null });
+    const response = await GET(
+      new Request("http://localhost:3000/auth/callback?error=access_denied&error_code=other&error_description=nope"),
+    );
+    expect(response.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
+  });
 });

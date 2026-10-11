@@ -2,7 +2,7 @@ import { SidebarMobile } from "./sidebar";
 import { CommandPalette } from "./command-palette";
 import { CreatorSwitcher } from "./creator-switcher";
 import { NotificationsBell } from "./notifications-bell";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 export function Header() {
   return (
@@ -12,11 +12,7 @@ export function Header() {
       <div className="flex-1" />
       <NotificationsBell />
       <CreatorSwitcher />
-      <form action="/auth/signout" method="post">
-        <Button type="submit" variant="ghost" size="sm">
-          Sair
-        </Button>
-      </form>
+      <SignOutButton label="Sair" variant="ghost" size="sm" />
     </header>
   );
 }

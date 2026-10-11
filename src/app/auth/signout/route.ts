@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-async function signOut(request: Request) {
-  const url = new URL(request.url);
+// Logout changes state, so it is POST-only (no logout CSRF via links/images).
+export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
-  const target = url.searchParams.get("reason") === "no-access" ? "/sem-acesso" : "/login";
-  return NextResponse.redirect(new URL(target, url.origin), { status: 303 });
+  return NextResponse.redirect(new URL("/login", new URL(request.url).origin), { status: 303 });
 }
 
-export { signOut as GET, signOut as POST };
+export function GET() {
+  return new NextResponse(null, { status: 405, headers: { Allow: "POST" } });
+}

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "provision-user": "tsx --env-file=.env.local scripts/provision-user.ts"
+    "provision-user": "tsx --env-file=.env.local scripts/provision-user.ts",
+    "backfill-auth-users": "tsx --env-file=.env.local scripts/backfill-auth-users.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

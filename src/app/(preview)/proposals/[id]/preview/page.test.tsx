@@ -7,25 +7,39 @@ import { withTestDb } from "@/test/helpers/db";
 import { creatorSession, ownerSession } from "@/test/helpers/route";
 import { seedTwoCreators } from "@/test/helpers/two-creators";
 import type { Session } from "@/lib/auth/types";
+import type { AppSessionResult } from "@/lib/auth/require-app-session";
 
 type PageComponent = (props: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ theme?: string | string[] }>;
 }) => Promise<unknown>;
 
-async function loadPageWithSession(db: unknown, session: Session | null): Promise<PageComponent> {
+async function loadPageWithAppSession(db: unknown, result: AppSessionResult): Promise<PageComponent> {
   vi.resetModules();
   vi.doMock("@/db", () => ({ db }));
-  vi.doMock("@/lib/auth/session", () => ({
-    getSession: async () => session,
+  vi.doMock("@/lib/auth/require-app-session", () => ({
+    requireAppSession: async () => result,
   }));
   const mod = await import("./page");
   return mod.default as PageComponent;
 }
 
+function loadPageWithSession(db: unknown, session: Session): Promise<PageComponent> {
+  return loadPageWithAppSession(db, { status: "ok", session });
+}
+
 describe("ProposalPreviewPage", () => {
   let cleanup: (() => Promise<void>) | undefined;
   afterAll(async () => cleanup?.());
+
+  it("renders nothing while the session cannot be verified (the layout shows the message)", async () => {
+    const Page = await loadPageWithAppSession(null, { status: "unavailable" });
+    const result = await Page({
+      params: Promise.resolve({ id: "11111111-1111-4111-8111-111111111111" }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(result).toBeNull();
+  });
 
   it("answers Next's not-found for a malformed id, before any DB lookup", async () => {
     const Page = await loadPageWithSession(null, ownerSession("o1", "u1"));

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
@@ -9,12 +9,21 @@ import { OrganizationMembersRepository } from "@/repositories/organization-membe
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
 import { CreatorNotFoundError, CreatorAccessConflictError, ACCESS_ERRORS } from "@/domain/creators/errors";
 import { users, organizationMembers } from "@/db/schema/organizations";
+import { AuthProvisioningError } from "@/lib/auth/errors";
+
+const ensureAuthUser = vi.hoisted(() => vi.fn(async (_email: string) => ({ authUserId: "auth-x" as string | null, created: true })));
+vi.mock("@/lib/auth/auth-admin", () => ({
+  getAuthAdmin: () => ({ ensureAuthUser, listAuthEmails: vi.fn() }),
+}));
 
 const AUTH_ID = "33333333-3333-4333-8333-333333333333";
 
 describe("CreatorAccessService", () => {
   let cleanup: () => Promise<void>;
   afterEach(async () => cleanup?.());
+  beforeEach(() => {
+    ensureAuthUser.mockReset().mockResolvedValue({ authUserId: "auth-x", created: true });
+  });
 
   async function setup() {
     const { db, cleanup: c } = await withTestDb();
@@ -34,6 +43,49 @@ describe("CreatorAccessService", () => {
   }
 
   describe("invite", () => {
+    it("provisions the Supabase user for the creator's e-mail without linking auth_user_id (e-mail stays editable)", async () => {
+      const { db, organization, creator } = await setup();
+
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+      expect(ensureAuthUser).toHaveBeenCalledWith("thais@publyflow.test");
+      const [row] = await db.select().from(users).where(eq(users.id, creator.userId));
+      expect(row.authUserId).toBeNull();
+    });
+
+    it("keeps the committed invite when provisioning fails, and a second invite recovers", async () => {
+      const { db, organization, creator } = await setup();
+      ensureAuthUser.mockRejectedValueOnce(new AuthProvisioningError("x"));
+
+      await expect(CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost")).rejects.toBeInstanceOf(
+        AuthProvisioningError,
+      );
+      const memberships = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, creator.userId));
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].role).toBe("CREATOR");
+
+      const result = await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      expect(result.loginUrl).toBe("http://localhost/login");
+      expect(ensureAuthUser).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not provision when the invite is rejected with a conflict", async () => {
+      const { db, organization, owner } = await setup();
+      const teamCreator = await CreatorService.register(db, organization.id, {
+        fullName: "Owner",
+        displayName: "Owner as creator",
+        email: "owner@publyflow.test",
+        instagramHandle: null,
+      });
+      expect(teamCreator.userId).toBe(owner.id);
+
+      await expect(CreatorAccessService.invite(db, organization.id, teamCreator.id, "http://localhost")).rejects.toBeInstanceOf(
+        CreatorAccessConflictError,
+      );
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
     it("creates exactly one CREATOR membership; a second invite doesn't duplicate it", async () => {
       const { db, organization, creator } = await setup();
 
@@ -236,6 +288,26 @@ describe("CreatorAccessService", () => {
   });
 
   describe("remind", () => {
+    it("provisions the Supabase user for the creator's e-mail", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      ensureAuthUser.mockClear();
+
+      await CreatorAccessService.remind(db, organization.id, creator.id, "http://localhost");
+
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+      expect(ensureAuthUser).toHaveBeenCalledWith("thais@publyflow.test");
+    });
+
+    it("does not provision when the creator was never invited (conflict)", async () => {
+      const { db, organization, creator } = await setup();
+
+      await expect(CreatorAccessService.remind(db, organization.id, creator.id, "http://localhost")).rejects.toBeInstanceOf(
+        CreatorAccessConflictError,
+      );
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
     it("returns instructions once invited; throws notInvited before that", async () => {
       const { db, organization, creator } = await setup();
 

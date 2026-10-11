@@ -15,7 +15,9 @@ export default async function ProposalPreviewPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ theme?: string | string[] }>;
 }) {
-  const session = await requireAppSession();
+  const result = await requireAppSession();
+  if (result.status === "unavailable") return null; // the (preview) layout renders the message
+  const { session } = result;
   const { id } = await params;
   if (!isUuid(id)) notFound();
 

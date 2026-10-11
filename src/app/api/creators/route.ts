@@ -2,15 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
-import { getSession } from "@/lib/auth/session";
-import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
 import { canManageOrganization, isCreator } from "@/lib/auth/access";
 import { createCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorEmailTakenError } from "@/domain/creators/errors";
 
 export async function GET(_request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   if (isCreator(session)) {
     const list = await CreatorService.listByOrganization(db, session.organizationId);
@@ -25,8 +24,8 @@ export async function GET(_request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const parsed = createCreatorSchema.safeParse(await request.json().catch(() => null));

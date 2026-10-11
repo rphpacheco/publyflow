@@ -1,4 +1,5 @@
-import { pgEnum, pgTable, uuid, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, uuid, text, timestamp, unique, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const organizationMemberRoleEnum = pgEnum("organization_member_role", [
   "OWNER",
@@ -13,13 +14,17 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
-  fullName: text("full_name").notNull(),
-  authUserId: uuid("auth_user_id").unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull().unique(),
+    fullName: text("full_name").notNull(),
+    authUserId: uuid("auth_user_id").unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("users_email_lower_unique").on(sql`lower(${table.email})`)],
+);
 
 export const organizationMembers = pgTable(
   "organization_members",

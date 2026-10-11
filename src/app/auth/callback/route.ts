@@ -8,6 +8,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   if (!code) {
+    // With sign-up off, Google for an e-mail missing from auth.users comes
+    // back without a code; retrying never helps, so show the no-access page.
+    const description = url.searchParams.get("error_description") ?? "";
+    if (url.searchParams.get("error_code") === "signup_disabled" || /signups? not allowed/i.test(description)) {
+      return NextResponse.redirect(new URL("/sem-acesso", url.origin));
+    }
     return NextResponse.redirect(new URL("/login?error=oauth", url.origin));
   }
 

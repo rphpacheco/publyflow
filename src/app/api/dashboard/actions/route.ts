@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { getSession } from "@/lib/auth/session";
-import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
 import { canManageOrganization } from "@/lib/auth/access";
 import { DashboardActionsService } from "@/services/dashboard-actions.service";
 import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   try {

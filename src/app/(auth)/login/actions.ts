@@ -90,9 +90,10 @@ export async function sendMagicLink(_prev: MagicLinkState, formData: FormData): 
 
   const origin = requestHeaders.get("origin") ?? "";
   const supabase = await createSupabaseServerClient();
+  // Public sign-up is off: only e-mails provisioned by the server (ensureAuthUser) get a link.
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${origin}/auth/callback`, shouldCreateUser: true },
+    options: { emailRedirectTo: `${origin}/auth/callback`, shouldCreateUser: false },
   });
   // Same answer either way: never reveal whether an e-mail has access.
   if (error) console.error("Magic link request failed", (error as { code?: string }).code ?? "unknown");

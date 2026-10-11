@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { eq, and, sql } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { OrganizationService } from "./organization.service";
@@ -10,6 +10,11 @@ import { OrganizationMembersRepository } from "@/repositories/organization-membe
 import { CreatorEmailTakenError, CreatorAccessConflictError, ACCESS_ERRORS } from "@/domain/creators/errors";
 import { users, organizationMembers } from "@/db/schema/organizations";
 import { creators } from "@/db/schema/creators";
+
+const ensureAuthUser = vi.hoisted(() => vi.fn(async (_email: string) => ({ authUserId: "auth-x" as string | null, created: true })));
+vi.mock("@/lib/auth/auth-admin", () => ({
+  getAuthAdmin: () => ({ ensureAuthUser, listAuthEmails: vi.fn() }),
+}));
 
 describe("CreatorService.onboardCreator", () => {
   let cleanup: () => Promise<void>;
@@ -224,6 +229,9 @@ describe("CreatorService.register / update", () => {
 
 describe("CreatorService.changeEmail", () => {
   let cleanup: () => Promise<void>;
+  beforeEach(() => {
+    ensureAuthUser.mockReset().mockResolvedValue({ authUserId: "auth-x", created: true });
+  });
   afterEach(async () => {
     vi.restoreAllMocks();
     await cleanup?.();
@@ -454,5 +462,61 @@ describe("CreatorService.changeEmail", () => {
 
     const [firstId, secondId] = [creator.userId, targetUser.id].sort();
     expect(calls).toEqual([firstId, secondId]);
+  });
+
+  describe("Supabase user provisioning", () => {
+    it("provisions the new e-mail for an invited creator without linking auth_user_id", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      ensureAuthUser.mockClear();
+
+      await CreatorService.changeEmail(db, organization.id, creator.id, "novo@publyflow.test");
+
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+      expect(ensureAuthUser).toHaveBeenLastCalledWith("novo@publyflow.test");
+      const [user] = await db.select().from(users).where(eq(users.id, creator.userId));
+      expect(user.authUserId).toBeNull();
+    });
+
+    it("does not provision for a creator that was never invited", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorService.changeEmail(db, organization.id, creator.id, "novo@publyflow.test");
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("re-provisions when the e-mail is unchanged (case-insensitive) and the creator has a CREATOR membership (retry recovery)", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      ensureAuthUser.mockClear();
+
+      await CreatorService.changeEmail(db, organization.id, creator.id, "THAIS@publyflow.test");
+
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+      expect(ensureAuthUser).toHaveBeenCalledWith("thais@publyflow.test");
+      const [user] = await db.select().from(users).where(eq(users.id, creator.userId));
+      expect(user.authUserId).toBeNull();
+    });
+
+    it("does not provision when the e-mail is unchanged and the creator was never invited", async () => {
+      const { db, organization, creator } = await setup();
+
+      await CreatorService.changeEmail(db, organization.id, creator.id, "THAIS@publyflow.test");
+
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("provisions the new e-mail on the transfer path for an invited creator", async () => {
+      const { db, organization, creator } = await setup();
+      await CreatorAccessService.invite(db, organization.id, creator.id, "http://localhost");
+      const [targetUser] = await db.insert(users).values({ email: "target@publyflow.test", fullName: "Target" }).returning();
+      ensureAuthUser.mockClear();
+
+      await CreatorService.changeEmail(db, organization.id, creator.id, "target@publyflow.test");
+
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+      expect(ensureAuthUser).toHaveBeenLastCalledWith("target@publyflow.test");
+      const [reloadedTarget] = await db.select().from(users).where(eq(users.id, targetUser.id));
+      expect(reloadedTarget.authUserId).toBeNull();
+    });
   });
 });

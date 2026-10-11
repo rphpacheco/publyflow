@@ -3,8 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { ai } from "@/lib/ai";
 import { InboxService } from "@/services/inbox.service";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { MessageClassificationError } from "@/domain/inbox/errors";
 import { AiNotConfiguredError } from "@/lib/ai/errors";
 import { isCreator } from "@/lib/auth/access";
@@ -17,8 +16,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const payload = bodySchema.parse(await request.json());
 

@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
-import { getSession } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/http";
+import { getRouteSession } from "@/lib/auth/http";
 import { denyCreatorWrite } from "@/lib/auth/access";
 import { isUuid } from "@/lib/uuid";
 import { inquiryErrorResponse, inquiryNotFoundResponse } from "./inquiry-errors";
@@ -12,8 +11,8 @@ const field = z.string().trim().max(200, "Use no máximo 200 caracteres.").nulla
 const bodySchema = z.object({ contactName: field, companyName: field, brandName: field });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   if (!isUuid(id)) return inquiryNotFoundResponse();

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
@@ -7,6 +7,13 @@ import { CreatorService } from "@/services/creator.service";
 import { CreatorAccessService } from "@/services/creator-access.service";
 import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
 import { users } from "@/db/schema/organizations";
+
+const ensureAuthUserMock = vi.hoisted(() => vi.fn(async (_email: string) => ({ authUserId: null as string | null, created: true })));
+vi.mock("@/lib/auth/auth-admin", () => ({
+  getAuthAdmin: () => ({ ensureAuthUser: ensureAuthUserMock, listAuthEmails: vi.fn() }),
+}));
+
+const PROVISIONING_BODY = { error: "Não foi possível liberar o acesso agora. Tente novamente.", code: "AUTH_PROVISIONING_FAILED" };
 
 const patch = (id: string, body: unknown) =>
   new Request(`http://localhost/api/creators/${id}`, {
@@ -18,7 +25,15 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe("PATCH /api/creators/[id]", () => {
   let cleanup: () => Promise<void>;
-  afterEach(async () => cleanup?.());
+  afterEach(async () => {
+    // Per-test vi.doMock registrations must not leak into later tests.
+    vi.doUnmock("@/services/creator.service");
+    vi.resetModules();
+    await cleanup?.();
+  });
+  beforeEach(() => {
+    ensureAuthUserMock.mockReset().mockResolvedValue({ authUserId: null, created: true });
+  });
 
   async function setup(role: "OWNER" | "CREATOR" = "OWNER") {
     const { db, cleanup: c } = await withTestDb();
@@ -91,6 +106,26 @@ describe("PATCH /api/creators/[id]", () => {
     expect(await response.json()).toEqual({ error: "Não foi possível salvar agora. Tente novamente." });
   });
 
+  // Covers the case-insensitive transfer path (findByEmail is case-insensitive, so the other
+  // creator is found as target and findByUserIdWithTx rejects). The index itself is covered by
+  // src/db/users-email-unique.test.ts.
+  it("409 via the transfer path when the new e-mail differs only in case from another creator's e-mail in the same organization", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorService.register(db, a.organization.id, {
+      fullName: "Outra Pessoa",
+      displayName: "Outra",
+      email: "Outra@Publyflow.test",
+      instagramHandle: null,
+    });
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "outra@publyflow.test" }),
+      params(creator.id),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "Já existe um creator com este e-mail." });
+  });
+
   it("404 for another organization's creator", async () => {
     const { b, creator, route } = await setup();
     const { PATCH } = await route(ownerSession(b.organization.id, b.owner.id));
@@ -111,5 +146,44 @@ describe("PATCH /api/creators/[id]", () => {
       displayName: ["Informe o nome de exibição."],
       instagramHandle: ["Use só letras, números, ponto e sublinhado (até 30)."],
     });
+  });
+
+  it("502 when provisioning the new e-mail's Supabase user fails", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    ensureAuthUserMock.mockImplementationOnce(async () => {
+      // Resolved at call time: the route module was re-imported after vi.resetModules().
+      const { AuthProvisioningError } = await import("@/lib/auth/errors");
+      throw new AuthProvisioningError("x");
+    });
+
+    const response = await PATCH(
+      patch(creator.id, { displayName: "Thais", instagramHandle: null, email: "novo@x.com" }),
+      params(creator.id),
+    );
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual(PROVISIONING_BODY);
+  });
+
+  it("retrying the same PATCH after a provisioning failure re-provisions and returns 200", async () => {
+    const { a, db, creator, route } = await setup();
+    await CreatorAccessService.invite(db, a.organization.id, creator.id, "http://localhost");
+    const { PATCH } = await route(ownerSession(a.organization.id, a.owner.id));
+    ensureAuthUserMock.mockClear();
+    ensureAuthUserMock.mockImplementationOnce(async () => {
+      const { AuthProvisioningError } = await import("@/lib/auth/errors");
+      throw new AuthProvisioningError("x");
+    });
+    const body = { displayName: "Thais", instagramHandle: null, email: "novo@x.com" };
+
+    const first = await PATCH(patch(creator.id, body), params(creator.id));
+    expect(first.status).toBe(502);
+
+    const second = await PATCH(patch(creator.id, body), params(creator.id));
+    expect(second.status).toBe(200);
+    expect(ensureAuthUserMock).toHaveBeenCalledTimes(2);
+    expect(ensureAuthUserMock).toHaveBeenLastCalledWith("novo@x.com");
   });
 });

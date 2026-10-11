@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { CreatorService } from "@/services/creator.service";
-import { getSession } from "@/lib/auth/session";
-import { forbiddenResponse, unauthorizedResponse } from "@/lib/auth/http";
+import { authProvisioningFailedResponse, forbiddenResponse, getRouteSession } from "@/lib/auth/http";
+import { AuthProvisioningError } from "@/lib/auth/errors";
 import { canManageOrganization } from "@/lib/auth/access";
 import { updateCreatorSchema } from "@/lib/creators/creator-input";
 import { CreatorAccessConflictError, CreatorEmailTakenError, CreatorNotFoundError } from "@/domain/creators/errors";
@@ -11,8 +11,8 @@ import { isUuid } from "@/lib/uuid";
 import { DEADLOCK_MESSAGE, isDeadlockError } from "@/lib/db-errors";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return unauthorizedResponse();
+  const session = await getRouteSession();
+  if (session instanceof NextResponse) return session;
 
   const { id } = await params;
   const notFound = () => NextResponse.json({ error: new CreatorNotFoundError(id).message }, { status: 404 });
@@ -33,6 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof CreatorAccessConflictError || error instanceof CreatorEmailTakenError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    if (error instanceof AuthProvisioningError) return authProvisioningFailedResponse();
     if (isDeadlockError(error)) {
       return NextResponse.json({ error: DEADLOCK_MESSAGE }, { status: 409 });
     }

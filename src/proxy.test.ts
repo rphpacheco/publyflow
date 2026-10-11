@@ -1,17 +1,18 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { AuthRetryableFetchError } from "@supabase/supabase-js";
 
 const checkRateLimit = vi.fn();
 
-async function importProxy(user: { id: string } | null) {
+async function importProxy(user: { id: string } | null, getClaimsOverride?: () => Promise<unknown>) {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test");
+  const getClaims =
+    getClaimsOverride ?? (async () => ({ data: user ? { claims: { sub: user.id } } : null, error: null }));
   vi.doMock("@supabase/ssr", () => ({
-    createServerClient: () => ({
-      auth: { getUser: async () => ({ data: { user }, error: null }) },
-    }),
+    createServerClient: () => ({ auth: { getClaims } }),
   }));
   vi.doMock("@/db", () => ({ db: {} }));
   vi.doMock("@/lib/rate-limit", async (importOriginal) => ({
@@ -43,6 +44,35 @@ describe("proxy", () => {
     const { proxy } = await importProxy({ id: "a" });
     const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
     expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("does not redirect when the auth provider answers a retryable fetch error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { proxy } = await importProxy(null, async () => ({
+      data: null,
+      error: new AuthRetryableFetchError("fetch failed", 0),
+    }));
+    const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
+    expect(response.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("auth provider unavailable", expect.any(String), expect.anything());
+    warn.mockRestore();
+  });
+
+  it("does not redirect when getClaims throws a network TypeError", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { proxy } = await importProxy(null, async () => {
+      throw new TypeError("fetch failed");
+    });
+    const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
+    expect(response.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("auth provider unavailable", "TypeError", "");
+    warn.mockRestore();
+  });
+
+  it("still redirects to /login on a 4xx (invalid token) from getClaims", async () => {
+    const { proxy } = await importProxy(null, async () => ({ data: null, error: { status: 401 } }));
+    const response = await proxy(new NextRequest("http://localhost:3000/pipeline"));
+    expect(response.headers.get("location")).toBe("http://localhost:3000/login");
   });
 
   it("rate-limits the public proposal page per IP with 429 and Retry-After", async () => {

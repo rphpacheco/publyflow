@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
@@ -46,6 +46,32 @@ describe("GET /api/companies", () => {
 
     const response = await GET(new Request("http://localhost/api/companies"));
     expect(response.status).toBe(401);
+  });
+
+  it("returns 503 AUTH_UNAVAILABLE when the auth provider is unavailable", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+
+    const { GET } = await importRouteWithSession(() => import("./route"), {
+      db,
+      session: null,
+      extraMocks: () =>
+        vi.doMock("@/lib/auth/session", () => ({
+          getSession: async () => {
+            // Resolved lazily so the class comes from the same module registry
+            // (post vi.resetModules) as the route's own instanceof check.
+            const { AuthUnavailableError } = await import("@/lib/auth/errors");
+            throw new AuthUnavailableError();
+          },
+        })),
+    });
+
+    const response = await GET(new Request("http://localhost/api/companies"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Serviço de autenticação indisponível. Tente novamente em instantes.",
+      code: "AUTH_UNAVAILABLE",
+    });
   });
 
   it("ignores a caller-supplied organizationId and only returns the session organization's companies", async () => {
