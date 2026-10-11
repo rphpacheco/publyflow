@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+- (nada — próximo: F. Reset de senha, aguardando ok)
+
+## Concluído nesta fase (Equipe)
+
 ### E. Equipe + convite de gestor
 - [x] Escopo: página Equipe (lista OWNER/MANAGER, convidar, reenviar, remover), sem mudar papéis
 - [x] Decisão: só o OWNER convida/reenvia/remove; MANAGER só lê; CREATOR 403
@@ -12,8 +16,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-11-manager-invite-design.md`
 - [x] Revisão da spec pelo usuário (verificações: retentativa sem depender de `created: true`; retry 23505 em transação nova, um único `member.invited`; notificações/autoria preservadas e fan-out só p/ memberships atuais)
 - [x] Plano — `docs/superpowers/plans/2026-10-11-manager-invite.md` (T1 domínio+convite, T2 reenviar/remover, T3 rotas, T4 página/hooks/sidebar, T5 verificação)
-- [ ] Implementação (subagentes) + revisão final
-- [ ] Merge + deploy (sem migration)
+- [x] Implementação (subagentes) + revisão final — T1–T4 revisadas (achado: estado "nenhum gestor"); intermitência antiga do teste 503 de companies corrigida (mock único de sessão); revisão final "com ajustes" aplicada: creator de outra organização → 409 `OTHER_ORGANIZATION` (decisão do usuário), ordem das regras da spec, corrida remover×reconvidar (lock membership → users), trim do e-mail, testes do retry 23505 e do payload
+- [x] Verificação: tsc ok, lint sem erros, suíte 1555 verde, build ok; verificação no navegador pulada a pedido do usuário (testar convite/remoção direto em produção)
+- [x] Merge + deploy (`b20609b`, 2026-10-11): 0025 já em produção (26 migrations); Vercel ok; `/api/team` 401 e `/team` → `/login` sem sessão
 
 ## Concluído nesta fase (Auth hardening)
 
@@ -153,6 +158,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Equipe: testar em produção convidar um gestor (Gmail próprio), login dele como MANAGER e remoção → `/sem-acesso`; layout 320–1920px da página
+- [ ] Equipe: diálogo de convite mantém rascunho ao cancelar; cards sem rótulos Papel/Situação p/ leitor de tela; sem teste determinístico da corrida remover×reconvidar
 - [ ] Auth: usuário de teste `bruno.dev@publyflow.test` criado no Supabase compartilhado (dev = prod) pelo teste de convite — apagar se quiser
 - [ ] Auth: `isAuthServiceFailure` trata qualquer `TypeError` como queda (agora logado); `import "server-only"` no auth-admin exige instalar o pacote e tratar tsx
 - [ ] Auth: magic link em queda responde "enviado"; rejeição permanente do Supabase (422) vira 502 "tente novamente"
