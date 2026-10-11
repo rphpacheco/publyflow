@@ -10,7 +10,7 @@ const API_ROOT = path.resolve(__dirname);
 const EXPORT_METHOD_RE = /export\s+async\s+function\s+(POST|PATCH|PUT|DELETE)\b/g;
 const REEXPORT_METHOD_RE = /export\s*\{[^}]*\bas\s+(POST|PATCH|PUT|DELETE)\b[^}]*\}/g;
 
-const GUARD_RE = /denyCreatorWrite\(|canManageOrganization\(/;
+const GUARD_RE = /denyCreatorWrite\(|canManageOrganization\(|canManageTeam\(/;
 
 // path (relative to src/app/api, posix-style) + method that is intentionally
 // exempt from the guard requirement (see global-constraints.md).
