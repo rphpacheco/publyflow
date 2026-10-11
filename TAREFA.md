@@ -10,8 +10,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Decisão: troca no app também por link no e-mail (prova a caixa de e-mail); página de nova senha exige comprovante assinado (cookie 15 min, uso único)
 - [x] Design (aprovado)
 - [x] Spec — `docs/superpowers/specs/2026-10-11-password-reset-design.md`
-- [ ] Revisão da spec pelo usuário
-- [ ] Plano de implementação
+- [x] Revisão da spec pelo usuário
+- [x] Plano — `docs/superpowers/plans/2026-10-11-password-reset.md` (T1 comprovante + callback, T2 esqueci a senha, T3 página nova senha, T4 menu da conta, T5 verificação)
 - [ ] Implementação (subagentes) + revisão final
 - [ ] Merge + deploy (conferir Redirect URLs no Supabase; traduzir template de e-mail — opcional, usuário)
 
