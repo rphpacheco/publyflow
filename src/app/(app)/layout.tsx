@@ -1,4 +1,6 @@
+import * as React from "react";
 import { db } from "@/db";
+import { PasswordChangedToast } from "@/components/shell/password-changed-toast";
 import { CreatorService } from "@/services/creator.service";
 import { requireAppSession } from "@/lib/auth/require-app-session";
 import { CreatorProvider } from "@/components/shell/creator-context";
@@ -22,6 +24,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionRoleProvider role={session.role}>
+      <React.Suspense fallback={null}>
+        <PasswordChangedToast />
+      </React.Suspense>
       <CreatorProvider organizationId={session.organizationId} creators={creators}>
         <div className="flex h-screen overflow-hidden">
           <SidebarDesktop />
