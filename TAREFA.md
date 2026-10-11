@@ -5,7 +5,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-- (nada — próximo: E. Convite de Manager, aguardando ok)
+### E. Equipe + convite de gestor
+- [x] Escopo: página Equipe (lista OWNER/MANAGER, convidar, reenviar, remover), sem mudar papéis
+- [x] Decisão: só o OWNER convida/reenvia/remove; MANAGER só lê; CREATOR 403
+- [x] Design (aprovado com ajustes do usuário: concorrência por índices únicos + lock único, convite idempotente p/ gestor existente (recupera 502), revogação efetiva por releitura da membership, vínculo só do usuário criado agora, mensagem só com dados do servidor, contrato `member` = item da lista, sem vazar dados de outra org, ordem determinística, `isSelf` no servidor, 409 p/ remover OWNER/a si mesmo)
+- [x] Spec — `docs/superpowers/specs/2026-10-11-manager-invite-design.md`
+- [ ] Revisão da spec pelo usuário
+- [ ] Plano de implementação
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy (sem migration)
 
 ## Concluído nesta fase (Auth hardening)
 
@@ -133,7 +141,6 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Próximos (na ordem combinada)
 
-### E. Convite de Manager (spec própria)
 ### F. Reset de senha (spec própria)
 ### G. RLS valendo em runtime (spec própria)
 ### Não priorizado
