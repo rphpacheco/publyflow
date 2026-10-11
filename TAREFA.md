@@ -10,8 +10,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Decisão: só o OWNER convida/reenvia/remove; MANAGER só lê; CREATOR 403
 - [x] Design (aprovado com ajustes do usuário: concorrência por índices únicos + lock único, convite idempotente p/ gestor existente (recupera 502), revogação efetiva por releitura da membership, vínculo só do usuário criado agora, mensagem só com dados do servidor, contrato `member` = item da lista, sem vazar dados de outra org, ordem determinística, `isSelf` no servidor, 409 p/ remover OWNER/a si mesmo)
 - [x] Spec — `docs/superpowers/specs/2026-10-11-manager-invite-design.md`
-- [ ] Revisão da spec pelo usuário
-- [ ] Plano de implementação
+- [x] Revisão da spec pelo usuário (verificações: retentativa sem depender de `created: true`; retry 23505 em transação nova, um único `member.invited`; notificações/autoria preservadas e fan-out só p/ memberships atuais)
+- [x] Plano — `docs/superpowers/plans/2026-10-11-manager-invite.md` (T1 domínio+convite, T2 reenviar/remover, T3 rotas, T4 página/hooks/sidebar, T5 verificação)
 - [ ] Implementação (subagentes) + revisão final
 - [ ] Merge + deploy (sem migration)
 
