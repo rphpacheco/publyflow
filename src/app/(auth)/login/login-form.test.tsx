@@ -18,6 +18,11 @@ vi.mock("./actions", () => ({
 import { LoginForm } from "./login-form";
 
 describe("LoginForm", () => {
+  it("links to the forgot-password page", () => {
+    render(<LoginForm oauthError={false} />);
+    expect(screen.getByRole("link", { name: "Esqueci minha senha" })).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("shows the magic-link block with its heading and button", () => {
     render(<LoginForm oauthError={false} />);
     expect(screen.getByText("Entrar com link por e-mail")).toBeInTheDocument();

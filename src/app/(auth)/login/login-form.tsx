@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginWithGoogle, loginWithPassword, sendMagicLink, type LoginState, type MagicLinkState } from "./actions";
@@ -36,6 +37,9 @@ export function LoginForm({ oauthError }: { oauthError: boolean }) {
         <Button type="submit" disabled={pending}>
           Entrar
         </Button>
+        <Link href="/forgot-password" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+          Esqueci minha senha
+        </Link>
       </form>
       <form action={loginWithGoogle}>
         <Button type="submit" variant="outline" className="w-full">
