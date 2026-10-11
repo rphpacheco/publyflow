@@ -10,7 +10,7 @@ import { DomainEventsRepository } from "@/repositories/domain-events.repository"
 import { UsersRepository } from "@/repositories/users.repository";
 import { getAuthAdmin } from "@/lib/auth/auth-admin";
 import { buildTeamAccessInstructions } from "@/lib/team/access-instructions";
-import { TeamConflictError } from "@/domain/team/errors";
+import { TeamConflictError, TeamMemberNotFoundError } from "@/domain/team/errors";
 import type { Session } from "@/lib/auth/types";
 
 type Db = NodePgDatabase<typeof schema>;
@@ -119,5 +119,35 @@ export const TeamService = {
       origin,
     });
     return { member: toMember(result.row, session), ...instructions };
+  },
+
+  async remind(db: Db, session: Session, membershipId: string, origin: string) {
+    const { row, organizationName } = await runInTenantContext(db, session.organizationId, async (tx) => {
+      const found = await TeamRepository.findStaffByMembershipWithTx(tx, session.organizationId, membershipId, false);
+      if (!found) throw new TeamMemberNotFoundError();
+      if (found.role !== "MANAGER") throw new TeamConflictError("NOT_A_MANAGER");
+      return { row: found, organizationName: await TeamRepository.organizationNameWithTx(tx, session.organizationId) };
+    });
+    await provisionAuth(db, row.userId, row.email);
+    return buildTeamAccessInstructions({ fullName: row.fullName, organizationName, email: row.email, origin });
+  },
+
+  async remove(db: Db, session: Session, membershipId: string): Promise<void> {
+    await runInTenantContext(db, session.organizationId, async (tx) => {
+      const row = await TeamRepository.findStaffByMembershipWithTx(tx, session.organizationId, membershipId, true);
+      if (!row) throw new TeamMemberNotFoundError();
+      if (row.role === "OWNER") throw new TeamConflictError("CANNOT_REMOVE_OWNER");
+      if (row.userId === session.userId) throw new TeamConflictError("CANNOT_REMOVE_SELF");
+      await tx
+        .delete(organizationMembers)
+        .where(and(eq(organizationMembers.id, membershipId), eq(organizationMembers.organizationId, session.organizationId)));
+      await DomainEventsRepository.appendWithTx(tx, session.organizationId, {
+        eventType: "member.removed",
+        entityType: "organization_member",
+        entityId: membershipId,
+        payload: { membershipId, userId: row.userId, removedBy: session.userId },
+        actor: { userId: session.userId },
+      });
+    });
   },
 };

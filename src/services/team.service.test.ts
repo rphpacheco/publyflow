@@ -14,10 +14,13 @@ import { ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { TeamService } from "./team.service";
-import { TeamConflictError } from "@/domain/team/errors";
+import { TeamConflictError, TeamMemberNotFoundError } from "@/domain/team/errors";
 import { AuthProvisioningError } from "@/lib/auth/errors";
 import { users, organizationMembers } from "@/db/schema/organizations";
-import { domainEvents } from "@/db/schema/domain-events";
+import { domainEvents, notifications } from "@/db/schema/domain-events";
+import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
+import { NotificationsRepository } from "@/repositories/notifications.repository";
+import { runInTenantContext } from "@/repositories/tenant-context";
 
 const ORIGIN = "http://localhost:3000";
 const AUTH_ID = "11111111-1111-4111-8111-111111111111";
@@ -199,6 +202,122 @@ describe("TeamService", () => {
 
       const asAbel = await TeamService.list(db, { ...session, userId: abel.id, role: "MANAGER" });
       expect(asAbel.map((m) => m.isSelf)).toEqual([false, true, false]);
+    });
+  });
+
+  describe("remind and remove", () => {
+    const addManager = async (email = "ana@x.test", authUserId: string | null = null) => {
+      const [u] = await db.insert(users).values({ email, fullName: "Ana Lima", authUserId }).returning();
+      const [m] = await db
+        .insert(organizationMembers)
+        .values({ organizationId: organization.id, userId: u.id, role: "MANAGER" })
+        .returning();
+      return { user: u, membership: m };
+    };
+    const ownerMembershipId = async () =>
+      (await db.select().from(organizationMembers).where(eq(organizationMembers.role, "OWNER")))[0].id;
+    const removedEvents = () => db.select().from(domainEvents).where(eq(domainEvents.eventType, "member.removed"));
+
+    it("remind: ensures the auth user and returns the exact message; links only when created", async () => {
+      const { user, membership } = await addManager();
+      const result = await TeamService.remind(db, session, membership.id, ORIGIN);
+      expect(ensureAuthUser).toHaveBeenCalledWith("ana@x.test");
+      expect(result.loginUrl).toBe("http://localhost:3000/login");
+      expect(result.message).toBe(
+        "Olá, Ana Lima! Você foi convidado(a) para a equipe da Agência X no PublyFlow. Acesse http://localhost:3000/login e entre com Google ou com um link enviado para ana@x.test.",
+      );
+      expect((await userRows(user.email))[0].authUserId).toBe(AUTH_ID);
+
+      const second = await addManager("bo@x.test");
+      ensureAuthUser.mockResolvedValueOnce({ authUserId: null, created: false });
+      await TeamService.remind(db, session, second.membership.id, ORIGIN);
+      expect((await userRows("bo@x.test"))[0].authUserId).toBeNull();
+    });
+
+    it("remind: OWNER target is NOT_A_MANAGER", async () => {
+      await expect(TeamService.remind(db, session, await ownerMembershipId(), ORIGIN)).rejects.toMatchObject({
+        name: "TeamConflictError",
+        code: "NOT_A_MANAGER",
+      });
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("remind: unknown id, other org and CREATOR membership are not found", async () => {
+      const other = await OrganizationService.createWithOwner(db, {
+        organizationName: "Outra",
+        ownerEmail: "boss@outra.test",
+        ownerFullName: "Chefe",
+      });
+      const [otherMembership] = await db
+        .select()
+        .from(organizationMembers)
+        .where(eq(organizationMembers.organizationId, other.organization.id));
+      const [cr] = await db.insert(users).values({ email: "cr@x.test", fullName: "Cr" }).returning();
+      const [crM] = await db
+        .insert(organizationMembers)
+        .values({ organizationId: organization.id, userId: cr.id, role: "CREATOR" })
+        .returning();
+      for (const id of ["33333333-3333-4333-8333-333333333333", otherMembership.id, crM.id]) {
+        await expect(TeamService.remind(db, session, id, ORIGIN)).rejects.toBeInstanceOf(TeamMemberNotFoundError);
+        await expect(TeamService.remove(db, session, id)).rejects.toBeInstanceOf(TeamMemberNotFoundError);
+      }
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("remind: provisioning failure surfaces AuthProvisioningError", async () => {
+      const { membership } = await addManager();
+      ensureAuthUser.mockRejectedValueOnce(new AuthProvisioningError("boom"));
+      await expect(TeamService.remind(db, session, membership.id, ORIGIN)).rejects.toBeInstanceOf(AuthProvisioningError);
+    });
+
+    it("remove: deletes the membership, keeps user and notifications, emits one event", async () => {
+      const { user, membership } = await addManager();
+      await db.insert(notifications).values({ organizationId: organization.id, recipientUserId: user.id, kind: "k", title: "t" });
+      await TeamService.remove(db, session, membership.id);
+
+      expect(await managers()).toHaveLength(0);
+      expect(await userRows(user.email)).toHaveLength(1);
+      expect(await db.select().from(notifications).where(eq(notifications.recipientUserId, user.id))).toHaveLength(1);
+      const events = await removedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0].entityId).toBe(membership.id);
+    });
+
+    it("remove: OWNER target and self-removal are refused", async () => {
+      await expect(TeamService.remove(db, session, await ownerMembershipId())).rejects.toMatchObject({ code: "CANNOT_REMOVE_OWNER" });
+      const { user, membership } = await addManager();
+      await expect(TeamService.remove(db, { ...session, userId: user.id }, membership.id)).rejects.toMatchObject({
+        code: "CANNOT_REMOVE_SELF",
+      });
+      expect(await managers()).toHaveLength(1);
+      expect(await removedEvents()).toHaveLength(0);
+    });
+
+    it("remove: revokes access effectively (session no longer resolves)", async () => {
+      const { membership } = await addManager("ana@x.test", AUTH_ID);
+      const identity = { id: AUTH_ID, email: "ana@x.test", emailVerified: true };
+      expect(await resolveSessionForAuthUser(db, identity)).toMatchObject({ role: "MANAGER" });
+      await TeamService.remove(db, session, membership.id);
+      expect(await resolveSessionForAuthUser(db, identity)).toBeNull();
+    });
+
+    it("remove: staff fan-out after removal excludes the removed user", async () => {
+      const { user, membership } = await addManager();
+      await TeamService.remove(db, session, membership.id);
+      const [event] = await removedEvents();
+      await runInTenantContext(db, organization.id, (tx) =>
+        NotificationsRepository.fanOutWithTx(
+          tx,
+          organization.id,
+          { sourceEventId: event.id, kind: "k", title: "t", body: null, linkPath: null },
+          { creatorUserId: null, only: "staff" },
+        ),
+      );
+      const recipients = (await db.select().from(notifications).where(eq(notifications.sourceEventId, event.id))).map(
+        (n) => n.recipientUserId,
+      );
+      expect(recipients).toEqual([owner.id]);
+      expect(recipients).not.toContain(user.id);
     });
   });
 });
