@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+- (nada — próximo: E. Convite de Manager, aguardando ok)
+
+## Concluído nesta fase (Auth hardening)
+
 ### 3. Auth hardening (follow-ups da revisão do Auth v1)
 - [x] Escopo: só os 6 follow-ups (opção A); manager/reset/RLS viram specs E, F, G
 - [x] Decisão: servidor cria usuário do Supabase confirmado (service-role) + backfill; signup público desligado depois do checkpoint
@@ -12,8 +16,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-06-auth-hardening-design.md`
 - [x] Revisão da spec pelo usuário (ajuste: creator não vincula `auth_user_id` no convite — travaria a edição de e-mail; só provisionamento vincula; `--check` bloqueia só e-mail ausente no Supabase)
 - [x] Plano — `docs/superpowers/plans/2026-10-06-auth-hardening.md` (T1 admin+provisionamento, T2 convite/lembrete/e-mail + magic link, T3 0025, T4 backfill, T5 sessão/proxy/indisponível, T6 49 rotas + guarda, T7 logout/sem-acesso/login, T8 verificação)
-- [ ] Implementação (subagentes) + revisão final
-- [ ] Merge + deploy (chave na Vercel → 0025 → push → backfill → `--check` = 0 → desligar signup → verificar logins)
+- [x] Implementação (subagentes) + revisão final — T1–T7 revisadas; achados corrigidos (PATCH com e-mail igual re-provisiona creator convidado — decisão A; teste de rota dependente de ordem; backfill sem causa de falha; `decision.ts` fora do `getRouteSession`); revisão final "com ajustes" aplicada (callback `signup_disabled` → `/sem-acesso`, log de queda, linha `Target` no backfill, ordem do deploy na spec); `server-only` não adicionado (pacote ausente quebra scripts tsx)
+- [x] Verificação: tsc ok, lint sem erros novos, suíte 1474 verde, build ok; navegador: GET signout 405 sem deslogar, `/login` → `/pipeline`, 1 `getUser` por render (inclusive preview), queda simulada → tela de indisponível + 503 `AUTH_UNAVAILABLE` + log, sessão sobrevive; convite cria usuário no Supabase sem vincular
+- [x] Merge + deploy (`3a0cec6`, 2026-10-11): chave na Vercel → 0 duplicatas de e-mail → 0025 em produção (26 migrations) → `--check` = 0 → push (Vercel ok; GET signout 405, `signup_disabled` → `/sem-acesso`) → backfill (nada a criar) + `--check` bloqueante 0 → signup desligado (`disable_signup = true`) → usuário testou Google, magic link, Google sem cadastro → `/sem-acesso`, Google de creator convidado → entra; chaves de assinatura já assimétricas (ES256)
 
 ## Concluído nesta fase (Dívida técnica)
 
@@ -141,6 +146,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Auth: usuário de teste `bruno.dev@publyflow.test` criado no Supabase compartilhado (dev = prod) pelo teste de convite — apagar se quiser
+- [ ] Auth: `isAuthServiceFailure` trata qualquer `TypeError` como queda (agora logado); `import "server-only"` no auth-admin exige instalar o pacote e tratar tsx
+- [ ] Auth: magic link em queda responde "enviado"; rejeição permanente do Supabase (422) vira 502 "tente novamente"
 - [ ] Investigar lookup administrativo por e-mail no Supabase para vincular `auth_user_id` imediatamente quando o usuário já existir em `auth.users`
 - [ ] Mesclagem: 1 busca 404 do detalhe do registro excluído entre a mesclagem e a navegação (invisível); prévia não lista leads na empresa
 - [ ] Dashboard: somar itens do snapshot aceito no SQL (DISTINCT ON + jsonb) em vez de carregar o JSON inteiro; staleTime ~60s nas queries
