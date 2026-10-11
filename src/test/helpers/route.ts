@@ -8,13 +8,15 @@ export async function importRouteWithSession<T>(
   options: {
     db: NodePgDatabase<typeof schema>;
     session: Session | null;
+    /** Overrides the mocked getSession (e.g. to throw); still a single doMock of the session module. */
+    getSession?: () => Promise<Session | null>;
     extraMocks?: () => void;
   },
 ): Promise<T> {
   vi.resetModules();
   vi.doMock("@/db", () => ({ db: options.db }));
   vi.doMock("@/lib/auth/session", () => ({
-    getSession: async () => options.session,
+    getSession: options.getSession ?? (async () => options.session),
   }));
   options.extraMocks?.();
   return importRoute();

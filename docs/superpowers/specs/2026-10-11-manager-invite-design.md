@@ -18,11 +18,11 @@ Origin: Auth v1 subproject 2 leftovers. Today a MANAGER can only be created with
 ### 2.1 Invite (OWNER) — `TeamService.inviteManager(db, session, { fullName, email })`
 One transaction (`runInTenantContext`):
 1. Normalize the e-mail (`trim`, compare with `lower`). Create-or-reuse the `users` row: `INSERT … ON CONFLICT (lower(email)) DO NOTHING`, then `SELECT … FOR UPDATE` by `lower(email)` — a single row lock, so lock order is deterministic. A reused row keeps its stored `full_name`.
-2. Read the user's memberships (`OrganizationMembersRepository.listForUser`) and decide:
-   - MANAGER in this organization → **idempotent**: no new membership; continue to step 4 (this is how a retry after a 502 completes provisioning).
+2. Read the user's memberships (`OrganizationMembersRepository.listForUser`) and decide, **in this order**:
+   - MANAGER in this organization → **idempotent**: no new membership; continue to step 4 (this is how a retry after a 502 completes provisioning, even for a legacy multi-organization user).
    - OWNER in this organization → 409 `ALREADY_IN_TEAM` "Essa pessoa já faz parte da equipe."
    - CREATOR membership in this organization, **or** a `creators` row of this organization pointing to this user (invited or not) → 409 `IS_CREATOR` "Esse e-mail é de um creator desta organização."
-   - any membership in another organization → 409 `OTHER_ORGANIZATION` "Esse e-mail já tem acesso a outra organização." — no ids, names or other data of that user/organization in the response.
+   - any membership in another organization, **or a `creators` row of another organization pointing to this user** (decided 2026-10-11 after the final review: same tie `isEmailEditable` already treats as cross-organization; otherwise org A would see org B's stored name and lock B's creator e-mail) → 409 `OTHER_ORGANIZATION` "Esse e-mail já tem acesso a outra organização." — no ids, names or other data of that user/organization in the response.
 3. Insert the MANAGER membership (`ON CONFLICT DO NOTHING` on `(organization_id, user_id)`). Append domain event `member.invited` `{ membershipId, userId, invitedBy: session.userId }` **only when the insert returned a row** — the idempotent path and a conflicting insert append nothing (no handler; the drain marks it done).
 4. After commit (never inside the transaction): `getAuthAdmin().ensureAuthUser(email)`. When it returns `created` with an id, link with the conditional `UsersRepository.linkAuthUser(db, userId, authUserId)` (only when `auth_user_id IS NULL`; never overwrites). When the Supabase user already existed, nothing is linked — the first login links by **verified** e-mail (`resolve-session`, unchanged). Failure → `AuthProvisioningError` → 502 `AUTH_PROVISIONING_FAILED`; the membership stays; inviting again or "Reenviar acesso" completes it. The retry never depends on Supabase answering `created: true` again: if the first attempt created the Supabase user but the response was lost, the retry gets "already exists" → `{ created: false }` → 200 without linking, and the first login links by verified e-mail.
 5. Return `{ member, loginUrl, message }` where `member` has exactly the `GET /api/team` item shape.
@@ -38,7 +38,7 @@ New builder next to `buildAccessInstructions` (`src/lib/team/access-instructions
 Membership must exist in this organization and be MANAGER (OWNER target → 409 `NOT_A_MANAGER` "Só é possível reenviar o acesso de um gestor."; other org / unknown → 404). Calls `ensureAuthUser` again (idempotent) + conditional link when created; returns `{ loginUrl, message }`.
 
 ### 2.4 Remove access (OWNER)
-In one transaction, lock the membership row; it must belong to this organization (else 404).
+In one transaction, lock the membership row, then the member's `users` row (same order invite uses: invite locks only the `users` row, so no cycle) — this serializes remove with a concurrent re-invite of the same person; the membership must belong to this organization (else 404).
 - target is OWNER → 409 `CANNOT_REMOVE_OWNER` "Não é possível remover um proprietário." (also protects the last OWNER);
 - target is the caller → 409 `CANNOT_REMOVE_SELF` "Você não pode remover o próprio acesso.";
 - otherwise delete the MANAGER membership; append `member.removed` `{ membershipId, userId, removedBy }`.
@@ -94,7 +94,7 @@ Vitest against the real test Postgres; `@/lib/auth/auth-admin` mocked wherever `
 - **Manual (browser):** invite a gestor with a Gmail you control → Google login enters as MANAGER; remove → next navigation `/sem-acesso`; layout 320–1920px.
 
 ## 6. Deploy
-No migration. Push `main`; verify `/team` in production (OWNER sees actions, a MANAGER does not). Optional: `pnpm exec tsx scripts/backfill-auth-users.ts --check` stays at blocking 0.
+No migration, but it depends on 0025 (`users_email_lower_unique`, used by `on conflict (lower(email))`): confirm it is applied in production (it is since 2026-10-11, 26 migrations) before pushing. Push `main`; verify `/team` in production (OWNER sees actions, a MANAGER does not). Optional: `pnpm exec tsx scripts/backfill-auth-users.ts --check` stays at blocking 0.
 
 ## 7. Out of scope
 Changing roles (promote/demote), inviting another OWNER, transferring ownership, e-mail delivery, multi-organization users, removing creators from this page.

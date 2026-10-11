@@ -1,4 +1,4 @@
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, ne, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
@@ -123,6 +123,21 @@ export const CreatorsRepository = {
       .from(creators)
       .where(and(eq(creators.userId, userId), eq(creators.organizationId, organizationId)));
     return row ?? null;
+  },
+
+  // True when the user is the creator profile of any organization other than
+  // `organizationId`. Returns no data from that row.
+  async existsForUserOutsideOrganizationWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    userId: string,
+    organizationId: string,
+  ): Promise<boolean> {
+    const [row] = await tx
+      .select({ id: creators.id })
+      .from(creators)
+      .where(and(eq(creators.userId, userId), ne(creators.organizationId, organizationId)))
+      .limit(1);
+    return !!row;
   },
 
   async findByUserId(

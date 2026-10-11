@@ -53,6 +53,8 @@ const cases: Array<{ route: string; load: () => Promise<Record<string, unknown>>
   { route: "services/[id]", load: () => import("./services/[id]/route"), methods: ["PATCH"], error: new ServiceNotFoundError(BAD).message },
   { route: "creators/[id]", load: () => import("./creators/[id]/route"), methods: ["PATCH"], error: new CreatorNotFoundError(BAD).message },
   { route: "creators/[id]/access", load: () => import("./creators/[id]/access/route"), methods: ["POST", "DELETE"], error: new CreatorNotFoundError(BAD).message },
+  { route: "team/members/[id]", load: () => import("./team/members/[id]/route"), methods: ["DELETE"], error: "Membro não encontrado." },
+  { route: "team/members/[id]/remind", load: () => import("./team/members/[id]/remind/route"), methods: ["POST"], error: "Membro não encontrado." },
   { route: "creators/[id]/access/remind", load: () => import("./creators/[id]/access/remind/route"), methods: ["POST"], error: new CreatorNotFoundError(BAD).message },
 ];
 

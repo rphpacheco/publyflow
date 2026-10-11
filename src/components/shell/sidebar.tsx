@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Menu,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Contacts", href: "/contacts", icon: Contact },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Equipe", href: "/team", icon: UsersRound },
 ];
 
 const CREATOR_ALLOWED_HREFS = new Set(["/inbox", "/pipeline", "/proposals"]);

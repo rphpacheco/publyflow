@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canManageOrganization, creatorScope, denyCreatorWrite, isCreator } from "./access";
+import { canManageOrganization, canManageTeam, creatorScope, denyCreatorWrite, isCreator } from "./access";
 
 const owner = { userId: "u", organizationId: "o", role: "OWNER" as const, creatorId: null };
 const creator = { userId: "u", organizationId: "o", role: "CREATOR" as const, creatorId: "c1" };
@@ -17,6 +17,12 @@ describe("access helpers", () => {
     expect(canManageOrganization("OWNER")).toBe(true);
     expect(canManageOrganization("MANAGER")).toBe(true);
     expect(canManageOrganization("CREATOR")).toBe(false);
+  });
+
+  it("canManageTeam is OWNER-only", () => {
+    expect(canManageTeam("OWNER")).toBe(true);
+    expect(canManageTeam("MANAGER")).toBe(false);
+    expect(canManageTeam("CREATOR")).toBe(false);
   });
 
   it("denyCreatorWrite returns a 403 for CREATOR only", async () => {

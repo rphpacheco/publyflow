@@ -27,6 +27,17 @@ describe("SidebarDesktop", () => {
   });
 });
 
+describe("SidebarDesktop Equipe item", () => {
+  it("links to /team for staff", () => {
+    render(
+      <SessionRoleProvider role="MANAGER">
+        <SidebarDesktop />
+      </SessionRoleProvider>,
+    );
+    expect(screen.getByRole("link", { name: /Equipe/ })).toHaveAttribute("href", "/team");
+  });
+});
+
 describe("SidebarMobile", () => {
   it("opens the navigation drawer when the menu trigger is tapped", async () => {
     const user = userEvent.setup();
@@ -51,5 +62,6 @@ describe("SidebarDesktop under CREATOR", () => {
 
     const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(links).toEqual(["/inbox", "/pipeline", "/proposals"]);
+    expect(screen.queryByRole("link", { name: /Equipe/ })).toBeNull();
   });
 });
