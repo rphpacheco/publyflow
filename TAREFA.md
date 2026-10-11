@@ -158,7 +158,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
-- [ ] Equipe: testar em produção convidar um gestor (Gmail próprio), login dele como MANAGER e remoção → `/sem-acesso`; layout 320–1920px da página
+- [x] Equipe: testado em produção pelo usuário (2026-10-11) — convite de gestor, login como MANAGER e remoção → `/sem-acesso` funcionaram
 - [ ] Equipe: diálogo de convite mantém rascunho ao cancelar; cards sem rótulos Papel/Situação p/ leitor de tela; sem teste determinístico da corrida remover×reconvidar
 - [ ] Auth: usuário de teste `bruno.dev@publyflow.test` criado no Supabase compartilhado (dev = prod) pelo teste de convite — apagar se quiser
 - [ ] Auth: `isAuthServiceFailure` trata qualquer `TypeError` como queda (agora logado); `import "server-only"` no auth-admin exige instalar o pacote e tratar tsx
