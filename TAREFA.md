@@ -5,7 +5,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-- (nada — próximo: F. Reset de senha, aguardando ok)
+### F. Reset e troca de senha
+- [x] Escopo: "Esqueci minha senha" no /login + "Alterar senha" no app (também cria a 1ª senha)
+- [x] Decisão: troca no app também por link no e-mail (prova a caixa de e-mail); página de nova senha exige comprovante assinado (cookie 15 min, uso único)
+- [x] Design (aprovado)
+- [x] Spec — `docs/superpowers/specs/2026-10-11-password-reset-design.md`
+- [ ] Revisão da spec pelo usuário
+- [ ] Plano de implementação
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy (conferir Redirect URLs no Supabase; traduzir template de e-mail — opcional, usuário)
 
 ## Concluído nesta fase (Equipe)
 
@@ -146,7 +154,6 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Próximos (na ordem combinada)
 
-### F. Reset de senha (spec própria)
 ### G. RLS valendo em runtime (spec própria)
 ### Não priorizado
 - [ ] Signup self-service que cria organização
