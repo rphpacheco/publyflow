@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { withTestDb } from "@/test/helpers/db";
 import { importRouteWithSession, ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "@/services/organization.service";
@@ -55,15 +55,12 @@ describe("GET /api/companies", () => {
     const { GET } = await importRouteWithSession(() => import("./route"), {
       db,
       session: null,
-      extraMocks: () =>
-        vi.doMock("@/lib/auth/session", () => ({
-          getSession: async () => {
-            // Resolved lazily so the class comes from the same module registry
-            // (post vi.resetModules) as the route's own instanceof check.
-            const { AuthUnavailableError } = await import("@/lib/auth/errors");
-            throw new AuthUnavailableError();
-          },
-        })),
+      // Resolved lazily so the class comes from the same module registry
+      // (post vi.resetModules) as the route's own instanceof check.
+      getSession: async () => {
+        const { AuthUnavailableError } = await import("@/lib/auth/errors");
+        throw new AuthUnavailableError();
+      },
     });
 
     const response = await GET(new Request("http://localhost/api/companies"));
