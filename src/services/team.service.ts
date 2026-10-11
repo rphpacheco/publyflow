@@ -40,26 +40,49 @@ function isUniqueViolation(error: unknown): boolean {
   return (e.code ?? e.cause?.code) === "23505";
 }
 
+function isRetryableInvite(error: unknown): boolean {
+  return isUniqueViolation(error) || error instanceof RetryableInviteError;
+}
+
 // After commit only. Links solely a Supabase user created right now; an
 // existing one is linked on first login by verified e-mail (resolve-session).
 async function provisionAuth(db: Db, userId: string, email: string): Promise<void> {
   const ensured = await getAuthAdmin().ensureAuthUser(email);
   if (ensured.created && ensured.authUserId) {
+    // A false from linkAuthUser (another auth user linked first) is fine: the
+    // first login links by verified e-mail.
     await UsersRepository.linkAuthUser(db, userId, ensured.authUserId);
   }
 }
 
+// Internal: the membership vanished between the decision and the read-back
+// (a concurrent remove); handled like a lost 23505 race.
+class RetryableInviteError extends Error {}
+
 async function inviteOnce(db: Db, session: Session, input: { fullName: string; email: string }) {
   return runInTenantContext(db, session.organizationId, async (tx) => {
     const user = await TeamRepository.upsertAndLockUserByEmailWithTx(tx, input.email, input.fullName);
+    // The cross-org check via the user's memberships relies on the app role
+    // bypassing RLS (see TAREFA G: RLS at runtime).
     const memberships = await OrganizationMembersRepository.listForUser(tx, user.id);
     const here = memberships.find((m) => m.organizationId === session.organizationId);
-    if (memberships.some((m) => m.organizationId !== session.organizationId)) throw new TeamConflictError("OTHER_ORGANIZATION");
-    if (here?.role === "OWNER") throw new TeamConflictError("ALREADY_IN_TEAM");
-    if (here?.role === "CREATOR" || (await CreatorsRepository.findByUserIdWithTx(tx, session.organizationId, user.id))) {
-      throw new TeamConflictError("IS_CREATOR");
+
+    // Decision order follows spec 2.1: MANAGER here (idempotent) -> OWNER here
+    // -> creator here -> anything in another organization.
+    if (here?.role !== "MANAGER") {
+      if (here?.role === "OWNER") throw new TeamConflictError("ALREADY_IN_TEAM");
+      if (here?.role === "CREATOR" || (await CreatorsRepository.findByUserIdWithTx(tx, session.organizationId, user.id))) {
+        throw new TeamConflictError("IS_CREATOR");
+      }
+      if (
+        memberships.some((m) => m.organizationId !== session.organizationId) ||
+        (await CreatorsRepository.existsForUserOutsideOrganizationWithTx(tx, user.id, session.organizationId))
+      ) {
+        throw new TeamConflictError("OTHER_ORGANIZATION");
+      }
     }
 
+    let membershipId = here?.id;
     if (!here) {
       const [inserted] = await tx
         .insert(organizationMembers)
@@ -67,6 +90,7 @@ async function inviteOnce(db: Db, session: Session, input: { fullName: string; e
         .onConflictDoNothing()
         .returning({ id: organizationMembers.id });
       if (inserted) {
+        membershipId = inserted.id;
         await DomainEventsRepository.appendWithTx(tx, session.organizationId, {
           eventType: "member.invited",
           entityType: "organization_member",
@@ -76,14 +100,12 @@ async function inviteOnce(db: Db, session: Session, input: { fullName: string; e
         });
       }
     }
+    if (!membershipId) throw new RetryableInviteError();
 
-    const [membership] = await tx
-      .select({ id: organizationMembers.id })
-      .from(organizationMembers)
-      .where(and(eq(organizationMembers.organizationId, session.organizationId), eq(organizationMembers.userId, user.id)));
-    const row = await TeamRepository.findStaffByMembershipWithTx(tx, session.organizationId, membership.id, false);
+    const row = await TeamRepository.findStaffByMembershipWithTx(tx, session.organizationId, membershipId, false);
+    if (!row) throw new RetryableInviteError();
     const organizationName = await TeamRepository.organizationNameWithTx(tx, session.organizationId);
-    return { row: row!, userId: user.id, organizationName };
+    return { row, userId: user.id, organizationName };
   });
 }
 
@@ -101,13 +123,13 @@ export const TeamService = {
     try {
       result = await inviteOnce(db, session, { fullName, email });
     } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
+      if (!isRetryableInvite(error)) throw error;
       // The failed transaction was rolled back; start a fresh one that
       // re-reads the winner's rows and re-applies every rule.
       try {
         result = await inviteOnce(db, session, { fullName, email });
       } catch (retryError) {
-        if (isUniqueViolation(retryError)) throw new TeamConflictError("ALREADY_IN_TEAM");
+        if (isRetryableInvite(retryError)) throw new TeamConflictError("ALREADY_IN_TEAM");
         throw retryError;
       }
     }
@@ -136,7 +158,12 @@ export const TeamService = {
     await runInTenantContext(db, session.organizationId, async (tx) => {
       const row = await TeamRepository.findStaffByMembershipWithTx(tx, session.organizationId, membershipId, true);
       if (!row) throw new TeamMemberNotFoundError();
+      // Spec 2.4 lock order: membership, then the member's users row (the one
+      // invite locks), so a concurrent re-invite serializes with this remove.
+      await UsersRepository.lockByIdWithTx(tx, row.userId);
       if (row.role === "OWNER") throw new TeamConflictError("CANNOT_REMOVE_OWNER");
+      // Defense in depth: unreachable while only OWNERs can remove and OWNER
+      // targets are rejected first.
       if (row.userId === session.userId) throw new TeamConflictError("CANNOT_REMOVE_SELF");
       await tx
         .delete(organizationMembers)

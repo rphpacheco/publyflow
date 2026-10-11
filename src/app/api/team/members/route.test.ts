@@ -51,6 +51,13 @@ describe("POST /api/team/members", () => {
     expect((await POST(req("not json"))).status).toBe(400);
   });
 
+  it("200 for a padded e-mail (trimmed before validation)", async () => {
+    const { POST } = await setup("ownerSess");
+    const response = await POST(req({ fullName: "Ana Souza", email: "  ana2@publyflow.test  " }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).member.email).toBe("ana2@publyflow.test");
+  });
+
   it("200 returns the member (same as GET /api/team), loginUrl and message", async () => {
     const { t, POST } = await setup("ownerSess");
     const response = await POST(req(valid));

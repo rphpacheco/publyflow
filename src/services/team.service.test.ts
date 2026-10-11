@@ -14,6 +14,7 @@ import { ownerSession } from "@/test/helpers/route";
 import { OrganizationService } from "./organization.service";
 import { CreatorService } from "./creator.service";
 import { TeamService } from "./team.service";
+import { TeamRepository } from "@/repositories/team.repository";
 import { TeamConflictError, TeamMemberNotFoundError } from "@/domain/team/errors";
 import { AuthProvisioningError } from "@/lib/auth/errors";
 import { users, organizationMembers } from "@/db/schema/organizations";
@@ -63,7 +64,13 @@ describe("TeamService", () => {
         "Olá, Ana Lima! Você foi convidado(a) para a equipe da Agência X no PublyFlow. Acesse http://localhost:3000/login e entre com Google ou com um link enviado para ana@x.test.",
       );
       expect(await managers()).toHaveLength(1);
-      expect(await invitedEvents()).toHaveLength(1);
+      const events = await invitedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0].payload).toEqual({
+        membershipId: result.member.id,
+        userId: (await userRows("ana@x.test"))[0].id,
+        invitedBy: owner.id,
+      });
       expect(ensureAuthUser).toHaveBeenCalledTimes(1);
       expect(ensureAuthUser).toHaveBeenCalledWith("ana@x.test");
       const [user] = await userRows("ana@x.test");
@@ -152,6 +159,72 @@ describe("TeamService", () => {
       expect((caught as Error).message).toBe("Esse e-mail já tem acesso a outra organização.");
       expect(JSON.stringify(caught)).not.toContain(other.organization.name);
       expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("rejects a creator of ANOTHER organization (never invited) with OTHER_ORGANIZATION and no data", async () => {
+      const other = await OrganizationService.createWithOwner(db, {
+        organizationName: "Outra Org Secreta",
+        ownerEmail: "boss@outra.test",
+        ownerFullName: "Chefe Outro",
+      });
+      await CreatorService.onboardCreator(db, other.organization.id, {
+        email: "xcreator@outra.test",
+        fullName: "Nome Secreto X",
+        displayName: "X",
+      });
+      const membershipsBefore = await db.select().from(organizationMembers);
+      let caught: unknown;
+      try {
+        await TeamService.inviteManager(db, session, { fullName: "X", email: "xcreator@outra.test" }, ORIGIN);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(TeamConflictError);
+      expect((caught as TeamConflictError).code).toBe("OTHER_ORGANIZATION");
+      expect(JSON.stringify(caught)).not.toContain(other.organization.name);
+      expect(JSON.stringify(caught)).not.toContain("Nome Secreto X");
+      expect((caught as Error).message).not.toContain("Nome Secreto X");
+      expect(await db.select().from(organizationMembers)).toHaveLength(membershipsBefore.length);
+      expect(await invitedEvents()).toHaveLength(0);
+      expect(ensureAuthUser).not.toHaveBeenCalled();
+    });
+
+    it("is idempotent for a MANAGER here even with a legacy membership in another organization", async () => {
+      const other = await OrganizationService.createWithOwner(db, {
+        organizationName: "Outra",
+        ownerEmail: "boss@outra.test",
+        ownerFullName: "Chefe",
+      });
+      const [u] = await db.insert(users).values({ email: "multi@x.test", fullName: "Multi" }).returning();
+      await db.insert(organizationMembers).values([
+        { organizationId: organization.id, userId: u.id, role: "MANAGER" },
+        { organizationId: other.organization.id, userId: u.id, role: "MANAGER" },
+      ]);
+      const result = await TeamService.inviteManager(db, session, { fullName: "Multi", email: "multi@x.test" }, ORIGIN);
+      expect(result.member.role).toBe("MANAGER");
+      expect(await managers()).toHaveLength(2);
+      expect(await invitedEvents()).toHaveLength(0);
+      expect(ensureAuthUser).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries once after a unique violation; a second one is ALREADY_IN_TEAM", async () => {
+      const original = TeamRepository.upsertAndLockUserByEmailWithTx;
+      const spy = vi.spyOn(TeamRepository, "upsertAndLockUserByEmailWithTx");
+      spy.mockRejectedValueOnce(Object.assign(new Error("dup"), { code: "23505" }));
+      const ok = await TeamService.inviteManager(db, session, { fullName: "Ana", email: "ana@x.test" }, ORIGIN);
+      expect(ok.member.role).toBe("MANAGER");
+      expect(spy).toHaveBeenCalledTimes(2);
+
+      spy.mockReset();
+      spy.mockImplementation(async () => {
+        throw Object.assign(new Error("dup"), { code: "23505" });
+      });
+      await expect(
+        TeamService.inviteManager(db, session, { fullName: "Bo", email: "bo@x.test" }, ORIGIN),
+      ).rejects.toMatchObject({ name: "TeamConflictError", code: "ALREADY_IN_TEAM" });
+      expect(spy).toHaveBeenCalledTimes(2);
+      spy.mockImplementation(original);
+      spy.mockRestore();
     });
 
     it("keeps the membership when provisioning fails and succeeds on retry", async () => {

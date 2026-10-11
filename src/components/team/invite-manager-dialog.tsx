@@ -104,7 +104,7 @@ export function InviteManagerDialog({
               {formError}
             </p>
           ) : null}
-          {field("fullName", "Nome completo", fullName, setFullName, { maxLength: 120, autoComplete: "name" })}
+          {field("fullName", "Nome completo", fullName, setFullName, { maxLength: 200, autoComplete: "name" })}
           {field("email", "E-mail", email, setEmail, { type: "email", maxLength: 254, autoComplete: "email" })}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
