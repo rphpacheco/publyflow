@@ -54,25 +54,6 @@ export const OrganizationMembersRepository = {
     return row ?? null;
   },
 
-  /**
-   * Sees other organizations only on the privileged connection; inside a
-   * tenant transaction use listAllForUserWithTx.
-   */
-  async listForUser(
-    db: NodePgDatabase<typeof schema>,
-    userId: string,
-  ): Promise<Array<{ id: string; organizationId: string; role: SessionRole; firstLoginAt: Date | null }>> {
-    return db
-      .select({
-        id: organizationMembers.id,
-        organizationId: organizationMembers.organizationId,
-        role: organizationMembers.role,
-        firstLoginAt: organizationMembers.firstLoginAt,
-      })
-      .from(organizationMembers)
-      .where(eq(organizationMembers.userId, userId));
-  },
-
   // Every membership of the user, in every organization, read through the
   // SECURITY DEFINER function publyflow_user_memberships so it also works
   // inside a tenant transaction running as publyflow_app (RLS enforced).

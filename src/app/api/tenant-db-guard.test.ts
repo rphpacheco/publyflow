@@ -7,7 +7,10 @@ import { describe, it, expect } from "vitest";
 //  1. Repository methods whose FIRST parameter is the root connection `db` must open
 //     runInTenantContext( in their body, unless allow-listed below as a system path.
 //     `…WithTx(tx, …)` methods receive an already-scoped transaction and are skipped.
-//  2. Code under src/app and src/lib must not call db.select/insert/update/delete/execute/transaction
+//     A method that only delegates to a compliant sibling (`XRepository.sibling(db` / `this.sibling(db`)
+//     is compliant too (transitively, cycles are not compliant). Any first parameter not named `tx`
+//     counts as a root connection. Non-allow-listed bodies must also not call db.<query>( directly.
+//  2. Code under src/app, src/lib and src/services must not call db.select/insert/update/delete/execute/transaction
 //     directly (except the privileged files below).
 //
 // Parser assumptions (kept simple on purpose): repositories declare methods as `async name(` or
@@ -26,9 +29,7 @@ const REPOSITORY_ALLOW_LIST = new Map<string, string>([
   ["rate-limit.repository.ts#hit", "rate_limit_buckets is global infrastructure, keyed by IP/token"],
   ["rate-limit.repository.ts#purgeOlderThan", "rate_limit_buckets is global infrastructure"],
   ["organization-members.repository.ts#findOldestMembershipForUser", "privileged session resolution: the organization is what is being determined"],
-  ["organization-members.repository.ts#listForUser", "privileged cross-organization membership lookup (documented as privileged-connection only)"],
   ["organization-members.repository.ts#recordLogin", "login-time write before any tenant context exists (login action / auth callbacks)"],
-  ["proposals.repository.ts#isInCreatorScope", "delegates to creatorIdForProposal(db, …), which opens runInTenantContext"],
   ["proposals.repository.ts#findByPublicToken", "public proposal link: tenant unknown until the token is resolved"],
 ]);
 
@@ -40,6 +41,8 @@ const DIRECT_DB_ALLOW_LIST = new Map<string, string>([
   ["src/app/auth/callback/route.ts", "auth callback"],
   ["src/app/auth/confirm/route.ts", "auth confirm"],
   ["src/app/api/internal/events/drain/route.ts", "cron outbox drain"],
+  ["src/services/organization.service.ts", "organization bootstrap: the tenant does not exist yet"],
+  ["src/services/event-drain.service.ts", "cross-organization outbox drain"],
   ["src/lib/rate-limit.ts", "global rate-limit buckets"],
   ["src/lib/auth/provision-user.ts", "provisioning script"],
   ["src/lib/auth/backfill-auth-users.ts", "backfill script"],
@@ -76,6 +79,8 @@ interface RepoMethod {
   body: string;
 }
 
+const expected: Record<string, number> = {};
+
 function parseMethods(file: string): RepoMethod[] {
   const src = stripComments(fs.readFileSync(path.join(REPO_DIR, file), "utf8"));
   const methods: RepoMethod[] = [];
@@ -108,6 +113,7 @@ function parseMethods(file: string): RepoMethod[] {
       methods.push({ file, name: mm[1], firstParam, body: objSrc.slice(bodyOpen, bodyClose + 1) });
       methodRe.lastIndex = bodyClose;
     }
+    expected[file] = (expected[file] ?? 0) + (objSrc.match(/^ {2}(?:async\s+)?\w+\s*\(/gm) ?? []).length;
   }
   return methods;
 }
@@ -116,13 +122,35 @@ const repoFiles = fs
   .readdirSync(REPO_DIR)
   .filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f) && f !== "tenant-context.ts");
 const allMethods = repoFiles.flatMap(parseMethods);
-const rootDbMethods = allMethods.filter((x) => x.firstParam === "db");
+const rootDbMethods = allMethods.filter((x) => x.firstParam !== "tx");
+const DIRECT_DB_RE = /\bdb\.(select|insert|update|delete|execute|transaction)\(/;
+
+function isCompliant(x: RepoMethod, seen = new Set<string>()): boolean {
+  if (x.body.includes("runInTenantContext(")) return true;
+  const key = `${x.file}#${x.name}`;
+  if (seen.has(key)) return false;
+  seen.add(key);
+  const re = /(?:\w+Repository|this)\.(\w+)\(\s*db\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(x.body))) {
+    const sib = allMethods.find((y) => y.file === x.file && y.name === m![1]);
+    if (sib && isCompliant(sib, seen)) return true;
+  }
+  return false;
+}
 
 function allowed(x: RepoMethod): boolean {
   return REPOSITORY_ALLOW_LIST.has(`${x.file}#${x.name}`) || REPOSITORY_ALLOW_LIST.has(`${x.file}#*`);
 }
 
 describe("repository methods taking the root db open runInTenantContext", () => {
+  it("parsed every method of every repository", () => {
+    for (const f of repoFiles) {
+      const parsed = allMethods.filter((x) => x.file === f).length;
+      expect(parsed, `parse mismatch in ${f}`).toBe(expected[f] ?? 0);
+    }
+  });
+
   it("checked a meaningful number of methods", () => {
     expect(rootDbMethods.length).toBeGreaterThan(20);
   });
@@ -138,14 +166,16 @@ describe("repository methods taking the root db open runInTenantContext", () => 
   for (const x of rootDbMethods) {
     if (allowed(x)) continue;
     it(`${x.file}#${x.name}`, () => {
-      expect(x.body, `${x.file}#${x.name} takes the root db but never calls runInTenantContext(`).toContain("runInTenantContext(");
+      expect(isCompliant(x), `${x.file}#${x.name} takes the root db but never calls runInTenantContext(`).toBe(true);
+      expect(x.body, `${x.file}#${x.name} queries db directly`).not.toMatch(DIRECT_DB_RE);
     });
   }
 });
 
-describe("no direct root-db access in src/app and src/lib", () => {
+describe("no direct root-db access in src/app, src/lib and src/services", () => {
   const files = [
     ...listFiles(path.join(ROOT, "src/app")),
+    ...listFiles(path.join(ROOT, "src/services")),
     ...listFiles(path.join(ROOT, "src/lib"), (full) => full === path.join(ROOT, "src/lib/supabase")),
   ];
 
@@ -160,7 +190,7 @@ describe("no direct root-db access in src/app and src/lib", () => {
     if (DIRECT_DB_ALLOW_LIST.has(rel)) continue;
     it(`${rel} does not call db.<query>() directly`, () => {
       const src = stripComments(fs.readFileSync(file, "utf8"));
-      expect(src).not.toMatch(/\bdb\.(select|insert|update|delete|execute|transaction)\(/);
+      expect(src).not.toMatch(DIRECT_DB_RE);
     });
   }
 });
