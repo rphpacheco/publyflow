@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+- (nada — próximo: G. RLS valendo em runtime, aguardando ok)
+
+## Concluído nesta fase (Senha)
+
 ### F. Reset e troca de senha
 - [x] Escopo: "Esqueci minha senha" no /login + "Alterar senha" no app (também cria a 1ª senha)
 - [x] Decisão: troca no app também por link no e-mail (prova a caixa de e-mail); página de nova senha exige comprovante assinado (cookie 15 min, uso único)
@@ -12,8 +16,9 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-11-password-reset-design.md`
 - [x] Revisão da spec pelo usuário
 - [x] Plano — `docs/superpowers/plans/2026-10-11-password-reset.md` (T1 comprovante + callback, T2 esqueci a senha, T3 página nova senha, T4 menu da conta, T5 verificação)
-- [ ] Implementação (subagentes) + revisão final
-- [ ] Merge + deploy (conferir Redirect URLs no Supabase; traduzir template de e-mail — opcional, usuário)
+- [x] Implementação (subagentes) + revisão final — T1–T4 revisadas (T4: falha de envio mostrava sucesso → corrigido pela spec); revisão final "com ajustes": link com falha/expirado → `/forgot-password?expired=1`, comprovante apagado no logout, limite 72 em bytes, `reauthentication_needed` mapeado; "Secure password change" ativado pelo usuário
+- [x] Teste no navegador revelou: link PKCE falha se aberto em outro navegador → `/auth/confirm` com `token_hash` (qualquer dispositivo) + aceita `code` (PKCE, mesmo navegador), porque o Supabase gratuito não deixa editar o modelo de e-mail sem SMTP próprio (ver Menores); limite de e-mails do Supabase estourou nos testes → validado com link gerado pela API admin: nova senha, link reutilizado → expirado, login com a nova senha ok
+- [x] Merge + deploy (`94eee66`, 2026-10-12): sem migration/env; Vercel ok; `/forgot-password` 200, `/reset-password` sem sessão → `/login`, `/auth/confirm` sem token → `/forgot-password?expired=1`; Redirect URLs com `/**` conferidos pelo usuário
 
 ## Concluído nesta fase (Equipe)
 
@@ -165,6 +170,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] Senha: testar "Alterar senha" pelo menu da conta com e-mail real quando o limite do Supabase liberar (link deve ser aberto no mesmo navegador enquanto não houver SMTP próprio)
 - [ ] SMTP próprio no Supabase (Resend/Brevo/SES; exige domínio próprio): libera editar modelos de e-mail → trocar o link de "Reset password" para `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` (o código já suporta; link passa a funcionar em qualquer dispositivo), e-mails em português e limite de envio maior (também beneficia magic link)
 - [x] Equipe: testado em produção pelo usuário (2026-10-11) — convite de gestor, login como MANAGER e remoção → `/sem-acesso` funcionaram
 - [ ] Equipe: diálogo de convite mantém rascunho ao cancelar; cards sem rótulos Papel/Situação p/ leitor de tela; sem teste determinístico da corrida remover×reconvidar
