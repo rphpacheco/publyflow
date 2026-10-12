@@ -54,7 +54,7 @@ export const CreatorAccessService = {
     const { instructions, email } = await runInTenantContext(db, orgId, async (tx) => {
       const { creator, email } = await loadLockedCreator(tx, orgId, creatorId);
 
-      const memberships = await OrganizationMembersRepository.listForUser(tx, creator.userId);
+      const memberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, creator.userId);
 
       // Temporary: remove when multi-organization sessions exist.
       // TODO: until then, this 409 tells an OWNER/MANAGER whether the
@@ -91,7 +91,7 @@ export const CreatorAccessService = {
     await runInTenantContext(db, orgId, async (tx) => {
       const { creator } = await loadLockedCreator(tx, orgId, creatorId);
 
-      const memberships = await OrganizationMembersRepository.listForUser(tx, creator.userId);
+      const memberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, creator.userId);
       const inThisOrg = memberships.find((membership) => membership.organizationId === orgId);
       if (inThisOrg && inThisOrg.role !== "CREATOR") {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.team);
@@ -118,7 +118,7 @@ export const CreatorAccessService = {
     const { instructions, email } = await runInTenantContext(db, orgId, async (tx) => {
       const { creator, email } = await loadLockedCreator(tx, orgId, creatorId);
 
-      const memberships = await OrganizationMembersRepository.listForUser(tx, creator.userId);
+      const memberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, creator.userId);
       const inThisOrg = memberships.find((membership) => membership.organizationId === orgId);
       if (!inThisOrg || inThisOrg.role !== "CREATOR") {
         throw new CreatorAccessConflictError(ACCESS_ERRORS.notInvited);
