@@ -12,9 +12,9 @@ describe("sendPasswordLink", () => {
     resetMock.mockReset().mockResolvedValue({ error: null });
   });
 
-  it("asks Supabase for a link redirecting to the callback with next=reset", async () => {
+  it("asks Supabase for a link redirecting to /auth/confirm", async () => {
     expect(await sendPasswordLink("a@b.com", "https://app.test")).toBe(true);
-    expect(resetMock).toHaveBeenCalledWith("a@b.com", { redirectTo: "https://app.test/auth/callback?next=reset" });
+    expect(resetMock).toHaveBeenCalledWith("a@b.com", { redirectTo: "https://app.test/auth/confirm" });
   });
 
   it("returns false, logs the error code and does not throw", async () => {

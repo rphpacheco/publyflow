@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
-import {
-  RESET_GRANT_COOKIE,
-  createResetGrant,
-  resetGrantCookieOptions,
-} from "@/lib/auth/password-reset-grant";
-import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
+import { recordLoginSafely, redirectToResetWithGrant } from "@/lib/auth/complete-recovery-login";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -43,21 +38,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/sem-acesso", url.origin));
   }
 
-  try {
-    await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
-  } catch (e) {
-    // Never let a login-tracking failure block the login itself.
-    console.error("recordLogin failed", (e as { code?: string })?.code ?? "unknown");
-  }
-  if (next === "reset") {
-    const response = NextResponse.redirect(new URL("/reset-password", url.origin));
-    try {
-      response.cookies.set(RESET_GRANT_COOKIE, createResetGrant(session.userId), resetGrantCookieOptions());
-    } catch (e) {
-      // Without the key no grant is possible; the reset page shows "expired".
-      console.error("reset grant unavailable", (e as Error).message);
-    }
-    return response;
-  }
+  await recordLoginSafely(session);
+  if (next === "reset") return redirectToResetWithGrant(url.origin, session.userId);
   return NextResponse.redirect(new URL("/pipeline", url.origin));
 }

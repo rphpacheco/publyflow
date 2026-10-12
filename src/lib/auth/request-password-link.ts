@@ -8,7 +8,7 @@ export async function sendPasswordLink(email: string, origin: string): Promise<b
   try {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/callback?next=reset`,
+      redirectTo: `${origin}/auth/confirm`,
     });
     if (error) {
       console.error("Password link request failed", (error as { code?: string }).code ?? "unknown");

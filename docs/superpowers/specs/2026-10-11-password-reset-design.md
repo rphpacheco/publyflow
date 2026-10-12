@@ -21,15 +21,19 @@ Origin: Auth v1 subproject 2 leftovers. `/login` offers password, Google and mag
 - `/forgot-password` (title "Redefinir senha"): field "E-mail", button "Enviar link", link "Voltar ao login".
 - Server action `requestPasswordReset` (in `src/app/(auth)/forgot-password/actions.ts`):
   - same e-mail validation and **same rate limit** as the magic link (`{ limit: 5, windowSeconds: 600 }`, scopes `password-reset:ip` and `password-reset:email`); over the limit → "Muitas tentativas. Tente novamente em alguns minutos.";
-  - `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${origin}/auth/callback?next=reset\` })`; missing `origin` header → same generic answer without calling Supabase;
+  - `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${origin}/auth/confirm\` })` (token_hash flow, see §2.3; the Supabase "Reset password" template links to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`, so dev and prod each use their own origin); missing `origin` header → same generic answer without calling Supabase;
   - always answers "Se houver acesso para este e-mail, enviamos um link para definir a senha." (never reveals who has an account; Supabase errors are logged by code only).
 
 ### 2.2 Change password (logged in)
 - Header: the "Sair" button becomes an account menu (lucide `CircleUser`, aria-label "Conta") with "Alterar senha" and "Sair" (POST form, unchanged behavior).
-- "Alterar senha" calls server action `requestPasswordChange`: session required (else no-op error), same rate limit scopes keyed by the session e-mail and IP, `resetPasswordForEmail(sessionEmail, { redirectTo: …?next=reset })`. Toast "Enviamos um link para {email}. Abra-o para definir a nova senha." (the e-mail is the user's own). Errors → toast "Não foi possível enviar o link. Tente novamente.".
+- "Alterar senha" calls server action `requestPasswordChange`: session required (else no-op error), same rate limit scopes keyed by the session e-mail and IP, `resetPasswordForEmail(sessionEmail, { redirectTo: …/auth/confirm })`. Toast "Enviamos um link para {email}. Abra-o para definir a nova senha." (the e-mail is the user's own). Errors → toast "Não foi possível enviar o link. Tente novamente.".
 
-### 2.3 Callback
-`src/app/auth/callback/route.ts` keeps its current behavior; additionally, after a successful exchange **and** a resolved member session, when `next=reset`: set the reset grant cookie for that user and redirect to `/reset-password` (instead of `/pipeline`). No access → `/sem-acesso` as today (no grant). Any other `next` value is ignored (no open redirect). When `next=reset` and there is no `code` or the exchange fails (expired/used link), redirect to `/forgot-password?expired=1`, which shows a notice above the form; all other failures keep `/login?error=oauth`.
+### 2.3 Confirm route (token_hash) and callback
+The e-mail link uses Supabase's token_hash flow instead of PKCE: PKCE needs the code-verifier cookie set in the browser that requested the link, so it fails when the e-mail is opened on another device/browser. token_hash needs no cookie and works anywhere.
+
+`src/app/auth/confirm/route.ts` (GET, public under `/auth`): reads `token_hash` and `type`; `type !== "recovery"` or missing `token_hash` → `/forgot-password?expired=1`. Otherwise `supabase.auth.verifyOtp({ token_hash, type: "recovery" })`; error or no user → `/forgot-password?expired=1` (only `error.code` logged). Then the same member resolution as the callback (`resolveSessionForAuthUser`): no access → `signOut` + `/sem-acesso`, no grant. Member → `recordLogin` (failures never block), set the reset grant cookie for that user and redirect to `/reset-password`. The shared steps live in `src/lib/auth/complete-recovery-login.ts`. The grant is thus only minted by a recovery verification.
+
+Legacy: `src/app/auth/callback/route.ts` keeps its `next=reset` branch (links sent with the old template still work): after a successful exchange **and** a resolved member session, when `next=reset`, set the grant cookie and redirect to `/reset-password`; no access → `/sem-acesso` (no grant); any other `next` value is ignored (no open redirect); `next=reset` with no `code` or a failed exchange → `/forgot-password?expired=1`; all other failures keep `/login?error=oauth`.
 
 ### 2.4 Reset page `/reset-password`
 - Server component in the `(auth)` group (no app shell). Reads `getAuthState()`:
@@ -55,16 +59,17 @@ Lucide icons only, no emoji/symbol glyphs; Portuguese copy; no content overflowi
 
 ## 5. Tests
 - Grant: valid → true; other user → false; expired → false; tampered payload or signature → false; missing env → false.
-- `requestPasswordReset`: generic answer for valid/unknown e-mail; rate limit; invalid e-mail message; calls Supabase with `redirectTo` ending `/auth/callback?next=reset`; Supabase error → same generic answer.
+- `requestPasswordReset`: generic answer for valid/unknown e-mail; rate limit; invalid e-mail message; calls Supabase with `redirectTo` ending `/auth/confirm`; Supabase error → same generic answer.
 - `requestPasswordChange`: uses the session e-mail; rate limit; no session → error.
-- Callback: `next=reset` + member → sets `pf_pw_reset` and redirects `/reset-password`; no access → `/sem-acesso` without cookie; other `next` ignored.
+- Confirm route: missing `token_hash` / non-recovery `type` → expired (no verify); verify error → expired; no access → `/sem-acesso` + signOut, no cookie; member → `/reset-password` with a valid grant and `recordLogin`; `recordLogin` failure still redirects with the grant.
+- Callback (legacy): `next=reset` + member → sets `pf_pw_reset` and redirects `/reset-password`; no access → `/sem-acesso` without cookie; other `next` ignored.
 - Reset page: unavailable state; no grant / other user's grant / non-member → expired message; valid → form.
 - `setNewPassword`: re-checks grant; validation messages; Supabase error mapping; success deletes cookie and redirects; a second submit after success → expired message.
 - Header menu: "Alterar senha" and "Sair" (POST) present; toast on success.
 - Manual (browser): forgot flow end to end with the user's e-mail (Supabase dev = prod project); change flow from the header; the link used twice → expired; login with the new password.
 
 ## 6. Deploy
-No migration, no new env var. Before pushing, confirm in the Supabase dashboard (Authentication → URL Configuration → Redirect URLs) that `…/auth/callback?next=reset` is allowed for production and dev (exact entries without the query would make Supabase fall back to the Site URL; use `https://publyflow.vercel.app/**` and `http://localhost:3000/**`, `http://localhost:3001/**`). Push `main`; verify `/forgot-password` in production. Enable "Secure password change" in the Supabase dashboard (Authentication, Sign In / Providers, Email) so API-level password changes require recent re-authentication. Optional dashboard work for the user: translate the Supabase "Reset password" e-mail template to Portuguese.
+No migration, no new env var. Before pushing, confirm in the Supabase dashboard (Authentication → URL Configuration → Redirect URLs) that `…/auth/confirm` is allowed for production and dev (exact entries without the query would make Supabase fall back to the Site URL; use `https://publyflow.vercel.app/**` and `http://localhost:3000/**`, `http://localhost:3001/**`). Push `main`; verify `/forgot-password` in production. Enable "Secure password change" in the Supabase dashboard (Authentication, Sign In / Providers, Email) so API-level password changes require recent re-authentication. **Before deploying, change the Supabase "Reset password" e-mail template** (Authentication, Email Templates) so the link is `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` (the default `{{ .ConfirmationURL }}` would keep using PKCE); the text may also be translated to Portuguese.
 
 ## 7. Out of scope
 Custom SMTP / e-mail branding beyond the Supabase template; password strength meter; MFA; forcing logout of other sessions after a password change; changing e-mail address.
