@@ -165,6 +165,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] SMTP próprio no Supabase (Resend/Brevo/SES; exige domínio próprio): libera editar modelos de e-mail → trocar o link de "Reset password" para `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` (o código já suporta; link passa a funcionar em qualquer dispositivo), e-mails em português e limite de envio maior (também beneficia magic link)
 - [x] Equipe: testado em produção pelo usuário (2026-10-11) — convite de gestor, login como MANAGER e remoção → `/sem-acesso` funcionaram
 - [ ] Equipe: diálogo de convite mantém rascunho ao cancelar; cards sem rótulos Papel/Situação p/ leitor de tela; sem teste determinístico da corrida remover×reconvidar
 - [ ] Auth: usuário de teste `bruno.dev@publyflow.test` criado no Supabase compartilhado (dev = prod) pelo teste de convite — apagar se quiser

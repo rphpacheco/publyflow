@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSessionForAuthUser } from "@/lib/auth/resolve-session";
-import { OrganizationMembersRepository } from "@/repositories/organization-members.repository";
+import { recordLoginSafely, redirectToResetWithGrant } from "@/lib/auth/complete-recovery-login";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const next = url.searchParams.get("next");
+  // A failed/expired reset link must not end in the Google error page.
+  const resetExpired = () => NextResponse.redirect(new URL("/forgot-password?expired=1", url.origin));
   if (!code) {
+    if (next === "reset") return resetExpired();
     // With sign-up off, Google for an e-mail missing from auth.users comes
     // back without a code; retrying never helps, so show the no-access page.
     const description = url.searchParams.get("error_description") ?? "";
@@ -20,6 +24,7 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !data.user) {
+    if (next === "reset") return resetExpired();
     return NextResponse.redirect(new URL("/login?error=oauth", url.origin));
   }
 
@@ -33,11 +38,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/sem-acesso", url.origin));
   }
 
-  try {
-    await OrganizationMembersRepository.recordLogin(db, session.organizationId, session.userId, new Date());
-  } catch (e) {
-    // Never let a login-tracking failure block the login itself.
-    console.error("recordLogin failed", (e as { code?: string })?.code ?? "unknown");
-  }
+  await recordLoginSafely(session);
+  if (next === "reset") return redirectToResetWithGrant(url.origin, session.userId);
   return NextResponse.redirect(new URL("/pipeline", url.origin));
 }

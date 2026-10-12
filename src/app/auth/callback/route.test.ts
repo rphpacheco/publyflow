@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 async function importCallback(options: {
   exchange: { data: { user: { id: string; email?: string; email_confirmed_at?: string } | null }; error: unknown };
@@ -25,6 +25,13 @@ async function importCallback(options: {
 }
 
 describe("GET /auth/callback", () => {
+  beforeEach(() => {
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "sb_secret_test");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("redirects to /pipeline when the user resolves to a session", async () => {
     const session = { userId: "u", organizationId: "o", role: "OWNER" };
     const { GET, recordLoginMock } = await importCallback({
@@ -103,5 +110,75 @@ describe("GET /auth/callback", () => {
       new Request("http://localhost:3000/auth/callback?error=access_denied&error_code=other&error_description=nope"),
     );
     expect(response.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
+  });
+
+  describe("failed reset links", () => {
+    it("sends next=reset errors without a code to /forgot-password?expired=1", async () => {
+      const { GET } = await importCallback({ exchange: { data: { user: null }, error: null }, session: null });
+      const response = await GET(
+        new Request("http://localhost:3000/auth/callback?next=reset&error=access_denied&error_code=otp_expired"),
+      );
+      expect(response.headers.get("location")).toBe("http://localhost:3000/forgot-password?expired=1");
+    });
+
+    it("sends a failing exchange with next=reset to /forgot-password?expired=1", async () => {
+      const { GET } = await importCallback({
+        exchange: { data: { user: null }, error: { message: "bad" } },
+        session: null,
+      });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?next=reset&code=x"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/forgot-password?expired=1");
+    });
+
+    it("keeps /login?error=oauth for a failing exchange without next", async () => {
+      const { GET } = await importCallback({
+        exchange: { data: { user: null }, error: { message: "bad" } },
+        session: null,
+      });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=x"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
+    });
+  });
+
+  describe("password reset grant", () => {
+    const exchange = {
+      data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },
+      error: null,
+    };
+    const session = { userId: "u", organizationId: "o", role: "OWNER" };
+
+    it("sets the grant cookie and goes to /reset-password for next=reset", async () => {
+      const { GET } = await importCallback({ exchange, session });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc&next=reset"));
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("http://localhost:3000/reset-password");
+      const cookie = response.headers.get("set-cookie") ?? "";
+      expect(cookie).toContain("pf_pw_reset=");
+      expect(cookie).toMatch(/httponly/i);
+      expect(cookie).toMatch(/max-age=900/i);
+      expect(cookie).toMatch(/path=\//i);
+      expect(cookie).toMatch(/samesite=lax/i);
+    });
+
+    it("sets no grant without next", async () => {
+      const { GET } = await importCallback({ exchange, session });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/pipeline");
+      expect(response.headers.get("set-cookie") ?? "").not.toContain("pf_pw_reset");
+    });
+
+    it("ignores any other next value", async () => {
+      const { GET } = await importCallback({ exchange, session });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc&next=/evil"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/pipeline");
+      expect(response.headers.get("set-cookie") ?? "").not.toContain("pf_pw_reset");
+    });
+
+    it("sets no grant when the user has no access", async () => {
+      const { GET } = await importCallback({ exchange, session: null });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=abc&next=reset"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/sem-acesso");
+      expect(response.headers.get("set-cookie") ?? "").not.toContain("pf_pw_reset");
+    });
   });
 });

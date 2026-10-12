@@ -2,7 +2,7 @@ import { SidebarMobile } from "./sidebar";
 import { CommandPalette } from "./command-palette";
 import { CreatorSwitcher } from "./creator-switcher";
 import { NotificationsBell } from "./notifications-bell";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { AccountMenu } from "./account-menu";
 
 export function Header() {
   return (
@@ -12,7 +12,7 @@ export function Header() {
       <div className="flex-1" />
       <NotificationsBell />
       <CreatorSwitcher />
-      <SignOutButton label="Sair" variant="ghost" size="sm" />
+      <AccountMenu />
     </header>
   );
 }
