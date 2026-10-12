@@ -22,6 +22,6 @@ export async function requestPasswordChange(): Promise<{ ok: true; email: string
   const origin = requestHeaders.get("origin");
   if (!origin) return { ok: false, error: GENERIC_ERROR };
 
-  await sendPasswordLink(email, origin);
+  if (!(await sendPasswordLink(email, origin))) return { ok: false, error: GENERIC_ERROR };
   return { ok: true, email };
 }

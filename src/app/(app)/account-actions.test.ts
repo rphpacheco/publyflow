@@ -24,7 +24,7 @@ describe("requestPasswordChange", () => {
   beforeEach(() => {
     state.origin = "https://app.test";
     allowMock.mockReset().mockResolvedValue(true);
-    sendMock.mockReset().mockResolvedValue(undefined);
+    sendMock.mockReset().mockResolvedValue(true);
     getUserMock.mockReset().mockResolvedValue({ data: { user: { email: "Ana@Brand.com" } } });
   });
 
@@ -47,6 +47,11 @@ describe("requestPasswordChange", () => {
     state.origin = null;
     expect(await requestPasswordChange()).toEqual({ ok: false, error: GENERIC });
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the generic error when sending fails", async () => {
+    sendMock.mockResolvedValue(false);
+    expect(await requestPasswordChange()).toEqual({ ok: false, error: GENERIC });
   });
 
   it("sends the link to the session e-mail", async () => {

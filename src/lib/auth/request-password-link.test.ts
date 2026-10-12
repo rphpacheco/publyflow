@@ -8,18 +8,30 @@ vi.mock("@/lib/supabase/server", () => ({
 import { sendPasswordLink } from "./request-password-link";
 
 describe("sendPasswordLink", () => {
-  beforeEach(() => resetMock.mockReset().mockResolvedValue({ error: null }));
+  beforeEach(() => {
+    resetMock.mockReset().mockResolvedValue({ error: null });
+  });
 
   it("asks Supabase for a link redirecting to the callback with next=reset", async () => {
-    await sendPasswordLink("a@b.com", "https://app.test");
+    expect(await sendPasswordLink("a@b.com", "https://app.test")).toBe(true);
     expect(resetMock).toHaveBeenCalledWith("a@b.com", { redirectTo: "https://app.test/auth/callback?next=reset" });
   });
 
-  it("logs the error code and does not throw", async () => {
+  it("returns false, logs the error code and does not throw", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     resetMock.mockResolvedValue({ error: { code: "over_email_send_rate_limit" } });
-    await expect(sendPasswordLink("a@b.com", "https://app.test")).resolves.toBeUndefined();
+    await expect(sendPasswordLink("a@b.com", "https://app.test")).resolves.toBe(false);
     expect(spy).toHaveBeenCalledWith("Password link request failed", "over_email_send_rate_limit");
+    spy.mockRestore();
+  });
+
+  it("returns false and logs only the error name when the call throws", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    resetMock.mockImplementation(async () => {
+      throw new TypeError("secret detail");
+    });
+    await expect(sendPasswordLink("a@b.com", "https://app.test")).resolves.toBe(false);
+    expect(spy).toHaveBeenCalledWith("Password link request threw", "TypeError");
     spy.mockRestore();
   });
 });

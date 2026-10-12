@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { CircleUser } from "lucide-react";
 import { toast } from "sonner";
 import { requestPasswordChange } from "@/app/(app)/account-actions";
@@ -15,6 +15,7 @@ import {
 const GENERIC_ERROR = "Não foi possível enviar o link. Tente novamente.";
 
 export function AccountMenu() {
+  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function changePassword() {
@@ -26,18 +27,25 @@ export function AccountMenu() {
       } catch {
         toast.error(GENERIC_ERROR);
       }
+      setOpen(false);
     });
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Conta">
           <CircleUser className="size-5" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={pending} onSelect={changePassword}>
+        <DropdownMenuItem
+          disabled={pending}
+          onSelect={(e) => {
+            e.preventDefault(); // keep the menu open so the disabled state is visible
+            changePassword();
+          }}
+        >
           Alterar senha
         </DropdownMenuItem>
         <form action="/auth/signout" method="post">

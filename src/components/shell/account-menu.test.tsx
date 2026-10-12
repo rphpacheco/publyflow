@@ -59,6 +59,16 @@ describe("AccountMenu", () => {
     );
   });
 
+  it("keeps the item disabled while pending, then closes the menu", async () => {
+    let resolve!: (v: { ok: true; email: string }) => void;
+    actionMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    await open();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Alterar senha" }));
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Alterar senha" })).toHaveAttribute("aria-disabled", "true"));
+    resolve({ ok: true, email: "ana@brand.com" });
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Alterar senha" })).toBeNull());
+  });
+
   it("toasts the error", async () => {
     actionMock.mockResolvedValue({ ok: false, error: "Muitas tentativas. Tente novamente em alguns minutos." });
     await open();

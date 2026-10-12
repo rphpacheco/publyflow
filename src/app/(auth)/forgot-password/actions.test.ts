@@ -49,6 +49,11 @@ describe("requestPasswordReset", () => {
     expect(sendMock).toHaveBeenCalledWith("a@b.com", "https://app.test");
   });
 
+  it("still answers sent when sending fails", async () => {
+    sendMock.mockResolvedValue(false);
+    expect(await requestPasswordReset(prev, form("a@b.com"))).toEqual({ sent: true, error: null });
+  });
+
   it("answers sent without sending when there is no origin", async () => {
     state.origin = null;
     expect(await requestPasswordReset(prev, form("a@b.com"))).toEqual({ sent: true, error: null });
