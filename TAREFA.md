@@ -5,6 +5,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
+- (nada — itens planejados E, F e G entregues; restam "Menores / adiados")
+
+## Concluído nesta fase (RLS)
+
 ### G. RLS valendo em runtime
 - [x] Decisão: troca de role dentro da transação do tenant (`SET LOCAL ROLE publyflow_app`), sem conexão/senha nova; caminhos de sistema explícitos e privilegiados; chave `TENANT_RLS=off`
 - [x] Decisão: migrar todas as ~40 leituras de tenant fora do contexto nesta rodada + guarda
@@ -15,7 +19,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Implementação (subagentes) + revisão final — T1 0026 + funções; T2 troca de role (suíte inteira passou sob RLS sem ajustes); T3 nada a mudar (repositórios já abriam o contexto); T4 notificações; T5 guarda nos repositórios (delegação, lista enxuta); revisão final "com ajustes": 0027 defensiva (revoga EXECUTE de anon/authenticated/service_role), vazamento de role no processamento de eventos corrigido, guarda pega `db` raiz em `…WithTx`, documentação do `TENANT_RLS`
 - [x] Verificação: suíte 2077 verde, build ok; dev: contagens da API sob RLS = banco sem RLS
 - [x] Merge + deploy (`f5567f6`, 2026-10-12): checagens só-leitura (27 tabelas do postgres, sem FORCE; postgres createrole/bypassrls; nenhum grant de anon/authenticated em `public` → `users` não exposta) → 0026+0027 em produção (28 migrations; publyflow_app nologin/nobypassrls; anon/authenticated sem EXECUTE) → teste de fumaça em transação desfeita ok → push (Vercel ok)
-- [ ] Usuário confere as telas em produção (se algo vier vazio: `TENANT_RLS=off` na Vercel + redeploy)
+- [x] Usuário conferiu as telas em produção (2026-10-12): leitura, ações, link público — tudo ok
 
 ## Concluído nesta fase (Senha)
 
