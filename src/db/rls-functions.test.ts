@@ -134,3 +134,21 @@ describe("SECURITY DEFINER cross-organization lookups", () => {
     expect(elsewhere).toBe(true);
   });
 });
+
+// anon/authenticated/service_role exist only on Supabase; locally they are absent, so skip missing ones.
+describe("function EXECUTE grants are not exposed to Supabase API roles", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("anon/authenticated/service_role cannot execute the SECURITY DEFINER functions", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const res = await db.execute(sql`select rolname from pg_roles where rolname in ('anon','authenticated','service_role')`);
+    for (const { rolname } of res.rows as { rolname: string }[]) {
+      for (const fn of ["publyflow_user_memberships(uuid)", "publyflow_user_is_creator_elsewhere(uuid, uuid)"]) {
+        const r = await db.execute(sql`select has_function_privilege(${rolname}, ${fn}, 'EXECUTE') as ok`);
+        expect((r.rows[0] as { ok: boolean }).ok, `${rolname} can execute ${fn}`).toBe(false);
+      }
+    }
+  });
+});
