@@ -12,8 +12,10 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Spec — `docs/superpowers/specs/2026-10-12-rls-runtime-design.md`
 - [x] Revisão da spec pelo usuário (ajuste ao planejar: lista de creators também lê outras orgs → coberta pela função de memberships com `first_login_at`)
 - [x] Plano — `docs/superpowers/plans/2026-10-12-rls-runtime.md` (T1 0026 + funções + chamadas entre orgs, T2 troca de role + testes + suíte completa, T3/T4 leituras de tenant para dentro do contexto, T5 guarda, T6 verificação/rollout)
-- [ ] Implementação (subagentes) + revisão final
-- [ ] Merge + deploy (checagens só-leitura do role no Supabase → 0026 → push → verificar telas; `TENANT_RLS=off` se algo vier vazio)
+- [x] Implementação (subagentes) + revisão final — T1 0026 + funções; T2 troca de role (suíte inteira passou sob RLS sem ajustes); T3 nada a mudar (repositórios já abriam o contexto); T4 notificações; T5 guarda nos repositórios (delegação, lista enxuta); revisão final "com ajustes": 0027 defensiva (revoga EXECUTE de anon/authenticated/service_role), vazamento de role no processamento de eventos corrigido, guarda pega `db` raiz em `…WithTx`, documentação do `TENANT_RLS`
+- [x] Verificação: suíte 2077 verde, build ok; dev: contagens da API sob RLS = banco sem RLS
+- [x] Merge + deploy (`f5567f6`, 2026-10-12): checagens só-leitura (27 tabelas do postgres, sem FORCE; postgres createrole/bypassrls; nenhum grant de anon/authenticated em `public` → `users` não exposta) → 0026+0027 em produção (28 migrations; publyflow_app nologin/nobypassrls; anon/authenticated sem EXECUTE) → teste de fumaça em transação desfeita ok → push (Vercel ok)
+- [ ] Usuário confere as telas em produção (se algo vier vazio: `TENANT_RLS=off` na Vercel + redeploy)
 
 ## Concluído nesta fase (Senha)
 
