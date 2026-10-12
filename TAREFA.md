@@ -10,8 +10,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [x] Decisão: migrar todas as ~40 leituras de tenant fora do contexto nesta rodada + guarda
 - [x] Leituras entre organizações (checagens de conflito de convite) via funções `SECURITY DEFINER`
 - [x] Spec — `docs/superpowers/specs/2026-10-12-rls-runtime-design.md`
-- [ ] Revisão da spec pelo usuário
-- [ ] Plano de implementação
+- [x] Revisão da spec pelo usuário (ajuste ao planejar: lista de creators também lê outras orgs → coberta pela função de memberships com `first_login_at`)
+- [x] Plano — `docs/superpowers/plans/2026-10-12-rls-runtime.md` (T1 0026 + funções + chamadas entre orgs, T2 troca de role + testes + suíte completa, T3/T4 leituras de tenant para dentro do contexto, T5 guarda, T6 verificação/rollout)
 - [ ] Implementação (subagentes) + revisão final
 - [ ] Merge + deploy (checagens só-leitura do role no Supabase → 0026 → push → verificar telas; `TENANT_RLS=off` se algo vier vazio)
 

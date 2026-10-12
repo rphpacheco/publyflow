@@ -30,7 +30,7 @@ grant publyflow_app to current_user;  -- the migrating/connecting role (postgres
 ```
 
 Plus the functions (owned by the migrating role, `security definer`, `set search_path = public, pg_temp`, `revoke all … from public`, `grant execute … to publyflow_app`):
-- `publyflow_user_memberships(p_user_id uuid) returns table (organization_id uuid, role organization_member_role)` — all memberships of that user (used by the team invite and creator access/e-mail-change conflict checks).
+- `publyflow_user_memberships(p_user_id uuid) returns table (organization_id uuid, role organization_member_role, first_login_at timestamptz)` — all memberships of that user (used by the team invite and creator access/e-mail-change conflict checks, and by the creators list's `everLoggedIn` / `isTeamAnywhere` flags).
 - `publyflow_user_is_creator_elsewhere(p_user_id uuid, p_organization_id uuid) returns boolean` — exists a `creators` row for the user outside the organization.
 
 Notes:
@@ -53,6 +53,8 @@ Replace, inside tenant transactions, the direct reads that must see other organi
 - `OrganizationMembersRepository.listForUser(tx, userId)` → new `OrganizationMembersRepository.listAllForUserWithTx(tx, userId)` calling `publyflow_user_memberships` (used by `TeamService` invite, `CreatorAccessService`, `CreatorService` e-mail-editable / change-e-mail checks). Callers outside tenant transactions (session resolution) keep the plain query.
 - `CreatorsRepository.existsForUserOutsideOrganizationWithTx` → `publyflow_user_is_creator_elsewhere`.
 - `CreatorService.isEmailEditable`'s "creator elsewhere" query → same function.
+- `CreatorsRepository.listWithAccessByOrganization` subqueries `everLoggedIn`, `isTeamAnywhere` (memberships of any org) and `creatorElsewhere` (creators of other orgs) → expressed over the two functions (e.g. `exists(select 1 from publyflow_user_memberships(users.id) m where m.first_login_at is not null)`).
+- Any other cross-organization read inside a tenant transaction found when the full suite runs with the role switch is converted the same way (no new privileged paths).
 Every other read inside a tenant transaction is own-organization by design and keeps working under RLS.
 
 ### 3.3 Tenant reads outside a transaction
