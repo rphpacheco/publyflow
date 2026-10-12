@@ -28,10 +28,14 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
-  const payload = querySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = querySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
     stage: url.searchParams.get("stage") ?? undefined,
   });
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   const scope = creatorScope(session);
   const effectiveCreatorId = scope ?? payload.creatorId;

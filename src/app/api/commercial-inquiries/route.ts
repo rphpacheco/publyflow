@@ -17,10 +17,14 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = listQuerySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
     status: url.searchParams.get("status") ?? undefined,
   });
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
   const scope = creatorScope(session);
   const effectiveCreatorId = scope ?? payload.creatorId;
 

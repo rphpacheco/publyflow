@@ -19,7 +19,11 @@ export async function POST(request: Request) {
   const session = await getRouteSession();
   if (session instanceof NextResponse) return session;
 
-  const payload = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   try {
     const result = await InboxService.ingestManualMessage(db, ai, session.organizationId, {

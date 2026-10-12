@@ -26,7 +26,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = updateSchema.parse(await request.json());
+  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
   try {
     const service = await ServiceService.update(db, session.organizationId, id, payload);
     return NextResponse.json(service, { status: 200 });

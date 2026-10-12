@@ -55,7 +55,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = patchSchema.parse(await request.json());
+  const parsed = patchSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   try {
     const opportunity = await OpportunityService.changeStage(

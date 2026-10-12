@@ -23,7 +23,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
   const result = await RateCardService.duplicate(db, session.organizationId, id, {
     name: payload.name,
   });

@@ -22,7 +22,11 @@ export async function POST(request: Request) {
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = createSchema.parse(await request.json());
+  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   try {
     const proposal = await ProposalService.create(db, session.organizationId, {
@@ -49,9 +53,13 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    opportunityId: url.searchParams.get("opportunityId"),
+  const parsed = listQuerySchema.safeParse({
+    opportunityId: url.searchParams.get("opportunityId") ?? undefined,
   });
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   const scope = creatorScope(session);
   if (scope !== null) {

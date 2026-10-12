@@ -19,7 +19,11 @@ export async function POST(request: Request) {
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = createSchema.parse(await request.json());
+  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
   const rateCard = await RateCardService.create(db, session.organizationId, {
     creatorId: payload.creatorId,
     name: payload.name,
@@ -40,9 +44,13 @@ export async function GET(request: Request) {
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = listQuerySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
+  if (!parsed.success) {
+    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+  }
+  const payload = parsed.data;
   const list = await RateCardService.listByCreator(db, session.organizationId, payload.creatorId);
   return NextResponse.json(list, { status: 200 });
 }
