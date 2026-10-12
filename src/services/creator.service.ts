@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { users } from "@/db/schema/organizations";
@@ -29,14 +29,10 @@ async function isEmailEditable(
   authUserId: string | null,
 ): Promise<boolean> {
   if (authUserId !== null) return false;
-  const memberships = await OrganizationMembersRepository.listForUser(tx, userId);
+  const memberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, userId);
   if (memberships.some((membership) => membership.firstLoginAt !== null)) return false;
   if (memberships.some((membership) => membership.role === "OWNER" || membership.role === "MANAGER")) return false;
-  const [creatorElsewhere] = await tx
-    .select({ id: creators.id })
-    .from(creators)
-    .where(and(eq(creators.userId, userId), ne(creators.organizationId, organizationId)));
-  return !creatorElsewhere;
+  return !(await CreatorsRepository.existsForUserOutsideOrganizationWithTx(tx, userId, organizationId));
 }
 
 export interface OnboardCreatorInput {
@@ -194,7 +190,7 @@ export const CreatorService = {
         return sameUserMembership ? newEmail : null;
       }
 
-      const targetMemberships = await OrganizationMembersRepository.listForUser(tx, target.id);
+      const targetMemberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, target.id);
 
       // Temporary: remove when multi-organization sessions exist.
       // TODO: until then, this 409 tells an OWNER/MANAGER whether the target

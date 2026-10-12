@@ -1,4 +1,4 @@
-import { eq, and, asc, ne, sql } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { creators } from "@/db/schema/creators";
@@ -126,18 +126,17 @@ export const CreatorsRepository = {
   },
 
   // True when the user is the creator profile of any organization other than
-  // `organizationId`. Returns no data from that row.
+  // `organizationId`. Returns no data from that row. Goes through the SECURITY
+  // DEFINER function so it also works inside a tenant transaction (RLS).
   async existsForUserOutsideOrganizationWithTx(
     tx: NodePgDatabase<typeof schema>,
     userId: string,
     organizationId: string,
   ): Promise<boolean> {
-    const [row] = await tx
-      .select({ id: creators.id })
-      .from(creators)
-      .where(and(eq(creators.userId, userId), ne(creators.organizationId, organizationId)))
-      .limit(1);
-    return !!row;
+    const result = await tx.execute<{ v: boolean }>(
+      sql`select publyflow_user_is_creator_elsewhere(${userId}, ${organizationId}) as v`,
+    );
+    return result.rows[0]?.v === true;
   },
 
   async findByUserId(
@@ -184,9 +183,11 @@ export const CreatorsRepository = {
     organizationId: string,
   ): Promise<CreatorWithAccess[]> {
     return runInTenantContext(db, organizationId, async (tx) => {
-      const everLoggedIn = sql<boolean>`exists(select 1 from ${organizationMembers} x where x.user_id = ${users.id} and x.first_login_at is not null)`;
-      const isTeamAnywhere = sql<boolean>`exists(select 1 from ${organizationMembers} x where x.user_id = ${users.id} and x.role in ('OWNER','MANAGER'))`;
-      const creatorElsewhere = sql<boolean>`exists(select 1 from ${creators} c2 where c2.user_id = ${users.id} and c2.organization_id <> ${organizationId})`;
+      // Cross-organization flags go through the SECURITY DEFINER functions
+      // (they must see the user's rows in other organizations under RLS).
+      const everLoggedIn = sql<boolean>`exists(select 1 from publyflow_user_memberships(${users.id}) m where m.first_login_at is not null)`;
+      const isTeamAnywhere = sql<boolean>`exists(select 1 from publyflow_user_memberships(${users.id}) m where m.role in ('OWNER','MANAGER'))`;
+      const creatorElsewhere = sql<boolean>`publyflow_user_is_creator_elsewhere(${users.id}, ${organizationId})`;
 
       const rows = await tx
         .select({

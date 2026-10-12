@@ -5,6 +5,10 @@ import { seedProposal } from "@/test/helpers/proposal-fixtures";
 import { organizationMembers } from "@/db/schema/organizations";
 import { ProposalApprovalService } from "@/services/proposal-approval.service";
 import { EventDrainService } from "@/services/event-drain.service";
+import { proposalNotificationHandlers } from "./proposal-notifications";
+import { domainEvents } from "@/db/schema/domain-events";
+import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { NotificationsRepository } from "@/repositories/notifications.repository";
 
 const event = (eventType: string) =>
@@ -73,5 +77,25 @@ describe("approval notifications end-to-end through the drain", () => {
     expect(forOwner.items.some((i) => i.title === "Creator aprovou" && i.body === 'Thais aprovou "Campanha Verão".')).toBe(true);
     const forCreator = await NotificationsRepository.listForUser(db, organization.id, creator.userId, 10);
     expect(forCreator.items.some((i) => i.title === "Creator aprovou")).toBe(false);
+  });
+});
+
+describe("notification handlers inside the drain transaction", () => {
+  let cleanup: () => Promise<void>;
+  afterEach(async () => cleanup?.());
+
+  it("do not leave SET LOCAL ROLE publyflow_app active for the rest of the transaction", async () => {
+    const { db, cleanup: c } = await withTestDb();
+    cleanup = c;
+    const { organization, owner, creator, proposal } = await seedProposal(db);
+    await db.insert(organizationMembers).values({ organizationId: organization.id, userId: creator.userId, role: "CREATOR" });
+    await ProposalApprovalService.request(db, organization.id, proposal.id, owner.id);
+    const [event] = await db.select().from(domainEvents).where(eq(domainEvents.organizationId, organization.id));
+    const user = await db.transaction(async (tx) => {
+      await proposalNotificationHandlers[event.eventType](tx, event);
+      const r = await tx.execute(sql`select current_user as u`);
+      return (r.rows[0] as { u: string }).u;
+    });
+    expect(user).not.toBe("publyflow_app");
   });
 });

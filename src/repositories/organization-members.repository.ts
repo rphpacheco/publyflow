@@ -54,23 +54,21 @@ export const OrganizationMembersRepository = {
     return row ?? null;
   },
 
-  // Runs outside runInTenantContext on purpose, like findOldestMembershipForUser:
-  // this is used by CreatorAccessService to check a user's memberships across all
-  // organizations, before any single organization's tenant context applies. Today
-  // the app connects as a superuser, so RLS does not filter this.
-  async listForUser(
-    db: NodePgDatabase<typeof schema>,
+  // Every membership of the user, in every organization, read through the
+  // SECURITY DEFINER function publyflow_user_memberships so it also works
+  // inside a tenant transaction running as publyflow_app (RLS enforced).
+  async listAllForUserWithTx(
+    tx: NodePgDatabase<typeof schema>,
     userId: string,
-  ): Promise<Array<{ id: string; organizationId: string; role: SessionRole; firstLoginAt: Date | null }>> {
-    return db
-      .select({
-        id: organizationMembers.id,
-        organizationId: organizationMembers.organizationId,
-        role: organizationMembers.role,
-        firstLoginAt: organizationMembers.firstLoginAt,
-      })
-      .from(organizationMembers)
-      .where(eq(organizationMembers.userId, userId));
+  ): Promise<Array<{ organizationId: string; role: SessionRole; firstLoginAt: Date | null }>> {
+    const result = await tx.execute<{ organization_id: string; role: SessionRole; first_login_at: Date | string | null }>(
+      sql`select organization_id, role, first_login_at from publyflow_user_memberships(${userId})`,
+    );
+    return result.rows.map((row) => ({
+      organizationId: row.organization_id,
+      role: row.role,
+      firstLoginAt: row.first_login_at === null ? null : new Date(row.first_login_at),
+    }));
   },
 
   // Runs outside runInTenantContext on purpose: this is called only at login

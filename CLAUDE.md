@@ -36,6 +36,8 @@ Layering: **route handler** (`src/app/api/**/route.ts`: session, auth, zod `safe
 
 The app connects to Postgres as a role that **bypasses RLS**. RLS policies exist (`org_isolation_*`, keyed on `app.current_org_id`, set by `runInTenantContext` in `src/repositories/tenant-context.ts`), but the real tenant boundary is that **every query and every join must carry an explicit `organization_id` predicate**. Services wrap work in `runInTenantContext(db, organizationId, async (tx) => …)`; repository methods have `…WithTx` variants that take that `tx`. Row locks (`lockByIdWithTx`, `FOR UPDATE`) are used where check-then-act races matter (proposal publish/approval, inquiry convert/edit, creator invite/e-mail transfer).
 
+Update: tenant transactions now run as `publyflow_app` (NOLOGIN, no BYPASSRLS), so RLS is enforced at runtime in addition to the explicit predicates. Cross-org lookups (e.g. memberships for a user) go through the SECURITY DEFINER functions from migrations 0026/0027; system paths that legitimately use the root connection (session resolution, drain, rate limit, provisioning) are listed in the allow-lists of `src/app/api/tenant-db-guard.test.ts`. Emergency kill switch: `TENANT_RLS=off` (needs the Vercel env var plus a redeploy).
+
 ### Auth and roles
 
 `getSession()` (`src/lib/auth/session.ts`) resolves the Supabase user to `Session { userId, organizationId, role: OWNER|MANAGER|CREATOR, creatorId }` (`resolve-session.ts` links a Supabase account to a `users` row by verified e-mail on first login; the oldest membership wins). Access helpers in `src/lib/auth/access.ts`:

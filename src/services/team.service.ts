@@ -62,9 +62,9 @@ class RetryableInviteError extends Error {}
 async function inviteOnce(db: Db, session: Session, input: { fullName: string; email: string }) {
   return runInTenantContext(db, session.organizationId, async (tx) => {
     const user = await TeamRepository.upsertAndLockUserByEmailWithTx(tx, input.email, input.fullName);
-    // The cross-org check via the user's memberships relies on the app role
-    // bypassing RLS (see TAREFA G: RLS at runtime).
-    const memberships = await OrganizationMembersRepository.listForUser(tx, user.id);
+    // Cross-org check: memberships come from the SECURITY DEFINER lookup, so
+    // they include other organizations even under RLS.
+    const memberships = await OrganizationMembersRepository.listAllForUserWithTx(tx, user.id);
     const here = memberships.find((m) => m.organizationId === session.organizationId);
 
     // Decision order follows spec 2.1: MANAGER here (idempotent) -> OWNER here
@@ -82,8 +82,15 @@ async function inviteOnce(db: Db, session: Session, input: { fullName: string; e
       }
     }
 
-    let membershipId = here?.id;
-    if (!here) {
+    let membershipId: string | undefined;
+    if (here) {
+      // Same-organization row: a plain org-scoped read is enough for its id.
+      const [existing] = await tx
+        .select({ id: organizationMembers.id })
+        .from(organizationMembers)
+        .where(and(eq(organizationMembers.organizationId, session.organizationId), eq(organizationMembers.userId, user.id)));
+      membershipId = existing?.id;
+    } else {
       const [inserted] = await tx
         .insert(organizationMembers)
         .values({ organizationId: session.organizationId, userId: user.id, role: "MANAGER" })

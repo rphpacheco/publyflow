@@ -81,9 +81,9 @@ In these paths the protection remains the explicit `organization_id` predicate (
 
 ## 5. Deploy
 1. Read-only checks in production: role capabilities (§2), existing role name not taken.
-2. Apply 0026 in production (role + grants + functions only; old code unaffected — it never switches role).
+2. Apply 0026 and 0027 in production, before the code (role + grants + functions only; old code unaffected — it never switches role). Never revert them while the new code is deployed.
 3. Push `main`; verify login, dashboard, pipeline, proposals, team, public proposal link, inbox conversion, notifications.
-4. If anything shows empty or fails with "permission denied": set `TENANT_RLS=off` in Vercel and redeploy, then investigate.
+4. If anything shows empty or fails with "permission denied": set `TENANT_RLS=off` in Vercel and redeploy (the kill switch needs the env var plus a redeploy), then investigate.
 
 ## 6. Out of scope
 Separate restricted connection (option B, two DB URLs); running the event drain under per-event tenant context; RLS on `users`; FORCE RLS for owners.
