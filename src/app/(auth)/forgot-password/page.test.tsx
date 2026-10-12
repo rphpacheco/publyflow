@@ -14,7 +14,7 @@ describe("ForgotPasswordPage", () => {
   it("shows the expired notice only with expired=1", async () => {
     await renderPage({ expired: "1" });
     expect(screen.getByRole("status")).toHaveTextContent("Este link expirou ou já foi usado. Peça um novo link.");
-    expect(screen.getByRole("status")).toHaveTextContent("no mesmo navegador");
+    expect(screen.getByRole("status")).toHaveTextContent("Se o link já foi aberto (por exemplo, por um verificador de e-mail), peça um novo.");
   });
 
   it("shows no notice otherwise", async () => {

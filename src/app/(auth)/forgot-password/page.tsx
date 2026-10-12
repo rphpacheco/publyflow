@@ -11,7 +11,7 @@ export default async function ForgotPasswordPage({
       <h1 className="text-xl font-semibold">Redefinir senha</h1>
       {expired === "1" ? (
         <p role="status" className="max-w-sm text-center text-sm text-muted-foreground">
-          Este link expirou ou já foi usado. Peça um novo link. Abra o link no mesmo navegador em que você o pediu.
+          Este link expirou ou já foi usado. Peça um novo link. Se o link já foi aberto (por exemplo, por um verificador de e-mail), peça um novo.
         </p>
       ) : null}
       <ForgotPasswordForm />
