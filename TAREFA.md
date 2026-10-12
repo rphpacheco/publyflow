@@ -5,7 +5,15 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Em andamento
 
-- (nada — próximo: G. RLS valendo em runtime, aguardando ok)
+### G. RLS valendo em runtime
+- [x] Decisão: troca de role dentro da transação do tenant (`SET LOCAL ROLE publyflow_app`), sem conexão/senha nova; caminhos de sistema explícitos e privilegiados; chave `TENANT_RLS=off`
+- [x] Decisão: migrar todas as ~40 leituras de tenant fora do contexto nesta rodada + guarda
+- [x] Leituras entre organizações (checagens de conflito de convite) via funções `SECURITY DEFINER`
+- [x] Spec — `docs/superpowers/specs/2026-10-12-rls-runtime-design.md`
+- [ ] Revisão da spec pelo usuário
+- [ ] Plano de implementação
+- [ ] Implementação (subagentes) + revisão final
+- [ ] Merge + deploy (checagens só-leitura do role no Supabase → 0026 → push → verificar telas; `TENANT_RLS=off` se algo vier vazio)
 
 ## Concluído nesta fase (Senha)
 
@@ -159,7 +167,6 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 
 ## Próximos (na ordem combinada)
 
-### G. RLS valendo em runtime (spec própria)
 ### Não priorizado
 - [ ] Signup self-service que cria organização
 
