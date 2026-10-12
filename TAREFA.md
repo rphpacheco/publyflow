@@ -177,6 +177,7 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
+- [ ] API: `GET /api/opportunities`, `/api/commercial-inquiries`, `/api/rate-cards`, `/api/services` sem `?creatorId=` respondem 500 (`querySchema.parse` lança ZodError) — trocar por `safeParse` → 400 (defeito antigo, achado na verificação do RLS)
 - [ ] Senha: testar "Alterar senha" pelo menu da conta com e-mail real quando o limite do Supabase liberar (link deve ser aberto no mesmo navegador enquanto não houver SMTP próprio)
 - [ ] SMTP próprio no Supabase (Resend/Brevo/SES; exige domínio próprio): libera editar modelos de e-mail → trocar o link de "Reset password" para `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` (o código já suporta; link passa a funcionar em qualquer dispositivo), e-mails em português e limite de envio maior (também beneficia magic link)
 - [x] Equipe: testado em produção pelo usuário (2026-10-11) — convite de gestor, login como MANAGER e remoção → `/sem-acesso` funcionaram
