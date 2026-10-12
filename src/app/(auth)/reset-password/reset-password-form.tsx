@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { setNewPassword, type ResetPasswordState } from "./actions";
 
 const initialState: ResetPasswordState = { error: null, fieldErrors: {} };
-const EXPIRED = "Este link expirou ou já foi usado. Peça um novo link.";
 
 export function ResetPasswordForm() {
   const [state, formAction, pending] = React.useActionState(setNewPassword, initialState);
@@ -21,7 +20,7 @@ export function ResetPasswordForm() {
           <p role="alert" className="text-sm text-error">
             {state.error}
           </p>
-          {state.error === EXPIRED ? (
+          {state.code === "expired" ? (
             <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }))}>
               Pedir novo link
             </Link>

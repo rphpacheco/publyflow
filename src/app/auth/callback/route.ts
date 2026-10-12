@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next");
+  // A failed/expired reset link must not end in the Google error page.
+  const resetExpired = () => NextResponse.redirect(new URL("/forgot-password?expired=1", url.origin));
   if (!code) {
+    if (next === "reset") return resetExpired();
     // With sign-up off, Google for an e-mail missing from auth.users comes
     // back without a code; retrying never helps, so show the no-access page.
     const description = url.searchParams.get("error_description") ?? "";
@@ -26,6 +29,7 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !data.user) {
+    if (next === "reset") return resetExpired();
     return NextResponse.redirect(new URL("/login?error=oauth", url.origin));
   }
 

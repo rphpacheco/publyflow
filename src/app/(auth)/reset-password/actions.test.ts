@@ -40,7 +40,7 @@ import { AuthUnavailableError } from "@/lib/auth/errors";
 import { RESET_GRANT_COOKIE, createResetGrant } from "@/lib/auth/password-reset-grant";
 
 const prev = { error: null, fieldErrors: {} };
-const EXPIRED = "Este link expirou ou já foi usado. Peça um novo link.";
+import { RESET_EXPIRED_MESSAGE as EXPIRED } from "./messages";
 
 function form(password: string, confirm = password): FormData {
   const d = new FormData();
@@ -69,7 +69,7 @@ describe("setNewPassword", () => {
 
   it("rejects without a grant", async () => {
     store.clear();
-    expect(await setNewPassword(prev, form("12345678"))).toEqual({ error: EXPIRED, fieldErrors: {} });
+    expect(await setNewPassword(prev, form("12345678"))).toEqual({ error: EXPIRED, fieldErrors: {}, code: "expired" });
     expect(updateUser).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,21 @@ describe("setNewPassword", () => {
     const msg = { error: null, fieldErrors: { password: "A senha precisa ter entre 8 e 72 caracteres." } };
     expect(await setNewPassword(prev, form("1234567"))).toEqual(msg);
     expect(await setNewPassword(prev, form("a".repeat(73)))).toEqual(msg);
+    expect(await setNewPassword(prev, form("ã".repeat(40)))).toEqual(msg); // 40 chars, 80 bytes
     expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("accepts 72 ASCII characters", async () => {
+    await expect(setNewPassword(prev, form("a".repeat(72)))).rejects.toMatchObject({ url: "/pipeline?senha=ok" });
+  });
+
+  it.each(["reauthentication_needed", "reauth_nonce_missing"])("maps %s to a new-link prompt", async (code) => {
+    updateUser.mockResolvedValue({ error: { code, message: "raw" } });
+    expect(await setNewPassword(prev, form("12345678"))).toEqual({
+      error: "Por segurança, peça um novo link.",
+      fieldErrors: {},
+      code: "expired",
+    });
   });
 
   it("validates the confirmation", async () => {

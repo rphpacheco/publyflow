@@ -16,6 +16,10 @@ describe("/auth/signout", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("http://localhost:3000/login");
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("pf_pw_reset=;");
+    expect(cookie).toMatch(/max-age=0/i);
+    expect(cookie).toMatch(/path=\//i);
   });
 
   it("GET is 405 with Allow: POST and does not sign out", () => {

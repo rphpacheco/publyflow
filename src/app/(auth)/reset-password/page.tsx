@@ -3,6 +3,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { SessionUnavailable } from "@/components/auth/session-unavailable";
 import { cn } from "@/lib/utils";
 import { hasValidResetGrant } from "./grant-check";
+import { RESET_EXPIRED_MESSAGE } from "./messages";
 import { ResetPasswordForm } from "./reset-password-form";
 
 // Reads the session and the grant cookie on every request.
@@ -15,9 +16,8 @@ export default async function ResetPasswordPage() {
   if (check === "expired") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-        <p role="alert" className="max-w-sm text-sm text-muted-foreground">
-          Este link expirou ou já foi usado. Peça um novo link.
-        </p>
+        <h1 className="text-xl font-semibold">Redefinir senha</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">{RESET_EXPIRED_MESSAGE}</p>
         <Link href="/forgot-password" className={cn(buttonVariants({ variant: "outline" }))}>
           Pedir novo link
         </Link>

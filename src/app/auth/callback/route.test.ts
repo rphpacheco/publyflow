@@ -112,6 +112,34 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
   });
 
+  describe("failed reset links", () => {
+    it("sends next=reset errors without a code to /forgot-password?expired=1", async () => {
+      const { GET } = await importCallback({ exchange: { data: { user: null }, error: null }, session: null });
+      const response = await GET(
+        new Request("http://localhost:3000/auth/callback?next=reset&error=access_denied&error_code=otp_expired"),
+      );
+      expect(response.headers.get("location")).toBe("http://localhost:3000/forgot-password?expired=1");
+    });
+
+    it("sends a failing exchange with next=reset to /forgot-password?expired=1", async () => {
+      const { GET } = await importCallback({
+        exchange: { data: { user: null }, error: { message: "bad" } },
+        session: null,
+      });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?next=reset&code=x"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/forgot-password?expired=1");
+    });
+
+    it("keeps /login?error=oauth for a failing exchange without next", async () => {
+      const { GET } = await importCallback({
+        exchange: { data: { user: null }, error: { message: "bad" } },
+        session: null,
+      });
+      const response = await GET(new Request("http://localhost:3000/auth/callback?code=x"));
+      expect(response.headers.get("location")).toBe("http://localhost:3000/login?error=oauth");
+    });
+  });
+
   describe("password reset grant", () => {
     const exchange = {
       data: { user: { id: "a", email: "a@x.test", email_confirmed_at: "2026-01-01T00:00:00Z" } },

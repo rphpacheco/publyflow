@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-type State = { error: string | null; fieldErrors: { password?: string; confirm?: string } };
+type State = { error: string | null; fieldErrors: { password?: string; confirm?: string }; code?: "expired" };
 const { setNewPassword } = vi.hoisted(() => ({
   setNewPassword: vi.fn(async (): Promise<State> => ({ error: null, fieldErrors: {} })),
 }));
@@ -51,7 +51,11 @@ describe("ResetPasswordForm", () => {
   });
 
   it("offers a new link when the error is the expired one", async () => {
-    setNewPassword.mockResolvedValueOnce({ error: "Este link expirou ou já foi usado. Peça um novo link.", fieldErrors: {} });
+    setNewPassword.mockResolvedValueOnce({
+      error: "Este link expirou ou já foi usado. Peça um novo link.",
+      fieldErrors: {},
+      code: "expired",
+    });
     const user = userEvent.setup();
     render(<ResetPasswordForm />);
     await submit(user);

@@ -23,7 +23,9 @@ describe("ResetPasswordPage", () => {
   it("shows the expired block with the new-link button", async () => {
     check.mockResolvedValue("expired");
     await renderPage();
+    expect(screen.getByRole("heading", { name: "Redefinir senha" })).toBeInTheDocument();
     expect(screen.getByText("Este link expirou ou já foi usado. Peça um novo link.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Pedir novo link" })).toHaveAttribute("href", "/forgot-password");
   });
 
