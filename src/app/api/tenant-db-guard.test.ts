@@ -34,18 +34,11 @@ const REPOSITORY_ALLOW_LIST = new Map<string, string>([
 ]);
 
 // Files that may use the root connection directly (privileged, never switched to publyflow_app).
+// Only files that actually contain a direct `db.<query>(` belong here (asserted below).
 const DIRECT_DB_ALLOW_LIST = new Map<string, string>([
-  ["src/lib/auth/resolve-session.ts", "session resolution across memberships"],
-  ["src/lib/auth/complete-recovery-login.ts", "recovery login, before a tenant is known"],
-  ["src/app/(auth)/login/actions.ts", "login flow"],
-  ["src/app/auth/callback/route.ts", "auth callback"],
-  ["src/app/auth/confirm/route.ts", "auth confirm"],
-  ["src/app/api/internal/events/drain/route.ts", "cron outbox drain"],
   ["src/services/organization.service.ts", "organization bootstrap: the tenant does not exist yet"],
   ["src/services/event-drain.service.ts", "cross-organization outbox drain"],
-  ["src/lib/rate-limit.ts", "global rate-limit buckets"],
   ["src/lib/auth/provision-user.ts", "provisioning script"],
-  ["src/lib/auth/backfill-auth-users.ts", "backfill script"],
 ]);
 
 function listFiles(dir: string, skip: (full: string) => boolean = () => false): string[] {
@@ -184,6 +177,25 @@ describe("no direct root-db access in src/app, src/lib and src/services", () => 
       expect(fs.existsSync(path.join(ROOT, rel)), `stale allow-list entry ${rel}`).toBe(true);
     }
   });
+
+  it("every allow-list entry still contains a direct db.<query>( call", () => {
+    for (const rel of DIRECT_DB_ALLOW_LIST.keys()) {
+      const src = stripComments(fs.readFileSync(path.join(ROOT, rel), "utf8"));
+      expect(src, `unnecessary allow-list entry ${rel}`).toMatch(DIRECT_DB_RE);
+    }
+  });
+
+  // A root `db` handed to a `…WithTx` method would run unscoped (no tenant context, no publyflow_app).
+  const ROOT_DB_TO_WITHTX_RE = /\w+Repository\.\w+WithTx\(\s*db\b/m;
+  const ROOT_DB_TO_WITHTX_ALLOW_LIST = new Set<string>();
+
+  for (const file of files) {
+    const rel0 = path.relative(ROOT, file).split(path.sep).join("/");
+    if (ROOT_DB_TO_WITHTX_ALLOW_LIST.has(rel0)) continue;
+    it(`${rel0} does not pass the root db to a ...WithTx method`, () => {
+      expect(stripComments(fs.readFileSync(file, "utf8"))).not.toMatch(ROOT_DB_TO_WITHTX_RE);
+    });
+  }
 
   for (const file of files) {
     const rel = path.relative(ROOT, file).split(path.sep).join("/");
