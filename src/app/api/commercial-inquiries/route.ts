@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { CommercialInquiryService } from "@/services/commercial-inquiry.service";
 import { getRouteSession } from "@/lib/auth/http";
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     status: url.searchParams.get("status") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
   const scope = creatorScope(session);

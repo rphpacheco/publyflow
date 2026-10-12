@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { RateCardItemService } from "@/services/rate-card-item.service";
 import {
@@ -32,7 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
   const { rateCardId, ...input } = payload;
@@ -69,7 +70,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
 

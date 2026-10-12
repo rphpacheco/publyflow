@@ -82,14 +82,15 @@ describe("invalid input returns 400 instead of 500", () => {
       const route = await load(importRoute);
       const response = await call(route, "{");
       expect(response.status).toBe(400);
-      expect((await response.json()).errors).toBeDefined();
+      expect((await response.json()).errors).toEqual({ form: ["Corpo da requisição inválido."] });
     });
 
     it(`${method} ${path} with a schema violation -> 400 with errors`, async () => {
       const route = await load(importRoute);
       const response = await call(route, JSON.stringify({ proposalId: 123, creatorId: "nope", stage: 5, name: 5, title: 5, theme: "nope", status: "nope" }));
       expect(response.status).toBe(400);
-      expect((await response.json()).errors).toBeDefined();
+      const { errors } = await response.json();
+      expect(Object.keys(errors).length).toBeGreaterThan(0);
     });
   }
 });

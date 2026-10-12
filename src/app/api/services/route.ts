@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ServiceService } from "@/services/service.service";
 import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
 
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
   const service = await ServiceService.create(db, session.organizationId, {
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
   const list = await ServiceService.listByCreator(db, session.organizationId, payload.creatorId);

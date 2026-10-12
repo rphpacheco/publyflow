@@ -25,10 +25,13 @@ describe("API routes validate input with safeParse", () => {
 
   for (const file of sourceFiles) {
     const relativePath = path.relative(API_ROOT, file).split(path.sep).join("/");
-    it(`${relativePath} does not call schema.parse() on request input`, () => {
-      const source = fs.readFileSync(file, "utf8");
-      expect(source).not.toMatch(/\b\w+Schema\.parse\(/);
-      expect(source).not.toMatch(/\.parse\(await request\.json\(\)\)/);
+    it(`${relativePath} uses safeParse and a guarded request.json()`, () => {
+      const source = fs
+        .readFileSync(file, "utf8")
+        .replace(/JSON\.parse\(/g, "")
+        .replace(/\.safeParse(Async)?\(/g, "");
+      expect(source).not.toMatch(/\.parse(Async)?\(/);
+      expect(source).not.toMatch(/request\.json\(\)(?!\s*\.catch)/);
     });
   }
 });

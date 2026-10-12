@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ai } from "@/lib/ai";
 import { InboxService } from "@/services/inbox.service";
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
 

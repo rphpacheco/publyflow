@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
@@ -57,7 +58,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
 

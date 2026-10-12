@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { LeadService } from "@/services/lead.service";
 import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
   const list = await LeadService.listByCreator(db, session.organizationId, payload.creatorId);

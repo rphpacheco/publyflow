@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { getRouteSession } from "@/lib/auth/http";
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     stage: url.searchParams.get("stage") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ errors: z.flattenError(parsed.error).fieldErrors }, { status: 400 });
+    return validationError(parsed.error);
   }
   const payload = parsed.data;
 
