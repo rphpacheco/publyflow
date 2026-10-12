@@ -60,7 +60,7 @@ export function notificationCopy(
 
 async function owningCreatorUserId(tx: NodePgDatabase<typeof schema>, event: Pick<DomainEvent, "organizationId" | "payload">): Promise<string | null> {
   const payload = event.payload as { proposal_id: string };
-  const creatorId = await ProposalsRepository.creatorIdForProposal(tx, event.organizationId, payload.proposal_id);
+  const creatorId = await ProposalsRepository.creatorIdForProposalWithTx(tx, event.organizationId, payload.proposal_id);
   const [owner] = creatorId
     ? await tx
         .select({ userId: creators.userId })

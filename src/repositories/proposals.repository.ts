@@ -142,8 +142,16 @@ export const ProposalsRepository = {
     proposalId: string,
   ): Promise<string | null> {
     return runInTenantContext(db, organizationId, (tx) =>
-      selectCreatorIdForProposal(tx, organizationId, proposalId),
+      ProposalsRepository.creatorIdForProposalWithTx(tx, organizationId, proposalId),
     );
+  },
+
+  async creatorIdForProposalWithTx(
+    tx: NodePgDatabase<typeof schema>,
+    organizationId: string,
+    proposalId: string,
+  ): Promise<string | null> {
+    return selectCreatorIdForProposal(tx, organizationId, proposalId);
   },
 
   async isInCreatorScope(
