@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { OpportunityNotFoundError } from "@/domain/commercial-flow/errors";
@@ -55,7 +56,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = patchSchema.parse(await request.json());
+  const parsed = patchSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     const opportunity = await OpportunityService.changeStage(

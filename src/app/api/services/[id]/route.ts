@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ServiceService } from "@/services/service.service";
 import { ServiceNotFoundError } from "@/domain/rate-cards/errors";
@@ -26,7 +27,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = updateSchema.parse(await request.json());
+  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   try {
     const service = await ServiceService.update(db, session.organizationId, id, payload);
     return NextResponse.json(service, { status: 200 });

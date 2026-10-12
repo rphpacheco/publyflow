@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ServiceService } from "@/services/service.service";
 import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
@@ -19,7 +20,11 @@ export async function POST(request: Request) {
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = createSchema.parse(await request.json());
+  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   const service = await ServiceService.create(db, session.organizationId, {
     creatorId: payload.creatorId,
     name: payload.name,
@@ -40,9 +45,13 @@ export async function GET(request: Request) {
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = listQuerySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   const list = await ServiceService.listByCreator(db, session.organizationId, payload.creatorId);
   return NextResponse.json(list, { status: 200 });
 }

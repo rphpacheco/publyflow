@@ -31,21 +31,40 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Sair" })).toBeInTheDocument();
   });
 
-  it("Sair lives inside a POST form to /auth/signout", async () => {
-    await open();
-    const form = screen.getByRole("menuitem", { name: "Sair" }).closest("form");
+  // The sign-out form lives OUTSIDE the menu content: Radix unmounts the
+  // content when an item is selected, which in real browsers cancelled the
+  // submit of a form nested in the menu (logout did nothing).
+  function signOutForm(container: HTMLElement): HTMLFormElement {
+    const form = container.querySelector<HTMLFormElement>('form[action="/auth/signout"]');
     expect(form).not.toBeNull();
-    expect(form).toHaveAttribute("action", "/auth/signout");
-    expect(form?.method).toBe("post");
+    return form!;
+  }
+
+  it("keeps a POST form to /auth/signout outside the menu content", async () => {
+    const { container } = render(<AccountMenu />);
+    const form = signOutForm(container);
+    expect(form.method).toBe("post");
+    await userEvent.click(screen.getByRole("button", { name: "Conta" }));
+    expect(screen.getByRole("menuitem", { name: "Sair" }).closest("form")).toBeNull();
   });
 
-  it("Sair submits the form", async () => {
-    await open();
-    const form = screen.getByRole("menuitem", { name: "Sair" }).closest("form")!;
+  it.each([
+    ["mouse", async () => userEvent.click(screen.getByRole("menuitem", { name: "Sair" }))],
+    [
+      "keyboard",
+      async () => {
+        screen.getByRole("menuitem", { name: "Sair" }).focus();
+        await userEvent.keyboard("{Enter}");
+      },
+    ],
+  ])("selecting Sair with the %s submits the sign-out form", async (_how, select) => {
+    const { container } = render(<AccountMenu />);
+    const form = signOutForm(container);
     const submit = vi.fn((e: Event) => e.preventDefault());
     form.addEventListener("submit", submit);
-    await userEvent.click(screen.getByRole("menuitem", { name: "Sair" }));
-    expect(submit).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Conta" }));
+    await select();
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 
   it("toasts success with the e-mail", async () => {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ProposalService } from "@/services/proposal.service";
 import { ProposalNotFoundError, ProposalStatusTransitionError } from "@/domain/proposals/errors";
@@ -49,7 +50,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = updateSchema.parse(await request.json());
+  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     const proposal = await ProposalService.update(db, session.organizationId, id, {

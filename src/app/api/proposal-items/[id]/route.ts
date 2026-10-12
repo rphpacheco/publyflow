@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ProposalItemService } from "@/services/proposal-item.service";
 import { ProposalItemNotFoundError } from "@/domain/proposals/errors";
@@ -27,7 +28,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const { proposalId, ...input } = updateSchema.parse(await request.json());
+  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const { proposalId, ...input } = parsed.data;
 
   try {
     const item = await ProposalItemService.updateItem(db, session.organizationId, id, proposalId, {
@@ -57,7 +62,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = deleteSchema.parse(await request.json());
+  const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     await ProposalItemService.removeItem(db, session.organizationId, id, payload.proposalId, session.userId);

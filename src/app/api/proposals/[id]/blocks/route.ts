@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ProposalBlockService } from "@/services/proposal-block.service";
 import { ProposalNotFoundError } from "@/domain/proposals/errors";
@@ -57,7 +58,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     const block = await ProposalBlockService.addBlock(db, session.organizationId, {

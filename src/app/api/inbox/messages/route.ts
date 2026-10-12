@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ai } from "@/lib/ai";
 import { InboxService } from "@/services/inbox.service";
@@ -19,7 +20,11 @@ export async function POST(request: Request) {
   const session = await getRouteSession();
   if (session instanceof NextResponse) return session;
 
-  const payload = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     const result = await InboxService.ingestManualMessage(db, ai, session.organizationId, {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { ProposalService } from "@/services/proposal.service";
 import { OpportunitiesRepository } from "@/repositories/opportunities.repository";
@@ -22,7 +23,11 @@ export async function POST(request: Request) {
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = createSchema.parse(await request.json());
+  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   try {
     const proposal = await ProposalService.create(db, session.organizationId, {
@@ -49,9 +54,13 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    opportunityId: url.searchParams.get("opportunityId"),
+  const parsed = listQuerySchema.safeParse({
+    opportunityId: url.searchParams.get("opportunityId") ?? undefined,
   });
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   const scope = creatorScope(session);
   if (scope !== null) {

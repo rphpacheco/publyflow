@@ -183,7 +183,8 @@ Legenda: `[ ]` pendente · `[~]` em andamento · `[x]` concluído · `[-]` desca
 - [ ] Spec da Fase 1
 
 ### Menores / adiados
-- [ ] API: `GET /api/opportunities`, `/api/commercial-inquiries`, `/api/rate-cards`, `/api/services` sem `?creatorId=` respondem 500 (`querySchema.parse` lança ZodError) — trocar por `safeParse` → 400 (defeito antigo, achado na verificação do RLS)
+- [x] API: 500 em vez de 400 por validação — eram 24 `schema.parse` em 18 rotas (query e corpo JSON); agora `safeParse` → 400 `{ errors }` (JSON inválido → `form: "Corpo da requisição inválido."`) + guarda `zod-parse-guard.test.ts` (2026-10-12)
+- [x] Botão "Sair" do menu da conta não deslogava em navegador real (form dentro do menu Radix era desmontado antes do submit) → form fora do menu + `requestSubmit()`; testado no navegador (2026-10-12)
 - [ ] Senha: testar "Alterar senha" pelo menu da conta com e-mail real quando o limite do Supabase liberar (link deve ser aberto no mesmo navegador enquanto não houver SMTP próprio)
 - [ ] SMTP próprio no Supabase (Resend/Brevo/SES; exige domínio próprio): libera editar modelos de e-mail → trocar o link de "Reset password" para `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` (o código já suporta; link passa a funcionar em qualquer dispositivo), e-mails em português e limite de envio maior (também beneficia magic link)
 - [x] Equipe: testado em produção pelo usuário (2026-10-11) — convite de gestor, login como MANAGER e remoção → `/sem-acesso` funcionaram

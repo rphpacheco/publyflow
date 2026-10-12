@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { RateCardItemService } from "@/services/rate-card-item.service";
 import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
@@ -16,9 +17,13 @@ export async function GET(request: Request) {
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
-  const payload = listQuerySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = listQuerySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   const items = await RateCardItemService.listByCreator(db, session.organizationId, payload.creatorId);
   return NextResponse.json(items, { status: 200 });
 }

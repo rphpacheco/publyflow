@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { LeadService } from "@/services/lead.service";
 import { forbiddenResponse, getRouteSession } from "@/lib/auth/http";
@@ -16,9 +17,13 @@ export async function GET(request: Request) {
   if (!canManageOrganization(session.role)) return forbiddenResponse();
 
   const url = new URL(request.url);
-  const payload = querySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = querySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
   });
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   const list = await LeadService.listByCreator(db, session.organizationId, payload.creatorId);
   return NextResponse.json(list, { status: 200 });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { RateCardService } from "@/services/rate-card.service";
 import { RateCardNotFoundError } from "@/domain/rate-cards/errors";
@@ -23,7 +24,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const denied = denyCreatorWrite(session);
   if (denied) return denied;
 
-  const payload = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
   const result = await RateCardService.duplicate(db, session.organizationId, id, {
     name: payload.name,
   });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validationError } from "@/lib/api-validation";
 import { db } from "@/db";
 import { OpportunityService } from "@/services/opportunity.service";
 import { getRouteSession } from "@/lib/auth/http";
@@ -28,10 +29,14 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session;
 
   const url = new URL(request.url);
-  const payload = querySchema.parse({
-    creatorId: url.searchParams.get("creatorId"),
+  const parsed = querySchema.safeParse({
+    creatorId: url.searchParams.get("creatorId") ?? undefined,
     stage: url.searchParams.get("stage") ?? undefined,
   });
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+  const payload = parsed.data;
 
   const scope = creatorScope(session);
   const effectiveCreatorId = scope ?? payload.creatorId;
