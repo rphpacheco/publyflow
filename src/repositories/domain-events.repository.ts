@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/db/schema";
 import { domainEvents } from "@/db/schema/domain-events";
+import { runInTenantContext } from "./tenant-context";
 
 export type DomainEvent = typeof domainEvents.$inferSelect;
 
@@ -69,10 +70,12 @@ export const DomainEventsRepository = {
   },
 
   async listForEntity(db: NodePgDatabase<typeof schema>, organizationId: string, entityType: string, entityId: string): Promise<DomainEvent[]> {
-    return db
-      .select()
-      .from(domainEvents)
-      .where(and(eq(domainEvents.organizationId, organizationId), eq(domainEvents.entityType, entityType), eq(domainEvents.entityId, entityId)))
-      .orderBy(asc(domainEvents.occurredAt), sql`${domainEvents.id}`);
+    return runInTenantContext(db, organizationId, (tx) =>
+      tx
+        .select()
+        .from(domainEvents)
+        .where(and(eq(domainEvents.organizationId, organizationId), eq(domainEvents.entityType, entityType), eq(domainEvents.entityId, entityId)))
+        .orderBy(asc(domainEvents.occurredAt), sql`${domainEvents.id}`),
+    );
   },
 };
